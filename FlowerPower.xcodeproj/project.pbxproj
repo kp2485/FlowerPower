@@ -1,0 +1,593 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		D61DF4132AFC7F2800402AD9 /* FlowerPowerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4122AFC7F2800402AD9 /* FlowerPowerApp.swift */; };
+		D61DF4152AFC7F2800402AD9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4142AFC7F2800402AD9 /* ContentView.swift */; };
+		D61DF4172AFC7F2900402AD9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D61DF4162AFC7F2900402AD9 /* Assets.xcassets */; };
+		D61DF41A2AFC7F2900402AD9 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D61DF4192AFC7F2900402AD9 /* Preview Assets.xcassets */; };
+		D61DF4242AFC7F2900402AD9 /* FlowerPowerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4232AFC7F2900402AD9 /* FlowerPowerTests.swift */; };
+		D61DF42E2AFC7F2900402AD9 /* FlowerPowerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF42D2AFC7F2900402AD9 /* FlowerPowerUITests.swift */; };
+		D61DF4302AFC7F2900402AD9 /* FlowerPowerUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF42F2AFC7F2900402AD9 /* FlowerPowerUITestsLaunchTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D61DF4202AFC7F2900402AD9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D61DF4072AFC7F2800402AD9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D61DF40E2AFC7F2800402AD9;
+			remoteInfo = FlowerPower;
+		};
+		D61DF42A2AFC7F2900402AD9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D61DF4072AFC7F2800402AD9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D61DF40E2AFC7F2800402AD9;
+			remoteInfo = FlowerPower;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		D61DF40F2AFC7F2800402AD9 /* FlowerPower.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlowerPower.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D61DF4122AFC7F2800402AD9 /* FlowerPowerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowerPowerApp.swift; sourceTree = "<group>"; };
+		D61DF4142AFC7F2800402AD9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		D61DF4162AFC7F2900402AD9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D61DF4192AFC7F2900402AD9 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		D61DF41F2AFC7F2900402AD9 /* FlowerPowerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FlowerPowerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D61DF4232AFC7F2900402AD9 /* FlowerPowerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowerPowerTests.swift; sourceTree = "<group>"; };
+		D61DF4292AFC7F2900402AD9 /* FlowerPowerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FlowerPowerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D61DF42D2AFC7F2900402AD9 /* FlowerPowerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowerPowerUITests.swift; sourceTree = "<group>"; };
+		D61DF42F2AFC7F2900402AD9 /* FlowerPowerUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowerPowerUITestsLaunchTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D61DF40C2AFC7F2800402AD9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D61DF41C2AFC7F2900402AD9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D61DF4262AFC7F2900402AD9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D61DF4062AFC7F2800402AD9 = {
+			isa = PBXGroup;
+			children = (
+				D61DF4112AFC7F2800402AD9 /* FlowerPower */,
+				D61DF4222AFC7F2900402AD9 /* FlowerPowerTests */,
+				D61DF42C2AFC7F2900402AD9 /* FlowerPowerUITests */,
+				D61DF4102AFC7F2800402AD9 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D61DF4102AFC7F2800402AD9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D61DF40F2AFC7F2800402AD9 /* FlowerPower.app */,
+				D61DF41F2AFC7F2900402AD9 /* FlowerPowerTests.xctest */,
+				D61DF4292AFC7F2900402AD9 /* FlowerPowerUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D61DF4112AFC7F2800402AD9 /* FlowerPower */ = {
+			isa = PBXGroup;
+			children = (
+				D61DF4122AFC7F2800402AD9 /* FlowerPowerApp.swift */,
+				D61DF4142AFC7F2800402AD9 /* ContentView.swift */,
+				D61DF4162AFC7F2900402AD9 /* Assets.xcassets */,
+				D61DF4182AFC7F2900402AD9 /* Preview Content */,
+			);
+			path = FlowerPower;
+			sourceTree = "<group>";
+		};
+		D61DF4182AFC7F2900402AD9 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				D61DF4192AFC7F2900402AD9 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		D61DF4222AFC7F2900402AD9 /* FlowerPowerTests */ = {
+			isa = PBXGroup;
+			children = (
+				D61DF4232AFC7F2900402AD9 /* FlowerPowerTests.swift */,
+			);
+			path = FlowerPowerTests;
+			sourceTree = "<group>";
+		};
+		D61DF42C2AFC7F2900402AD9 /* FlowerPowerUITests */ = {
+			isa = PBXGroup;
+			children = (
+				D61DF42D2AFC7F2900402AD9 /* FlowerPowerUITests.swift */,
+				D61DF42F2AFC7F2900402AD9 /* FlowerPowerUITestsLaunchTests.swift */,
+			);
+			path = FlowerPowerUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D61DF40E2AFC7F2800402AD9 /* FlowerPower */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D61DF4332AFC7F2900402AD9 /* Build configuration list for PBXNativeTarget "FlowerPower" */;
+			buildPhases = (
+				D61DF40B2AFC7F2800402AD9 /* Sources */,
+				D61DF40C2AFC7F2800402AD9 /* Frameworks */,
+				D61DF40D2AFC7F2800402AD9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FlowerPower;
+			productName = FlowerPower;
+			productReference = D61DF40F2AFC7F2800402AD9 /* FlowerPower.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D61DF41E2AFC7F2900402AD9 /* FlowerPowerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D61DF4362AFC7F2900402AD9 /* Build configuration list for PBXNativeTarget "FlowerPowerTests" */;
+			buildPhases = (
+				D61DF41B2AFC7F2900402AD9 /* Sources */,
+				D61DF41C2AFC7F2900402AD9 /* Frameworks */,
+				D61DF41D2AFC7F2900402AD9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D61DF4212AFC7F2900402AD9 /* PBXTargetDependency */,
+			);
+			name = FlowerPowerTests;
+			productName = FlowerPowerTests;
+			productReference = D61DF41F2AFC7F2900402AD9 /* FlowerPowerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		D61DF4282AFC7F2900402AD9 /* FlowerPowerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D61DF4392AFC7F2900402AD9 /* Build configuration list for PBXNativeTarget "FlowerPowerUITests" */;
+			buildPhases = (
+				D61DF4252AFC7F2900402AD9 /* Sources */,
+				D61DF4262AFC7F2900402AD9 /* Frameworks */,
+				D61DF4272AFC7F2900402AD9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D61DF42B2AFC7F2900402AD9 /* PBXTargetDependency */,
+			);
+			name = FlowerPowerUITests;
+			productName = FlowerPowerUITests;
+			productReference = D61DF4292AFC7F2900402AD9 /* FlowerPowerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D61DF4072AFC7F2800402AD9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					D61DF40E2AFC7F2800402AD9 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					D61DF41E2AFC7F2900402AD9 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = D61DF40E2AFC7F2800402AD9;
+					};
+					D61DF4282AFC7F2900402AD9 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = D61DF40E2AFC7F2800402AD9;
+					};
+				};
+			};
+			buildConfigurationList = D61DF40A2AFC7F2800402AD9 /* Build configuration list for PBXProject "FlowerPower" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D61DF4062AFC7F2800402AD9;
+			productRefGroup = D61DF4102AFC7F2800402AD9 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D61DF40E2AFC7F2800402AD9 /* FlowerPower */,
+				D61DF41E2AFC7F2900402AD9 /* FlowerPowerTests */,
+				D61DF4282AFC7F2900402AD9 /* FlowerPowerUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D61DF40D2AFC7F2800402AD9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D61DF41A2AFC7F2900402AD9 /* Preview Assets.xcassets in Resources */,
+				D61DF4172AFC7F2900402AD9 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D61DF41D2AFC7F2900402AD9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D61DF4272AFC7F2900402AD9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D61DF40B2AFC7F2800402AD9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D61DF4152AFC7F2800402AD9 /* ContentView.swift in Sources */,
+				D61DF4132AFC7F2800402AD9 /* FlowerPowerApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D61DF41B2AFC7F2900402AD9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D61DF4242AFC7F2900402AD9 /* FlowerPowerTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D61DF4252AFC7F2900402AD9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D61DF42E2AFC7F2900402AD9 /* FlowerPowerUITests.swift in Sources */,
+				D61DF4302AFC7F2900402AD9 /* FlowerPowerUITestsLaunchTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D61DF4212AFC7F2900402AD9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D61DF40E2AFC7F2800402AD9 /* FlowerPower */;
+			targetProxy = D61DF4202AFC7F2900402AD9 /* PBXContainerItemProxy */;
+		};
+		D61DF42B2AFC7F2900402AD9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D61DF40E2AFC7F2800402AD9 /* FlowerPower */;
+			targetProxy = D61DF42A2AFC7F2900402AD9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		D61DF4312AFC7F2900402AD9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		D61DF4322AFC7F2900402AD9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		D61DF4342AFC7F2900402AD9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"FlowerPower/Preview Content\"";
+				DEVELOPMENT_TEAM = 588PCRUA35;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.LinwoodTechnologies.FlowerPower;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D61DF4352AFC7F2900402AD9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"FlowerPower/Preview Content\"";
+				DEVELOPMENT_TEAM = 588PCRUA35;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.LinwoodTechnologies.FlowerPower;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D61DF4372AFC7F2900402AD9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 588PCRUA35;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.LinwoodTechnologies.FlowerPowerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FlowerPower.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FlowerPower";
+			};
+			name = Debug;
+		};
+		D61DF4382AFC7F2900402AD9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 588PCRUA35;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.LinwoodTechnologies.FlowerPowerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FlowerPower.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FlowerPower";
+			};
+			name = Release;
+		};
+		D61DF43A2AFC7F2900402AD9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 588PCRUA35;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.LinwoodTechnologies.FlowerPowerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = FlowerPower;
+			};
+			name = Debug;
+		};
+		D61DF43B2AFC7F2900402AD9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 588PCRUA35;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.LinwoodTechnologies.FlowerPowerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = FlowerPower;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D61DF40A2AFC7F2800402AD9 /* Build configuration list for PBXProject "FlowerPower" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D61DF4312AFC7F2900402AD9 /* Debug */,
+				D61DF4322AFC7F2900402AD9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D61DF4332AFC7F2900402AD9 /* Build configuration list for PBXNativeTarget "FlowerPower" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D61DF4342AFC7F2900402AD9 /* Debug */,
+				D61DF4352AFC7F2900402AD9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D61DF4362AFC7F2900402AD9 /* Build configuration list for PBXNativeTarget "FlowerPowerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D61DF4372AFC7F2900402AD9 /* Debug */,
+				D61DF4382AFC7F2900402AD9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D61DF4392AFC7F2900402AD9 /* Build configuration list for PBXNativeTarget "FlowerPowerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D61DF43A2AFC7F2900402AD9 /* Debug */,
+				D61DF43B2AFC7F2900402AD9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D61DF4072AFC7F2800402AD9 /* Project object */;
+}
