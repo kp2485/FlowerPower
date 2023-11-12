@@ -9,11 +9,12 @@ import Foundation
 
 class Hive: ObservableObject {
     var cells: [HiveCell]
-
+    
     init(hiveLocation: HiveLocation, numberOfCells: Int) {
         self.cells = Array(repeating: HiveCell(), count: numberOfCells)
     }
     
+    // Function and computed properties for counting queens in each development stage
     private func countBees<T: Bee>(_ criteria: (T) -> Bool) -> Int {
         return cells.reduce(0) { result, cell in
             if case .bee(let bee) = cell.contents, let typedBee = bee as? T, criteria(typedBee) {
@@ -23,217 +24,144 @@ class Hive: ObservableObject {
         }
     }
     
-    // Computed properties for counting queens in each development stage
     var queensInEggStage: Int {
         return countBees { $0.type == .queen && $0.developmentStage == .egg }
     }
-
+    
     var queensInLarvaStage: Int {
         return countBees { $0.type == .queen && $0.developmentStage == .larva }
     }
-
+    
     var queensInPupaStage: Int {
         return countBees { $0.type == .queen && $0.developmentStage == .pupa }
     }
-
+    
     var queensInAdultStage: Int {
         return countBees { $0.type == .queen && $0.developmentStage == .adult }
     }
-
+    
     var dronesInEggStage: Int {
         return countBees { $0.type == .drone && $0.developmentStage == .egg }
     }
-
+    
     var dronesInLarvaStage: Int {
         return countBees { $0.type == .drone && $0.developmentStage == .larva }
     }
-
+    
     var dronesInPupaStage: Int {
         return countBees { $0.type == .drone && $0.developmentStage == .pupa }
     }
-
+    
     var dronesInAdultStage: Int {
         return countBees { $0.type == .drone && $0.developmentStage == .adult }
     }
-
+    
     var workersInEggStage: Int {
         return countBees { $0.type == .worker && $0.developmentStage == .egg }
     }
-
+    
     var workersInLarvaStage: Int {
         return countBees { $0.type == .worker && $0.developmentStage == .larva }
     }
-
+    
     var workersInPupaStage: Int {
         return countBees { $0.type == .worker && $0.developmentStage == .pupa }
     }
-
+    
     var workersInAdultStage: Int {
         return countBees { $0.type == .worker && $0.developmentStage == .adult }
     }
     
-    // Computed properties for counting worker jobs
+    // Function and computed properties for counting worker jobs
+    private func countWorkerBees(withJob job: WorkerJob) -> Int {
+        return cells.reduce(0) { result, cell in
+            if case .bee(let bee) = cell.contents, bee.type == .worker, bee.developmentStage == .adult, let worker = bee as? Worker, worker.jobs.contains(job) {
+                return result + 1
+            }
+            return result
+        }
+    }
+    
     var totalCellCleaners: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.cellCleaner) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .cellCleaner)
     }
-
+    
     var totalNurseBees: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.nurseBee) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .nurseBee)
     }
-
+    
     var totalMortuaryBees: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.mortuary) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .mortuary)
     }
-
+    
     var totalDroneFeeders: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.droneFeeder) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .droneFeeder)
     }
-
+    
     var totalQueenAttendants: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.queenAttendant) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .queenAttendant)
     }
-
+    
     var totalNectarConcentrators: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.nectarConcentrator) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .nectarConcentrator)
     }
-
+    
     var totalPollenPackers: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.pollenPacker) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .pollenPacker)
     }
-
+    
     var totalHoneycombBuilders: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.honeycombBuilder) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .honeycombBuilder)
     }
-
+    
     var totalFanningBees: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.fanning) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .fanning)
     }
-
+    
     var totalWaterCarriers: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.waterCarrier) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .waterCarrier)
     }
-
+    
     var totalGuardBees: Int {
-        return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.guardBee) {
-                return result + 1
-            }
-            return result
-        }
+        return countWorkerBees(withJob: .guardBee)
     }
-
+    
     var totalForagingBees: Int {
+        return countWorkerBees(withJob: .foragingBee)
+    }
+    
+    // Function and computed properties for counting resources
+    private func countResources(resourceType: ResourceType) -> Int {
         return cells.reduce(0) { result, cell in
-            if case .bee(let bee) = cell.contents, bee.type == .worker, let worker = bee as? Worker, worker.jobs.contains(.foragingBee) {
-                return result + 1
+            if case .resource(resourceType, let quantity) = cell.contents {
+                return result + quantity
             }
             return result
         }
     }
-
-    // Computed properties for counting resources
+    
     var totalNectar: Int {
-        return cells.reduce(0) { result, cell in
-            if case .resource(.nectar, let quantity) = cell.contents {
-                return result + quantity
-            }
-            return result
-        }
+        return countResources(resourceType: .nectar)
     }
-
+    
     var totalPollen: Int {
-        return cells.reduce(0) { result, cell in
-            if case .resource(.pollen, let quantity) = cell.contents {
-                return result + quantity
-            }
-            return result
-        }
+        return countResources(resourceType: .pollen)
     }
-
+    
     var totalWater: Int {
-        return cells.reduce(0) { result, cell in
-            if case .resource(.water, let quantity) = cell.contents {
-                return result + quantity
-            }
-            return result
-        }
+        return countResources(resourceType: .water)
     }
-
+    
     var totalPropolis: Int {
-        return cells.reduce(0) { result, cell in
-            if case .resource(.propolis, let quantity) = cell.contents {
-                return result + quantity
-            }
-            return result
-        }
+        return countResources(resourceType: .propolis)
     }
-
+    
     var totalWax: Int {
-        return cells.reduce(0) { result, cell in
-            if case .resource(.wax, let quantity) = cell.contents {
-                return result + quantity
-            }
-            return result
-        }
+        return countResources(resourceType: .wax)
     }
-
+    
     var totalRoyalJelly: Int {
-        return cells.reduce(0) { result, cell in
-            if case .resource(.royalJelly, let quantity) = cell.contents {
-                return result + quantity
-            }
-            return result
-        }
+        return countResources(resourceType: .royalJelly)
     }
     
     // Add functions for managing the cells, such as placing bees, larvae, pupae, and resources into the cells.
