@@ -9,6 +9,14 @@ import Foundation
 
 class Worker: Bee {
     var jobs: Set<WorkerJob> = []
+    
+    override var age: Int {
+        didSet {
+            if developmentStage == .adult {
+                assignJobs()
+            }
+        }
+    }
 
     init(age: Int = 0) {
         super.init(type: .worker, age: age)
