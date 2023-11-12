@@ -46,18 +46,6 @@ class Worker: Bee {
             break
         }
     }
-
-    // Function to remove jobs when a bee passes a certain age
-    func updateJobs() {
-        switch age {
-        case 35...:
-            jobs.remove(.waterCarrier)
-        case 42...:
-            jobs.remove(.foragingBee)
-        default:
-            break
-        }
-    }
 }
 
 enum WorkerJob {
