@@ -17,6 +17,7 @@
 		D61DF43E2AFEE01200402AD9 /* HiveModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF43D2AFEE01200402AD9 /* HiveModel.swift */; };
 		D61DF4402AFEE23A00402AD9 /* BeeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF43F2AFEE23A00402AD9 /* BeeModel.swift */; };
 		D61DF4442AFEE98700402AD9 /* WorkerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4432AFEE98700402AD9 /* WorkerModel.swift */; };
+		D61DF4462B00FE4500402AD9 /* BiomeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4452B00FE4500402AD9 /* BiomeModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +52,7 @@
 		D61DF43D2AFEE01200402AD9 /* HiveModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiveModel.swift; sourceTree = "<group>"; };
 		D61DF43F2AFEE23A00402AD9 /* BeeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeeModel.swift; sourceTree = "<group>"; };
 		D61DF4432AFEE98700402AD9 /* WorkerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerModel.swift; sourceTree = "<group>"; };
+		D61DF4452B00FE4500402AD9 /* BiomeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiomeModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -106,6 +108,7 @@
 				D61DF43D2AFEE01200402AD9 /* HiveModel.swift */,
 				D61DF43F2AFEE23A00402AD9 /* BeeModel.swift */,
 				D61DF4432AFEE98700402AD9 /* WorkerModel.swift */,
+				D61DF4452B00FE4500402AD9 /* BiomeModel.swift */,
 				D61DF4162AFC7F2900402AD9 /* Assets.xcassets */,
 				D61DF4182AFC7F2900402AD9 /* Preview Content */,
 				D61DF43C2AFC7F6800402AD9 /* Features.md */,
@@ -268,6 +271,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D61DF4462B00FE4500402AD9 /* BiomeModel.swift in Sources */,
 				D61DF4152AFC7F2800402AD9 /* ContentView.swift in Sources */,
 				D61DF43E2AFEE01200402AD9 /* HiveModel.swift in Sources */,
 				D61DF4402AFEE23A00402AD9 /* BeeModel.swift in Sources */,

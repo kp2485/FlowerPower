@@ -179,10 +179,10 @@ class HiveCell {
 
 struct HiveLocation {
     var coordinates: (x: Double, y: Double)
-    var type: HiveType
+    var locationType: HiveLocationType
 }
 
-enum HiveType {
+enum HiveLocationType {
     case livingTreeCavity
     case fallenTree
     case underTreeBranch
