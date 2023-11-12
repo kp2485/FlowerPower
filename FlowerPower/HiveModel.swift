@@ -195,3 +195,11 @@ enum HiveType {
     case nestbox
 }
 
+enum ResourceType {
+    case nectar
+    case pollen
+    case water
+    case propolis
+    case wax
+    case royalJelly
+}
