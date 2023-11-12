@@ -14,116 +14,63 @@ class Hive: ObservableObject {
         self.cells = Array(repeating: HiveCell(), count: numberOfCells)
     }
     
+    private func countBees<T: Bee>(_ criteria: (T) -> Bool) -> Int {
+        return cells.reduce(0) { result, cell in
+            if case .bee(let bee) = cell.contents, let typedBee = bee as? T, criteria(typedBee) {
+                return result + 1
+            }
+            return result
+        }
+    }
+    
     // Computed properties for counting queens in each development stage
-        var queensInEggStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .queen, bee.developmentStage == .egg {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var queensInEggStage: Int {
+        return countBees { $0.type == .queen && $0.developmentStage == .egg }
+    }
 
-        var queensInLarvaStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .queen, bee.developmentStage == .larva {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var queensInLarvaStage: Int {
+        return countBees { $0.type == .queen && $0.developmentStage == .larva }
+    }
 
-        var queensInPupaStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .queen, bee.developmentStage == .pupa {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var queensInPupaStage: Int {
+        return countBees { $0.type == .queen && $0.developmentStage == .pupa }
+    }
 
-        var queensInAdultStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .queen, bee.developmentStage == .adult {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var queensInAdultStage: Int {
+        return countBees { $0.type == .queen && $0.developmentStage == .adult }
+    }
 
-        // Computed properties for counting drones in each development stage
-        var dronesInEggStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .drone, bee.developmentStage == .egg {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var dronesInEggStage: Int {
+        return countBees { $0.type == .drone && $0.developmentStage == .egg }
+    }
 
-        var dronesInLarvaStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .drone, bee.developmentStage == .larva {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var dronesInLarvaStage: Int {
+        return countBees { $0.type == .drone && $0.developmentStage == .larva }
+    }
 
-        var dronesInPupaStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .drone, bee.developmentStage == .pupa {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var dronesInPupaStage: Int {
+        return countBees { $0.type == .drone && $0.developmentStage == .pupa }
+    }
 
-        var dronesInAdultStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .drone, bee.developmentStage == .adult {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var dronesInAdultStage: Int {
+        return countBees { $0.type == .drone && $0.developmentStage == .adult }
+    }
 
-        // Computed properties for counting workers in each development stage
-        var workersInEggStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .worker, bee.developmentStage == .egg {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var workersInEggStage: Int {
+        return countBees { $0.type == .worker && $0.developmentStage == .egg }
+    }
 
-        var workersInLarvaStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .worker, bee.developmentStage == .larva {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var workersInLarvaStage: Int {
+        return countBees { $0.type == .worker && $0.developmentStage == .larva }
+    }
 
-        var workersInPupaStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .worker, bee.developmentStage == .pupa {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var workersInPupaStage: Int {
+        return countBees { $0.type == .worker && $0.developmentStage == .pupa }
+    }
 
-        var workersInAdultStage: Int {
-            return cells.reduce(0) { result, cell in
-                if case .bee(let bee) = cell.contents, bee.type == .worker, bee.developmentStage == .adult {
-                    return result + 1
-                }
-                return result
-            }
-        }
+    var workersInAdultStage: Int {
+        return countBees { $0.type == .worker && $0.developmentStage == .adult }
+    }
     
     // Computed properties for counting worker jobs
     var totalCellCleaners: Int {
