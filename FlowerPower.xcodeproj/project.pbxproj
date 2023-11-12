@@ -14,6 +14,10 @@
 		D61DF4242AFC7F2900402AD9 /* FlowerPowerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4232AFC7F2900402AD9 /* FlowerPowerTests.swift */; };
 		D61DF42E2AFC7F2900402AD9 /* FlowerPowerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF42D2AFC7F2900402AD9 /* FlowerPowerUITests.swift */; };
 		D61DF4302AFC7F2900402AD9 /* FlowerPowerUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF42F2AFC7F2900402AD9 /* FlowerPowerUITestsLaunchTests.swift */; };
+		D61DF43E2AFEE01200402AD9 /* HiveModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF43D2AFEE01200402AD9 /* HiveModel.swift */; };
+		D61DF4402AFEE23A00402AD9 /* BeeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF43F2AFEE23A00402AD9 /* BeeModel.swift */; };
+		D61DF4422AFEE41D00402AD9 /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4412AFEE41D00402AD9 /* Enums.swift */; };
+		D61DF4442AFEE98700402AD9 /* WorkerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4432AFEE98700402AD9 /* WorkerModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -44,6 +48,11 @@
 		D61DF4292AFC7F2900402AD9 /* FlowerPowerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FlowerPowerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D61DF42D2AFC7F2900402AD9 /* FlowerPowerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowerPowerUITests.swift; sourceTree = "<group>"; };
 		D61DF42F2AFC7F2900402AD9 /* FlowerPowerUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowerPowerUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		D61DF43C2AFC7F6800402AD9 /* Features.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Features.md; sourceTree = "<group>"; };
+		D61DF43D2AFEE01200402AD9 /* HiveModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiveModel.swift; sourceTree = "<group>"; };
+		D61DF43F2AFEE23A00402AD9 /* BeeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeeModel.swift; sourceTree = "<group>"; };
+		D61DF4412AFEE41D00402AD9 /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
+		D61DF4432AFEE98700402AD9 /* WorkerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -96,8 +105,13 @@
 			children = (
 				D61DF4122AFC7F2800402AD9 /* FlowerPowerApp.swift */,
 				D61DF4142AFC7F2800402AD9 /* ContentView.swift */,
+				D61DF4412AFEE41D00402AD9 /* Enums.swift */,
+				D61DF43D2AFEE01200402AD9 /* HiveModel.swift */,
+				D61DF43F2AFEE23A00402AD9 /* BeeModel.swift */,
+				D61DF4432AFEE98700402AD9 /* WorkerModel.swift */,
 				D61DF4162AFC7F2900402AD9 /* Assets.xcassets */,
 				D61DF4182AFC7F2900402AD9 /* Preview Content */,
+				D61DF43C2AFC7F6800402AD9 /* Features.md */,
 			);
 			path = FlowerPower;
 			sourceTree = "<group>";
@@ -258,7 +272,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				D61DF4152AFC7F2800402AD9 /* ContentView.swift in Sources */,
+				D61DF43E2AFEE01200402AD9 /* HiveModel.swift in Sources */,
+				D61DF4422AFEE41D00402AD9 /* Enums.swift in Sources */,
+				D61DF4402AFEE23A00402AD9 /* BeeModel.swift in Sources */,
 				D61DF4132AFC7F2800402AD9 /* FlowerPowerApp.swift in Sources */,
+				D61DF4442AFEE98700402AD9 /* WorkerModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
