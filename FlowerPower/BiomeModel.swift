@@ -38,7 +38,7 @@ enum EnvironmentalFeature {
     case pond(cavityProbability: Double = 0.0)
     case stream(cavityProbability: Double = 0.0)
     case rockOutcropping(cavityProbability: Double = 0.5)
-    case waterfall(cavityProbability: Double = 0.0)
+    case waterfall(cavityProbability: Double = 0.75)
     case cave(cavityProbability: Double = 1.0)
     case house(cavityProbability: Double = 1.0)
     case garage(cavityProbability: Double = 1.0)

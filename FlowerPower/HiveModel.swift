@@ -173,7 +173,7 @@ class HiveCell {
     enum HiveCellContents {
         case empty
         case bee(Bee)
-        case resource(ResourceType, Int) // e.g., resource type and quantity
+        case resource(ResourceType, Int)
     }
 }
 
