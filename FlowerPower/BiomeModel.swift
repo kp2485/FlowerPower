@@ -14,7 +14,7 @@ class Biome {
     var environmentalFeatures: [EnvironmentalFeature]
     var flora: [PlantType]
     var fauna: [AnimalType]
-
+    
     init(name: String, terrain: TerrainType, environmentalFeatures: [EnvironmentalFeature], climate: ClimateType, flora: [PlantType], fauna: [AnimalType]) {
         self.name = name
         self.terrain = terrain
@@ -66,7 +66,7 @@ enum PlantType {
 
 
 
-enum AnimalType {
+enum AnimalType: CustomStringConvertible {
     // Non-predators
     case deer(isPredator: Bool = false)
     case rabbit(isPredator: Bool = false)
@@ -102,6 +102,41 @@ enum AnimalType {
     case honeyBadger(isPredator: Bool = true)
     case opossum(isPredator: Bool = true)
     case mountainLion(isPredator: Bool = true)
+    
+    var description: String {
+        switch self {
+        case .deer: return "Deer"
+        case .rabbit: return "Rabbit"
+        case .squirrel: return "Squirrel"
+        case .bison: return "Bison"
+        case .pronghorn: return "Pronghorn"
+        case .coyote: return "Coyote"
+        case .snake: return "Snake"
+        case .honeyBuzzard: return "Honey Buzzard"
+        case .human: return "Human"
+        case .bear: return "Bear"
+        case .skunk: return "Skunk"
+        case .raccoon: return "Raccoon"
+        case .mouse: return "Mouse"
+        case .beeEater: return "Bee Eater"
+        case .honeyGuide: return "Honey Guide"
+        case .nuthatch: return "Nuthatch"
+        case .flyCatcher: return "Fly Catcher"
+        case .woodpecker: return "Woodpecker"
+        case .wasp: return "Wasp"
+        case .mite: return "Mite"
+        case .preyingMantis: return "Preying Mantis"
+        case .dragonfly: return "Dragonfly"
+        case .cockroach: return "Cockroach"
+        case .earwig: return "Earwig"
+        case .ant: return "Ant"
+        case .waxMoth: return "Wax Moth"
+        case .crabSpider: return "Crab Spider"
+        case .hiveBeetle: return "Hive Beetle"
+        case .killerBee: return "Killer Bee"
+        case .honeyBadger: return "Honey Badger"
+        case .opossum: return "Opossum"
+        case .mountainLion: return "Mountain Lion"
+        }
+    }
 }
-
-
