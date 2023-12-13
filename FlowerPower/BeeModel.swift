@@ -36,7 +36,7 @@ class Bee {
     }
 }
 
-enum BeeType {
+enum BeeType: String {
     case queen
     case worker
     case drone

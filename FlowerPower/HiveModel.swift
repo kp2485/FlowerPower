@@ -10,8 +10,14 @@ import Foundation
 class Hive: ObservableObject {
     var cells: [HiveCell]
     
-    init(hiveLocation: HiveLocation, numberOfCells: Int) {
-        self.cells = Array(repeating: HiveCell(), count: numberOfCells)
+    init(hiveLocation: HiveLocation) {
+        self.cells = [
+            HiveCell(contents: .bee(.init(type: .queen, age: 10))),
+            HiveCell(contents: .bee(.init(type: .worker, age: 20))),
+            HiveCell(contents: .bee(.init(type: .worker, age: 20))),
+            HiveCell(contents: .bee(.init(type: .worker, age: 20))),
+            HiveCell(contents: .bee(.init(type: .worker, age: 20)))
+        ]
     }
     
     // Function and computed properties for counting queens in each development stage
@@ -167,7 +173,7 @@ class Hive: ObservableObject {
     // Add functions for managing the cells, such as placing bees, larvae, pupae, and resources into the cells.
 }
 
-class HiveCell {
+struct HiveCell {
     var contents: HiveCellContents = .empty
     
     enum HiveCellContents {
@@ -195,11 +201,11 @@ enum HiveLocationType {
     case nestbox
 }
 
-enum ResourceType {
+enum ResourceType: String {
     case nectar
     case pollen
     case water
     case propolis
     case wax
-    case royalJelly
+    case royalJelly = "royal jelly"
 }

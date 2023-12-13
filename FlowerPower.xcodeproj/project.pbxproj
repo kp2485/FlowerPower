@@ -18,6 +18,7 @@
 		D61DF4402AFEE23A00402AD9 /* BeeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF43F2AFEE23A00402AD9 /* BeeModel.swift */; };
 		D61DF4442AFEE98700402AD9 /* WorkerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4432AFEE98700402AD9 /* WorkerModel.swift */; };
 		D61DF4462B00FE4500402AD9 /* BiomeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4452B00FE4500402AD9 /* BiomeModel.swift */; };
+		D61DF4482B04631F00402AD9 /* HiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61DF4472B04631F00402AD9 /* HiveView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,6 +54,7 @@
 		D61DF43F2AFEE23A00402AD9 /* BeeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeeModel.swift; sourceTree = "<group>"; };
 		D61DF4432AFEE98700402AD9 /* WorkerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerModel.swift; sourceTree = "<group>"; };
 		D61DF4452B00FE4500402AD9 /* BiomeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiomeModel.swift; sourceTree = "<group>"; };
+		D61DF4472B04631F00402AD9 /* HiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiveView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -105,6 +107,7 @@
 			children = (
 				D61DF4122AFC7F2800402AD9 /* FlowerPowerApp.swift */,
 				D61DF4142AFC7F2800402AD9 /* ContentView.swift */,
+				D61DF4472B04631F00402AD9 /* HiveView.swift */,
 				D61DF43D2AFEE01200402AD9 /* HiveModel.swift */,
 				D61DF43F2AFEE23A00402AD9 /* BeeModel.swift */,
 				D61DF4432AFEE98700402AD9 /* WorkerModel.swift */,
@@ -277,6 +280,7 @@
 				D61DF4402AFEE23A00402AD9 /* BeeModel.swift in Sources */,
 				D61DF4132AFC7F2800402AD9 /* FlowerPowerApp.swift in Sources */,
 				D61DF4442AFEE98700402AD9 /* WorkerModel.swift in Sources */,
+				D61DF4482B04631F00402AD9 /* HiveView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

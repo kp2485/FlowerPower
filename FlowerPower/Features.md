@@ -84,9 +84,10 @@
 - Each game starts with a queen, 2 drones and 3 workers.
 - The queen must first find a hive location and direct the workers to build a hive.
 - Ultimate goal is to grow and protect the hive, especially the queen.
-- 2 game phases:
-    - Growth phase (grow the hive, expand territory)
-    - Defense phase (defend against onslaught of creatures)
+- 2 main objectives: ()
+    - Growth (grow the hive, expand territory)
+    - Defense (defend against onslaught of creatures)
+- After accomplishing certain objectives in one grid square, users can create a new queen and migrate out to a new area, where they will find a location for a new hive and start over with slightly different challenges. Users can go back to previously colonized squares. Possible periodic defense of old grid squares.
 - Resources:
     - Nectar (flowers)
     - Pollen (flowers)
@@ -124,12 +125,15 @@
 ## INTERFACE: 
 
 - Main views:
-    - MapView (includes player hive, other hives, DCAs and all nearby resources/creatures)
+    - MapView (local area includes player hive, other hives, drone congregation areas and all nearby resources/creatures)
         - tap on entities (flowers, trees, houses, farms, etc...) to send bees
         - map starts undiscovered and a fog of war exists after bees depart an area
         - sandbox which extends beyond what is displayed on the screen
         - similar to Maps, there is a compass button which will center the map on the hive with the first tap and display hive details with a second tap
-    - HiveDefenseView (tower defense for the hive)
+    - WorldMapView
+        - grid of varying terrain types and respective maps which the player progresses through over time
+        - difficulty level for each grid square
+    - HiveDefenseView ?? (tower defense for the hive)
     - HiveInteriorView (hex cells for each larva/bee)
         - entrance where resources are deposited
         - tap cell to see details of inhabitant, cleanliness and any diseases present
