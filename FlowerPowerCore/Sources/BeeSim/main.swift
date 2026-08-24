@@ -1,0 +1,270 @@
+//
+//  main.swift
+//  BeeSim
+//
+//  Headless balance tooling. Runs a colony for a chosen number of simulated
+//  days and prints its trajectory, so tuning is driven by observed behaviour
+//  rather than by guessing at constants.
+//
+//  Usage:
+//    beesim [--days N] [--patches N] [--distance M] [--seed N]
+//           [--preset standard|gentle|harsh] [--site <name>] [--every N]
+//
+
+import Foundation
+import FlowerPowerCore
+
+// MARK: - Arguments
+
+struct Options {
+    var days = 365
+    var patches = 12
+    var distance = 400.0
+    var seed: UInt64 = 42
+    var preset = "standard"
+    var site = "livingTreeCavity"
+    var every = 15
+    var restockEvery = 0
+    var trials = 0
+
+    static func parse(_ arguments: [String]) -> Options {
+        var options = Options()
+        var index = 0
+
+        while index < arguments.count {
+            let flag = arguments[index]
+            let value = index + 1 < arguments.count ? arguments[index + 1] : nil
+
+            switch flag {
+            case "--days": options.days = Int(value ?? "") ?? options.days
+            case "--patches": options.patches = Int(value ?? "") ?? options.patches
+            case "--distance": options.distance = Double(value ?? "") ?? options.distance
+            case "--seed": options.seed = UInt64(value ?? "") ?? options.seed
+            case "--preset": options.preset = value ?? options.preset
+            case "--site": options.site = value ?? options.site
+            case "--every": options.every = Int(value ?? "") ?? options.every
+            case "--restock": options.restockEvery = Int(value ?? "") ?? options.restockEvery
+            case "--trials": options.trials = Int(value ?? "") ?? options.trials
+            default: break
+            }
+            index += 2
+        }
+        return options
+    }
+
+    var config: SimulationConfig {
+        switch preset {
+        case "gentle": return .gentle
+        case "harsh": return .harsh
+        default: return .standard
+        }
+    }
+
+    var locationType: HiveLocationType {
+        HiveLocationType(rawValue: site) ?? .livingTreeCavity
+    }
+}
+
+let options = Options.parse(Array(CommandLine.arguments.dropFirst()))
+
+// MARK: - Setup
+
+let start = Date(timeIntervalSince1970: 1_700_000_000)
+
+let clover = FlowerSpecies(
+    id: "clover", commonName: "White Clover",
+    rarity: .common, nectarRichness: 1.2, pollenRichness: 1.0,
+    bloomSeasons: [.spring, .summer, .autumn]
+)
+let willow = FlowerSpecies(
+    id: "willow", commonName: "Pussy Willow",
+    rarity: .uncommon, nectarRichness: 0.8, pollenRichness: 1.8,
+    bloomSeasons: [.spring], isKeystone: true
+)
+let heather = FlowerSpecies(
+    id: "heather", commonName: "Heather",
+    rarity: .uncommon, nectarRichness: 1.6, pollenRichness: 0.8,
+    bloomSeasons: [.autumn], isKeystone: true
+)
+let bramble = FlowerSpecies(
+    id: "bramble", commonName: "Bramble",
+    rarity: .common, nectarRichness: 1.4, pollenRichness: 1.1,
+    bloomSeasons: [.summer, .autumn]
+)
+
+/// A spread of species, so the colony faces a realistic succession of forage
+/// rather than one flower that blooms all year.
+let palette = [clover, willow, heather, bramble]
+
+var simulation = Simulation.newGame(
+    at: HiveLocation(type: options.locationType),
+    startingAt: start,
+    config: options.config,
+    seed: options.seed
+)
+
+func stockPatches(_ count: Int, tag: String) {
+    for index in 0..<count {
+        simulation.registerPhotograph(
+            photoLocalIdentifier: "\(tag)-\(index)",
+            species: palette[index % palette.count],
+            confidence: 0.9,
+            coordinate: nil,
+            takenAt: start,
+            distanceMetres: options.distance
+        )
+    }
+}
+
+// MARK: - Trial mode
+
+if options.trials > 0 {
+    let outcomes = Trials.run(
+        trials: options.trials,
+        days: options.days,
+        patches: options.patches,
+        distance: options.distance,
+        restockEvery: options.restockEvery,
+        config: options.config,
+        site: options.locationType,
+        palette: palette,
+        start: start
+    )
+    Trials.report(outcomes, days: options.days)
+    exit(0)
+}
+
+stockPatches(options.patches, tag: "initial")
+
+// MARK: - Report
+
+func pad(_ text: String, _ width: Int) -> String {
+    text.count >= width
+        ? String(text.prefix(width))
+        : text + String(repeating: " ", count: width - text.count)
+}
+
+func padLeft(_ text: String, _ width: Int) -> String {
+    text.count >= width
+        ? String(text.prefix(width))
+        : String(repeating: " ", count: width - text.count) + text
+}
+
+/// Queen status at a glance: laying, virgin, laying workers, or gone.
+func queenGlyph(_ hive: Hive) -> String {
+    if hive.hasLayingQueen { return "L" }
+    if hive.hasVirginQueen { return "v" }
+    if hive.hasLayingWorkers { return "LW" }
+    return "-"
+}
+
+func number(_ value: Double, _ decimals: Int = 0) -> String {
+    String(format: "%.\(decimals)f", value)
+}
+
+print("""
+FlowerPower colony trajectory
+  preset \(options.preset) · site \(options.site) · seed \(options.seed)
+  \(options.patches) patches at \(number(options.distance))m · \(options.days) days
+
+""")
+
+let header = pad("day", 5) + pad("season", 8) + padLeft("pop", 5) + padLeft("adult", 6)
+    + padLeft("brood", 6) + padLeft("honey", 7) + padLeft("pollen", 7) + padLeft("cells", 6)
+    + padLeft("temp", 6) + padLeft("mites", 7) + padLeft("vit", 6) + padLeft("Q", 4) + padLeft("qvit", 6) + padLeft("rjel", 6) + "  notes"
+print(header)
+print(String(repeating: "-", count: header.count + 10))
+
+var totals = CatchUpReport()
+var swarms = 0
+var collapsedOn: Int?
+var peakPopulation = 0
+var lowestHoney = Double.infinity
+
+for day in 0..<options.days {
+    let events = simulation.stepDay()
+
+    var notes: [String] = []
+    for event in events {
+        totals.record(event)
+        switch event {
+        case .swarmed(let lost):
+            swarms += 1
+            notes.append("SWARM (-\(lost))")
+        case .absconded(let lost):
+            notes.append("ABSCONDED (-\(lost))")
+        case .queenLost: notes.append("QUEEN LOST")
+        case .queenEmerged: notes.append("new queen")
+        case .queenMated(let patrilines): notes.append("mated x\(patrilines)")
+        case .matingFlightFailed: notes.append("MATING FAILED")
+        case .supersededQueen: notes.append("superseded")
+        case .layingWorkersAppeared: notes.append("LAYING WORKERS")
+        case .infectionDetected(let pathogen): notes.append("+\(pathogen.rawValue)")
+        case .infectionCritical(let pathogen): notes.append("!!\(pathogen.rawValue)")
+        case .raidSucceeded(let predator, _): notes.append("raided by \(predator.rawValue)")
+        case .colonyCollapsed:
+            if collapsedOn == nil { collapsedOn = day }
+            notes.append("COLLAPSED")
+        case .winterStoresLow(let have, let need):
+            notes.append("stores \(number(have))/\(number(need))")
+        default: break
+        }
+    }
+
+    peakPopulation = max(peakPopulation, simulation.hive.population)
+    lowestHoney = min(lowestHoney, simulation.hive.resources[.honey])
+
+    if options.restockEvery > 0, day % options.restockEvery == 0, day > 0 {
+        simulation.pruneDepletedPatches()
+        stockPatches(max(1, options.patches / 3), tag: "day\(day)")
+        notes.append("restocked")
+    }
+
+    let uniqueNotes = Array(NSOrderedSet(array: notes)).compactMap { $0 as? String }
+    let shouldPrint = day % options.every == 0 || !uniqueNotes.isEmpty
+
+    if shouldPrint {
+        let hive = simulation.hive
+        let line = pad("\(day)", 5)
+            + pad(simulation.season.rawValue, 8)
+            + padLeft("\(hive.population)", 5)
+            + padLeft("\(hive.adultCount)", 6)
+            + padLeft("\(hive.broodCount)", 6)
+            + padLeft(number(hive.resources[.honey]), 7)
+            + padLeft(number(hive.resources[.pollen]), 7)
+            + padLeft("\(hive.comb.builtCells)", 6)
+            + padLeft(number(hive.temperatureCelsius, 1), 6)
+            + padLeft(number(hive.pathogens[.varroa] * 100), 6) + "%"
+            + padLeft(number(hive.averageVitality, 2), 6)
+            + padLeft(queenGlyph(hive), 4)
+            + padLeft(number(hive.queen?.vitality ?? 0, 2), 6)
+            + padLeft(number(hive.resources[.royalJelly], 1), 6)
+            + "  " + uniqueNotes.prefix(3).joined(separator: ", ")
+        print(line)
+    }
+
+    if simulation.hive.bees.isEmpty { break }
+}
+
+// MARK: - Summary
+
+let hive = simulation.hive
+print("")
+print(String(repeating: "=", count: 60))
+print("Survived:          \(hive.bees.isEmpty ? "NO" : "yes")\(collapsedOn.map { " (collapse flagged day \($0))" } ?? "")")
+print("Final population:  \(hive.population)  (peak \(peakPopulation))")
+print("Queenright:        \(hive.isQueenright ? (hive.queenIsMated ? "yes" : "virgin") : "NO")")
+print("Comb drawn:        \(hive.comb.builtCells) / \(hive.maximumCells)")
+print("Honey:             \(number(hive.resources[.honey]))  (lowest \(number(max(0, lowestHoney))))")
+print("Edible energy:     \(number(hive.resources.edibleEnergy)) / \(number(hive.winterStoresRequired)) needed for winter")
+print("Average vitality:  \(number(hive.averageVitality, 2))")
+print("Varroa load:       \(number(hive.pathogens[.varroa] * 100, 1))%")
+print("Swarms:            \(swarms)")
+print("Eggs laid:         \(totals.eggsLaid)")
+print("Emerged:           \(totals.totalEmerged)")
+print("Died:              \(totals.totalDeaths)")
+for (cause, count) in totals.died.sorted(by: { $0.value > $1.value }) {
+    print("   \(pad(cause.rawValue, 16)) \(count)")
+}
+print("Grounded days:     \(totals.groundedDays)")
+print("Stores raided:     \(number(totals.storesRaided))")
