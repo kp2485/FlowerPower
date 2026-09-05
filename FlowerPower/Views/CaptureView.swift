@@ -56,7 +56,17 @@ struct CaptureView: View {
                 case .identifying(let image):
                     IdentifyingView(image: image)
                 case .result(let result):
-                    ResultView(result: result) { dismiss() }
+                    ResultView(
+                        result: result,
+                        onCorrect: { species, confidence in
+                            store.attachIdentification(
+                                species,
+                                confidence: confidence,
+                                to: result.patchID
+                            )
+                        },
+                        onDone: { dismiss() }
+                    )
                 case .rejected(let image):
                     RejectedView(image: image) { stage = .choosing }
                 case .failed(let message):
@@ -249,7 +259,13 @@ private struct IdentifyingView: View {
 private struct ResultView: View {
 
     let result: CaptureView.CaptureResult
+    var onCorrect: (FlowerSpecies, Double) -> Void
     var onDone: () -> Void
+
+    @State private var isNaming = false
+    /// What the player has settled on, so the card reflects a correction
+    /// immediately rather than waiting for the next snapshot.
+    @State private var corrected: FlowerSpecies?
 
     var body: some View {
         ScrollView {
@@ -260,14 +276,20 @@ private struct ResultView: View {
                     .frame(maxHeight: 280)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
 
-                if let species = result.identification.species {
+                if let species = corrected ?? result.identification.species {
                     IdentifiedCard(
                         species: species,
-                        confidence: result.identification.confidence,
-                        alternatives: result.identification.alternatives
+                        confidence: corrected == nil
+                            ? result.identification.confidence
+                            : SpeciesPickerView.manualConfidence,
+                        alternatives: corrected == nil
+                            ? result.identification.alternatives
+                            : [],
+                        onPick: correct,
+                        onNameItYourself: { isNaming = true }
                     )
                 } else {
-                    UnidentifiedCard()
+                    UnidentifiedCard(onNameItYourself: { isNaming = true })
                 }
 
                 if !result.hasLocation {
@@ -288,6 +310,16 @@ private struct ResultView: View {
             }
             .padding()
         }
+        .sheet(isPresented: $isNaming) {
+            SpeciesPickerView { species in
+                correct(to: species, confidence: SpeciesPickerView.manualConfidence)
+            }
+        }
+    }
+
+    private func correct(to species: FlowerSpecies, confidence: Double) {
+        corrected = species
+        onCorrect(species, confidence)
     }
 }
 
@@ -296,6 +328,8 @@ private struct IdentifiedCard: View {
     let species: FlowerSpecies
     let confidence: Double
     let alternatives: [FlowerIdentification.Alternative]
+    var onPick: (FlowerSpecies, Double) -> Void
+    var onNameItYourself: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -334,11 +368,30 @@ private struct IdentifiedCard: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
 
+            // Offered as buttons rather than prose. The runners-up were
+            // already being computed and shown, but only as a sentence, so a
+            // player who could see the answer was wrong had no way to say so.
             if !alternatives.isEmpty {
-                Text("Might also be: \(alternatives.map(\.species.commonName).formatted(.list(type: .or)))")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Might also be")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+
+                    HStack(spacing: 8) {
+                        ForEach(alternatives, id: \.species.id) { alternative in
+                            Button(alternative.species.commonName) {
+                                onPick(alternative.species, alternative.confidence)
+                            }
+                            .font(.caption)
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
             }
+
+            Button("Something else", action: onNameItYourself)
+                .font(.caption)
+                .tint(Theme.honey)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
@@ -346,6 +399,9 @@ private struct IdentifiedCard: View {
 }
 
 private struct UnidentifiedCard: View {
+
+    var onNameItYourself: () -> Void
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("A flower, but we cannot name it", systemImage: "questionmark.circle")
@@ -354,6 +410,11 @@ private struct UnidentifiedCard: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Button("Name It Yourself", action: onNameItYourself)
+                .buttonStyle(.bordered)
+                .tint(Theme.honey)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()

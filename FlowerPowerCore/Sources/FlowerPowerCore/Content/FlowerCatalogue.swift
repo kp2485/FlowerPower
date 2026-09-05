@@ -247,23 +247,50 @@ public enum FlowerCatalogue {
 
     /// Best-effort match for a free-text label, for classifiers whose output
     /// does not use our identifiers.
+    ///
+    /// Tried in descending order of confidence, and it stops at the first
+    /// answer rather than scoring: an exact identifier, an exact name, a known
+    /// synonym, and only then a phrase inside a longer label. See
+    /// `ClassifierLabels` for why the last of those is fussier than it looks.
     public static func match(label: String) -> FlowerSpecies? {
-        let needle = label
-            .lowercased()
-            .replacingOccurrences(of: "_", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let needle = ClassifierLabels.normalise(label)
+        guard !needle.isEmpty else { return nil }
 
+        // Our own identifier, as `white_clover` or `white clover`.
         if let exact = index[needle.replacingOccurrences(of: " ", with: "_")] {
             return exact
         }
 
-        return all.first { species in
-            let common = species.commonName.lowercased()
-            let scientific = species.scientificName?.lowercased() ?? ""
-            return common == needle
-                || scientific == needle
-                || common.contains(needle)
-                || needle.contains(common)
+        // An exact common or scientific name.
+        if let exact = all.first(where: { species in
+            ClassifierLabels.normalise(species.commonName) == needle
+                || species.scientificName.map { ClassifierLabels.normalise($0) == needle } == true
+        }) {
+            return exact
         }
+
+        // A known synonym from another vocabulary.
+        if let id = ClassifierLabels.index[needle], let species = index[id] {
+            return species
+        }
+
+        // A name sitting inside a longer label — "purple coneflower echinacea
+        // purpurea", say, or a dataset that prefixes a family. Whole words
+        // only, and only for phrases specific enough to be worth trusting.
+        let candidates: [(phrase: String, id: String)] =
+            ClassifierLabels.aliases.flatMap { id, names in
+                names.map { (ClassifierLabels.normalise($0), id) }
+            }
+            + all.map { (ClassifierLabels.normalise($0.commonName), $0.id) }
+
+        // Longest first, so "winter heath" is preferred over "heath" and a
+        // more specific reading always wins.
+        let match = candidates
+            .filter { $0.phrase.components(separatedBy: " ").count
+                >= ClassifierLabels.minimumWordsForPhraseMatch }
+            .sorted { $0.phrase.count > $1.phrase.count }
+            .first { ClassifierLabels.containsWholePhrase($0.phrase, in: needle) }
+
+        return match.flatMap { index[$0.id] }
     }
 }
