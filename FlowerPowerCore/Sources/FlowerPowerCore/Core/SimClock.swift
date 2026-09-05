@@ -17,9 +17,26 @@ public struct SimClock: Codable, Equatable, Sendable {
     public static let ticksPerDay = 24
 
     /// Real seconds that must elapse to advance one tick.
-    /// Default: 5 real minutes per simulated hour, so one simulated day
-    /// costs two real hours.
+    ///
+    /// 5 real minutes per simulated hour, so a simulated day costs two real
+    /// hours and a simulated year about thirty real days. This is a deliberate
+    /// choice rather than a leftover, and it is a compromise between two
+    /// things that pull opposite ways:
+    ///
+    /// - A player who opens the app once a day should find the colony visibly
+    ///   changed. At this rate twelve simulated days pass between daily
+    ///   visits, which is most of a build-up or most of a dearth.
+    /// - Winter is a quarter of the year and there is nothing to photograph in
+    ///   it, so it is the one stretch that can bore. At this rate it lasts
+    ///   about a week of real time, which is survivable. Slowing the clock to
+    ///   make the good seasons last also makes winter drag, so the answer to a
+    ///   dull winter is to give the player something to do in it, not to
+    ///   change this number.
     public var realSecondsPerTick: Double
+
+    /// The shipped rate, named so the reasoning above has somewhere to live
+    /// and so tests can talk about real time without restating it.
+    public static let defaultRealSecondsPerTick: Double = 300
 
     /// Real-world instant that tick 0 occurred at.
     public var epoch: Date
@@ -29,13 +46,28 @@ public struct SimClock: Codable, Equatable, Sendable {
 
     /// Ceiling on how much time a single catch-up will simulate, so returning
     /// after a six-month absence cannot lock the app up in a stepping loop.
+    ///
+    /// Everything past the ceiling is *skipped*: `resynchronize(to:)` jumps
+    /// the clock forward and the colony never lives those days. That is a lie
+    /// told to the player, so the ceiling should be as high as the engine can
+    /// afford rather than as low as is comfortable.
     public var maxCatchUpDays: Int
+
+    /// Days of backlog a single catch-up will simulate.
+    ///
+    /// Was 30, which is only two and a half real days of absence — a long
+    /// weekend away and the colony was quietly teleported. 180 covers a
+    /// fortnight away, and is affordable: catching up the full ceiling is
+    /// measured in `CatchUpPerformanceTests`, which holds it to a budget the
+    /// watch's widget extension can meet on much slower hardware than the
+    /// machine the figure was taken on.
+    public static let defaultMaxCatchUpDays = 180
 
     public init(
         epoch: Date,
         tick: Int = 0,
-        realSecondsPerTick: Double = 300,
-        maxCatchUpDays: Int = 30
+        realSecondsPerTick: Double = SimClock.defaultRealSecondsPerTick,
+        maxCatchUpDays: Int = SimClock.defaultMaxCatchUpDays
     ) {
         self.epoch = epoch
         self.tick = tick

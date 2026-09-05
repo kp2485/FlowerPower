@@ -264,6 +264,107 @@ final class GameStoreTests: XCTestCase {
         XCTAssertNotNil(store.lastError, "but the player is told")
     }
 
+    // MARK: - Collapse
+
+    /// A founding colony with nothing to eat dies. It is the simplest way to
+    /// reach the collapsed state, and it is also what happens to a real player
+    /// who never photographs anything.
+    private func collapsedStore(
+        persistence: GamePersisting = InMemoryPersistence()
+    ) -> (GameStore, TestClock) {
+        let (store, clock) = makeStore(persistence: persistence)
+
+        // Advanced in bites rather than one jump, because a single catch-up is
+        // capped at the ceiling. Bounded so a colony that somehow survives
+        // fails the test rather than hanging it.
+        for _ in 0..<8 where !store.isCollapsed {
+            clock.advance(simulatedDays: 120)
+            store.catchUp()
+        }
+        return (store, clock)
+    }
+
+    func testAColonyWithNothingToEatCollapses() async {
+        let (store, _) = collapsedStore()
+
+        XCTAssertEqual(store.snapshot.status, .collapsed)
+        XCTAssertTrue(store.isCollapsed)
+        XCTAssertEqual(store.snapshot.headline, "The colony is gone.")
+    }
+
+    /// Collapsed is not the same as critical, and the difference is the whole
+    /// reason the case exists: critical is a colony the player might still
+    /// save, collapsed is one they cannot.
+    func testCollapsedSortsBelowCritical() async {
+        XCTAssertLessThan(ColonyStatus.collapsed, ColonyStatus.critical)
+        XCTAssertFalse(ColonyStatus.collapsed.isAlive)
+        XCTAssertTrue(ColonyStatus.critical.isAlive)
+    }
+
+    /// Returning to a colony that died a fortnight ago should show the death
+    /// once, not a fresh report about the fortnight of nothing since.
+    func testNoFurtherReportsOnceTheColonyIsGone() async {
+        let (store, clock) = collapsedStore()
+        store.dismissReport()
+
+        clock.advance(simulatedDays: 20)
+        store.catchUp()
+
+        XCTAssertNil(store.pendingReport)
+    }
+
+    func testStartingAgainKeepsTheGarden() async {
+        let (store, _) = makeStore()
+        for index in 0..<4 {
+            store.recordPhotograph(
+                localIdentifier: "photo-\(index)",
+                species: FlowerCatalogue.all[index],
+                confidence: 0.9,
+                coordinate: GeoPoint(latitude: 51.5, longitude: -0.12),
+                takenAt: epoch
+            )
+        }
+        let photographed = Set(store.snapshot.patches.map(\.photoLocalIdentifier))
+        XCTAssertEqual(photographed.count, 4)
+
+        store.startNewGame(at: HiveLocation(type: .cave))
+
+        XCTAssertEqual(store.snapshot.day, 0, "a new colony")
+        XCTAssertEqual(
+            Set(store.snapshot.patches.map(\.photoLocalIdentifier)), photographed,
+            "but the player's photographs are their own, and the flowers are "
+            + "still growing where they were"
+        )
+    }
+
+    /// Carried-over patches must take fresh identifiers. Reusing the old ones
+    /// would collide with the new colony's bees, which draw from the same
+    /// counter.
+    func testCarriedOverFlowersDoNotCollideWithTheNewColony() async {
+        let (store, _) = makeStore()
+        store.recordPhotograph(
+            localIdentifier: "photo-1", species: FlowerCatalogue.all.first,
+            confidence: 0.9, coordinate: nil, takenAt: epoch
+        )
+
+        store.startNewGame(at: HiveLocation(type: .cave))
+
+        let ids = store.snapshot.patches.map(\.id)
+        XCTAssertEqual(Set(ids).count, ids.count, "no duplicate patch ids")
+    }
+
+    func testStartingAgainCanDropTheGardenWhenAsked() async {
+        let (store, _) = makeStore()
+        store.recordPhotograph(
+            localIdentifier: "photo-1", species: FlowerCatalogue.all.first,
+            confidence: 0.9, coordinate: nil, takenAt: epoch
+        )
+
+        store.startNewGame(at: HiveLocation(type: .cave), keepingFlowers: false)
+
+        XCTAssertTrue(store.snapshot.patches.isEmpty)
+    }
+
     // MARK: - Watch
 
     func testWatchSummaryMatchesTheSnapshot() async {

@@ -108,7 +108,10 @@ final class ForagingTests: XCTestCase {
         )
 
         XCTAssertGreaterThan(near.distanceEfficiency, far.distanceEfficiency)
-        XCTAssertGreaterThan(near.forageQuality, far.forageQuality)
+        XCTAssertGreaterThan(
+            near.forageQuality(onDay: 0, config: .standard),
+            far.forageQuality(onDay: 0, config: .standard)
+        )
     }
 
     func testPatchesBeyondForagingRangeAreUseless() {
@@ -121,7 +124,7 @@ final class ForagingTests: XCTestCase {
 
         XCTAssertFalse(outOfRange.isWithinRange)
         XCTAssertEqual(outOfRange.distanceEfficiency, 0)
-        XCTAssertEqual(outOfRange.forageQuality, 0)
+        XCTAssertEqual(outOfRange.forageQuality(onDay: 0, config: .standard), 0)
     }
 
     func testHiveRelocationRecomputesPatchDistances() {
@@ -211,6 +214,14 @@ final class ForagingTests: XCTestCase {
     func testRicherFlowersAttractMoreForagers() {
         var simulation = Fixture.barrenSimulation()
 
+        // Heather blooms in autumn; clover blooms then too, so both are live.
+        // The clock moves *before* the photographs are registered, because a
+        // patch fades from the day it was photographed — registering on day 0
+        // and then time-travelling to day 200 lands both patches well past the
+        // end of their stand, and two flowers that are equally gone are
+        // equally uninteresting to a scout.
+        simulation.clock = SimClock(epoch: epoch, tick: 200 * SimClock.ticksPerDay)
+
         simulation.registerPhotograph(
             photoLocalIdentifier: "rich", species: Fixture.heather,
             confidence: 1.0, coordinate: nil, takenAt: epoch
@@ -221,9 +232,6 @@ final class ForagingTests: XCTestCase {
         )
         simulation.setDistance(400, forPatchAt: 0)
         simulation.setDistance(400, forPatchAt: 1)
-
-        // Heather blooms in autumn; clover blooms then too, so both are live.
-        simulation.clock = SimClock(epoch: epoch, tick: 200 * SimClock.ticksPerDay)
         simulation.mutateWorld { world in
             world.hive.comb = Comb(workerCells: 300, droneCells: 40, capacity: 700)
             world.hive.resources.add(60, of: .honey)
@@ -236,8 +244,8 @@ final class ForagingTests: XCTestCase {
         }
 
         XCTAssertGreaterThan(
-            simulation.patches[0].forageQuality,
-            simulation.patches[1].forageQuality,
+            simulation.patches[0].forageQuality(onDay: simulation.day, config: .standard),
+            simulation.patches[1].forageQuality(onDay: simulation.day, config: .standard),
             "a rare keystone flower is not rated above plain clover"
         )
 
@@ -279,7 +287,7 @@ final class ForagingTests: XCTestCase {
         _ = patch.harvest(nectar: patch.remainingNectar, pollen: patch.remainingPollen)
         XCTAssertTrue(patch.isDepleted)
 
-        patch.regrow(rate: 0.2)
+        patch.regrow(rate: 0.2, onDay: 0, config: .standard)
         XCTAssertFalse(patch.isDepleted)
         XCTAssertLessThanOrEqual(patch.remainingNectar, patch.nectarCapacity)
     }
@@ -289,7 +297,7 @@ final class ForagingTests: XCTestCase {
             id: EntityID(rawValue: 1), photoLocalIdentifier: "p",
             species: Fixture.clover, discoveredAt: epoch
         )
-        for _ in 0..<50 { patch.regrow(rate: 0.5) }
+        for _ in 0..<50 { patch.regrow(rate: 0.5, onDay: 0, config: .standard) }
         XCTAssertEqual(patch.remainingNectar, patch.nectarCapacity, accuracy: 0.001)
     }
 

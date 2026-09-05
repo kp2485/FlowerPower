@@ -30,6 +30,9 @@ extension SimulationConfig {
         case "flightEnergyPerForager": flightEnergyPerForager = value
         case "forageWearPerTick": forageWearPerTick = value
 
+        case "patchFreshDays": patchFreshDays = Int(value)
+        case "patchFadeDays": patchFadeDays = Int(value)
+
         // Comb
         case "buildCongestionThreshold": buildCongestionThreshold = value
         case "buildHoneyReserve": buildHoneyReserve = value

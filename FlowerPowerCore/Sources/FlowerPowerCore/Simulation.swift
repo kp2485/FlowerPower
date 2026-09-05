@@ -47,11 +47,25 @@ public struct Simulation: Codable, Equatable, Sendable {
 
     /// Starts a fresh game: a founding colony at the given site, with no forage
     /// until the player photographs some.
+    ///
+    /// - Parameter inheriting: flowers carried over from a previous colony.
+    ///   When a colony dies the player keeps their garden. Those are
+    ///   photographs they went out and took, of real places, and confiscating
+    ///   them because a queen failed to mate would punish the wrong thing
+    ///   entirely — it would also delete the record the map and the garden are
+    ///   built from. The flowers are still growing where they always were; it
+    ///   is the bees that are gone.
+    ///
+    ///   They are re-registered rather than copied, so they take fresh
+    ///   identifiers from this simulation's generator. Reusing the old ones
+    ///   would collide with the new colony's bees, which draw from the same
+    ///   counter.
     public static func newGame(
         at location: HiveLocation,
         startingAt date: Date,
         config: SimulationConfig = .standard,
-        seed: UInt64 = 0x5EED_B335
+        seed: UInt64 = 0x5EED_B335,
+        inheriting patches: [FlowerPatch] = []
     ) -> Simulation {
         var ids = IDGenerator()
         var rng = SeededRandom(seed: seed)
@@ -59,13 +73,29 @@ public struct Simulation: Codable, Equatable, Sendable {
         let hive = Hive.newColony(at: location, ids: &ids)
         let weather = Weather.next(after: Weather(), season: .spring, rng: &rng)
 
-        return Simulation(
+        var simulation = Simulation(
             world: World(hive: hive, weather: weather),
             clock: SimClock(epoch: date),
             config: config,
             seed: seed,
             ids: ids
         )
+
+        for patch in patches {
+            simulation.registerPhotograph(
+                photoLocalIdentifier: patch.photoLocalIdentifier,
+                species: patch.species,
+                confidence: patch.identificationConfidence,
+                coordinate: patch.coordinate,
+                takenAt: patch.discoveredAt,
+                // Coordinates are resolved against the *new* hive, which may
+                // be somewhere else entirely; only fall back to the stored
+                // distance when there is nothing to resolve against.
+                distanceMetres: patch.coordinate == nil ? patch.distanceMetres : nil
+            )
+        }
+
+        return simulation
     }
 
     // MARK: - The pipeline
@@ -103,6 +133,15 @@ public struct Simulation: Codable, Equatable, Sendable {
     // MARK: - Convenience accessors
 
     public var hive: Hive { world.hive }
+
+    /// Days of backlog a single catch-up will simulate. Time beyond this is
+    /// skipped rather than lived through, so it is the length of absence the
+    /// game can represent honestly. See `SimClock.maxCatchUpDays`.
+    public var catchUpCeilingDays: Int {
+        get { clock.maxCatchUpDays }
+        set { clock.maxCatchUpDays = max(1, newValue) }
+    }
+
     public var patches: [FlowerPatch] { world.patches }
     public var weather: Weather { world.weather }
     public var season: Season { Season(day: clock.day) }
@@ -192,7 +231,8 @@ public struct Simulation: Codable, Equatable, Sendable {
             identificationConfidence: confidence,
             coordinate: coordinate,
             distanceMetres: distance,
-            discoveredAt: takenAt
+            discoveredAt: takenAt,
+            registeredOnDay: clock.day
         )
 
         world.patches.append(patch)
@@ -302,11 +342,27 @@ public struct Simulation: Codable, Equatable, Sendable {
         }
     }
 
-    /// Drops patches the bees have stripped and that will not regrow.
+    /// Drops patches the bees have stripped and that will not regrow, and
+    /// patches whose stand has faded away entirely.
+    ///
+    /// **The app never calls this, and should not.** A patch is also the
+    /// player's photograph, and the garden is a record of flowers they went
+    /// out and found. Deleting one because the clover was mown would be
+    /// deleting their photo. `PatchSummary.hasFaded` is there so the interface
+    /// can show a spent patch as spent instead.
+    ///
+    /// It exists for the balance tooling and the long-running viability tests,
+    /// where hundreds of simulated years would otherwise accumulate patches
+    /// nothing will ever fly to again.
     public mutating func pruneDepletedPatches() {
         // Read the season into a local first: touching `self.season` inside the
         // closure would overlap the exclusive access to `world.patches`.
         let currentSeason = season
-        world.patches.removeAll { $0.isDepleted && !$0.isInBloom(during: currentSeason) }
+        let day = clock.day
+        let config = self.config
+        world.patches.removeAll {
+            ($0.isDepleted && !$0.isInBloom(during: currentSeason))
+                || $0.hasFaded(onDay: day, config: config)
+        }
     }
 }

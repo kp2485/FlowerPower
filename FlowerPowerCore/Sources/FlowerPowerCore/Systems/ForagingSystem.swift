@@ -78,7 +78,7 @@ public struct ForagingSystem: SimulationSystem {
             return patch.isInBloom(during: season)
                 && patch.isWithinRange
                 && !patch.isDepleted
-                && patch.forageQuality > 0
+                && patch.forageQuality(onDay: context.day, config: context.config) > 0
         }
         guard !candidates.isEmpty else { return }
 
@@ -86,7 +86,8 @@ public struct ForagingSystem: SimulationSystem {
         // far more than twice the dancers. This is what makes the colony
         // converge on the best forage rather than spreading itself evenly.
         let weights = candidates.map { index in
-            pow(world.patches[index].forageQuality, context.config.danceRecruitmentExponent)
+            pow(world.patches[index].forageQuality(onDay: context.day, config: context.config),
+                context.config.danceRecruitmentExponent)
         }
         let totalWeight = weights.reduce(0, +)
         guard totalWeight > 0 else { return }

@@ -15,7 +15,19 @@ import Foundation
 // MARK: - Status
 
 public enum ColonyStatus: Int, Codable, Comparable, Sendable, CaseIterable {
-    case critical
+    /// The colony is dead. Not dying — dead, with nothing left that can rear a
+    /// queen or hold a cluster.
+    ///
+    /// This is deliberately distinct from `critical`. A critical colony is one
+    /// the player might still save, and every interface affordance should push
+    /// them to try. A collapsed one cannot be saved, and showing it as
+    /// "Critical" for ever was the game's worst dead end: the numbers simply
+    /// stopped moving and nothing said why or what to do.
+    ///
+    /// Raw value -1 rather than renumbering the others, so saves written before
+    /// this case existed still decode.
+    case collapsed = -1
+    case critical = 0
     case struggling
     case steady
     case thriving
@@ -26,6 +38,7 @@ public enum ColonyStatus: Int, Codable, Comparable, Sendable, CaseIterable {
 
     public var displayName: String {
         switch self {
+        case .collapsed: return "Collapsed"
         case .critical: return "Critical"
         case .struggling: return "Struggling"
         case .steady: return "Steady"
@@ -33,9 +46,14 @@ public enum ColonyStatus: Int, Codable, Comparable, Sendable, CaseIterable {
         }
     }
 
+    /// Whether there is still a colony to play. Everything the player can do
+    /// is gated on this.
+    public var isAlive: Bool { self != .collapsed }
+
     /// SF Symbol name, so both apps show the same icon for the same state.
     public var symbolName: String {
         switch self {
+        case .collapsed: return "xmark.circle.fill"
         case .critical: return "exclamationmark.triangle.fill"
         case .struggling: return "exclamationmark.circle"
         case .steady: return "equal.circle"
@@ -176,12 +194,25 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
     public let rarity: FlowerRarity
     public let coordinate: GeoPoint?
     public let distanceMetres: Double
+    /// Whether the bees can work it *right now*: in season, still there, and
+    /// not stripped. This is the flag the garden and the map colour by.
     public let isInBloom: Bool
     public let isWithinRange: Bool
     /// 0...1 of its standing capacity.
     public let remainingFraction: Double
     public let foragersWorkingIt: Int
     public let discoveredAt: Date
+
+    /// How much of the stand is left, from 1 down to 0, as the photograph ages
+    /// out. Shown so the player can see a patch going before it is gone, and
+    /// knows to photograph a replacement.
+    public let vigour: Double
+
+    /// Past its best but not yet gone. The cue to go out again.
+    public var isFading: Bool { vigour < 0.999 && vigour > 0 }
+
+    /// The stand is no longer there.
+    public var hasFaded: Bool { vigour <= 0 }
 }
 
 // MARK: - Snapshot
@@ -339,10 +370,13 @@ extension Simulation {
 
     private func patchSummaries() -> [PatchSummary] {
         let season = self.season
+        let day = clock.day
+        let config = self.config
 
         return world.patches.map { patch in
             let capacity = patch.nectarCapacity + patch.pollenCapacity
             let remaining = patch.remainingNectar + patch.remainingPollen
+            let vigour = patch.vigour(onDay: day, config: config)
 
             return PatchSummary(
                 id: patch.id,
@@ -352,11 +386,12 @@ extension Simulation {
                 rarity: patch.resolvedSpecies.rarity,
                 coordinate: patch.coordinate,
                 distanceMetres: patch.distanceMetres,
-                isInBloom: patch.isInBloom(during: season),
+                isInBloom: patch.isInBloom(during: season) && vigour > 0,
                 isWithinRange: patch.isWithinRange,
                 remainingFraction: capacity > 0 ? remaining / capacity : 0,
                 foragersWorkingIt: patch.recruitedForagers,
-                discoveredAt: patch.discoveredAt
+                discoveredAt: patch.discoveredAt,
+                vigour: vigour
             )
         }
         // Best forage first: that is the order a player wants to scan.
@@ -371,7 +406,9 @@ extension Simulation {
     private func colonyStatus() -> ColonyStatus {
         let hive = world.hive
 
-        if hive.bees.isEmpty || hive.hasLayingWorkers { return .critical }
+        if hive.isCollapsed { return .collapsed }
+
+        if hive.hasLayingWorkers { return .critical }
         if !hive.isQueenright && !hive.canStillRearAQueen && !hive.comb.hasQueenCells {
             return .critical
         }
@@ -396,7 +433,7 @@ extension Simulation {
     private func headline() -> String {
         let hive = world.hive
 
-        if hive.bees.isEmpty { return "The colony is gone." }
+        if hive.isCollapsed { return "The colony is gone." }
         if hive.hasLayingWorkers { return "Laying workers — the colony is failing." }
         if !hive.isQueenright {
             return hive.comb.hasQueenCells
@@ -412,8 +449,21 @@ extension Simulation {
         if season == .winter { return "Clustered for winter." }
         if world.patches.isEmpty { return "No flowers found yet. Photograph some." }
 
-        let bloomingPatches = world.patches.filter { $0.isInBloom(during: season) && !$0.isDepleted }
-        if bloomingPatches.isEmpty { return "Nothing in bloom nearby." }
+        let bloomingPatches = world.patches.filter {
+            $0.isInBloom(during: season)
+                && !$0.isDepleted
+                && !$0.hasFaded(onDay: clock.day, config: config)
+        }
+        if bloomingPatches.isEmpty {
+            // Distinguish "wrong time of year" from "your flowers are gone",
+            // because only one of them is something the player can fix today.
+            let anyStanding = world.patches.contains {
+                !$0.hasFaded(onDay: clock.day, config: config)
+            }
+            return anyStanding
+                ? "Nothing in bloom nearby."
+                : "The flowers you found have gone over. Photograph more."
+        }
 
         if world.isInFlow { return "The nectar is flowing." }
         if world.isInDearth { return "A dearth — little is coming in." }
@@ -529,7 +579,10 @@ extension Simulation {
         }
 
         let bloomingPatches = world.patches.filter {
-            $0.isInBloom(during: season) && !$0.isDepleted && $0.isWithinRange
+            $0.isInBloom(during: season)
+                && !$0.isDepleted
+                && $0.isWithinRange
+                && !$0.hasFaded(onDay: clock.day, config: config)
         }
         if bloomingPatches.isEmpty, season != .winter, hive.count(performing: .foragingBee) > 0 {
             alerts.append(ColonyAlert(

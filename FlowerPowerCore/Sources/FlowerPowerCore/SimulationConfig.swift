@@ -244,6 +244,19 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     public var layingWorkerOnsetDays: Int = 24
     public var layingWorkerEggsPerDay: Int = 8
 
+    /// Days a photographed patch holds full strength before it starts to go.
+    ///
+    /// Sized against the seasons rather than against real time: 60 is two
+    /// thirds of a season, so a flower photographed at the start of a season
+    /// is still worth working at the end of it. Together with `patchFadeDays`
+    /// a patch is finished after about half a simulated year, which at the
+    /// shipped clock is a fortnight of real time — often enough to be a habit,
+    /// rarely enough not to be a chore.
+    public var patchFreshDays: Int = 60
+
+    /// Days a patch takes to decline from full to nothing once it starts.
+    public var patchFadeDays: Int = 120
+
     // MARK: - Swarming
 
     public var swarmCongestionThreshold: Double = 0.45

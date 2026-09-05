@@ -143,6 +143,14 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
 
     public let discoveredAt: Date
 
+    /// Simulated day the photograph entered the world, which is what the
+    /// patch's fading is measured from.
+    ///
+    /// Optional only for compatibility: patches saved before fading existed
+    /// have no registration day, and are grandfathered as never fading rather
+    /// than being given a fabricated one that would age them out instantly.
+    public var registeredOnDay: Int?
+
     public var remainingNectar: Double
     public var remainingPollen: Double
 
@@ -160,7 +168,8 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         identificationConfidence: Double = 0,
         coordinate: GeoPoint? = nil,
         distanceMetres: Double = FlowerPatch.nominalDistance,
-        discoveredAt: Date
+        discoveredAt: Date,
+        registeredOnDay: Int? = nil
     ) {
         self.id = id
         self.photoLocalIdentifier = photoLocalIdentifier
@@ -169,6 +178,7 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         self.coordinate = coordinate
         self.distanceMetres = max(0, distanceMetres)
         self.discoveredAt = discoveredAt
+        self.registeredOnDay = registeredOnDay
         self.recruitedForagers = 0
 
         let resolved = species ?? .unidentified
@@ -193,6 +203,51 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
     /// collapse long before that.
     public static let maximumForagingRange: Double = 8_000
 
+    // MARK: - Fading
+
+    /// How much of the stand is still there, from 1 down to 0.
+    ///
+    /// A photograph is a record of flowers on one day. Months later the clover
+    /// has been mown, the bramble has been cut back, the balsam has been pulled
+    /// or the whole verge has been built on. Nothing in a garden stays put, and
+    /// a patch that yields for ever turns the premise of the game into a lie:
+    /// measured before this existed, results from five photographs upward were
+    /// byte-identical, so after an afternoon's play no photograph the player
+    /// took ever changed anything again.
+    ///
+    /// Fading is what gives ongoing photography a job. It is deliberately slow
+    /// enough to be a habit rather than a chore: a patch holds full strength
+    /// for `freshDays` and then declines over `fadeDays`.
+    public func vigour(onDay day: Int, fresh freshDays: Int, fade fadeDays: Int) -> Double {
+        // Grandfathered: saved before fading existed.
+        guard let registeredOnDay else { return 1 }
+
+        let age = day - registeredOnDay
+        guard age > freshDays else { return 1 }
+        guard fadeDays > 0 else { return 0 }
+
+        let faded = Double(age - freshDays) / Double(fadeDays)
+        return max(0, 1 - faded)
+    }
+
+    public func vigour(onDay day: Int, config: SimulationConfig) -> Double {
+        vigour(onDay: day, fresh: config.patchFreshDays, fade: config.patchFadeDays)
+    }
+
+    /// Nothing left worth flying to.
+    public func hasFaded(onDay day: Int, config: SimulationConfig) -> Bool {
+        vigour(onDay: day, config: config) <= 0
+    }
+
+    /// Standing capacity after fading. What the patch regrows toward.
+    public func nectarCapacity(onDay day: Int, config: SimulationConfig) -> Double {
+        nectarCapacity * vigour(onDay: day, config: config)
+    }
+
+    public func pollenCapacity(onDay day: Int, config: SimulationConfig) -> Double {
+        pollenCapacity * vigour(onDay: day, config: config)
+    }
+
     public var resolvedSpecies: FlowerSpecies { species ?? .unidentified }
     public var isDepleted: Bool { remainingNectar <= 0.01 && remainingPollen <= 0.01 }
     public var isIdentified: Bool { species != nil }
@@ -215,12 +270,17 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
     /// How attractive this patch is to a scout deciding whether to dance for
     /// it. Real bees weigh sugar concentration against flight distance, which
     /// is exactly what makes the waggle dance an optimisation algorithm.
-    public var forageQuality: Double {
+    public func forageQuality(onDay day: Int, config: SimulationConfig) -> Double {
         let standing = remainingNectar + remainingPollen * 0.7
         guard standing > 0 else { return 0 }
         let richness = standing / (nectarCapacity + pollenCapacity * 0.7)
         let keystoneBonus = resolvedSpecies.isKeystone ? 1.35 : 1.0
-        return richness * distanceEfficiency * resolvedSpecies.rarity.yieldMultiplier * keystoneBonus
+        // Scouts weigh a thinning stand down. Without this a faded patch still
+        // recruited as hard as a fresh one, and the dance stopped being the
+        // optimisation it is supposed to model.
+        let vigour = self.vigour(onDay: day, config: config)
+        return richness * distanceEfficiency
+            * resolvedSpecies.rarity.yieldMultiplier * keystoneBonus * vigour
     }
 
     /// Draws up to the requested amounts, returning what was actually taken.
@@ -235,9 +295,14 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
     /// Flowers refill overnight while in bloom. Without this, the player would
     /// have to photograph continuously to keep a colony alive, which would make
     /// the game a chore rather than a habit.
-    public mutating func regrow(rate: Double) {
-        guard rate > 0 else { return }
-        remainingNectar = min(nectarCapacity, remainingNectar + nectarCapacity * rate)
-        remainingPollen = min(pollenCapacity, remainingPollen + pollenCapacity * rate)
+    public mutating func regrow(rate: Double, onDay day: Int, config: SimulationConfig) {
+        // `min` rather than a guarded add, so a patch that has faded since the
+        // last regrowth is brought *down* to its new ceiling rather than
+        // sitting above it holding forage that is no longer there.
+        let nectarCeiling = nectarCapacity(onDay: day, config: config)
+        let pollenCeiling = pollenCapacity(onDay: day, config: config)
+
+        remainingNectar = min(nectarCeiling, remainingNectar + nectarCeiling * max(0, rate))
+        remainingPollen = min(pollenCeiling, remainingPollen + pollenCeiling * max(0, rate))
     }
 }

@@ -76,15 +76,27 @@ public final class GameStore {
     /// Brings the colony up to date. Safe to call on launch, on foreground, and
     /// as often as you like — the engine works out how much time has passed.
     public func catchUp() {
+        // Whether the colony was already gone before this catch-up. A player
+        // returning to a colony that died last week should not be handed a
+        // fresh report about the week of nothing that followed; they should be
+        // shown the death once, and then the way to start again.
+        let wasCollapsed = isCollapsed
+
         let report = simulation.advance(to: clock())
         snapshot = simulation.snapshot()
 
-        if !report.isEmpty, report.daysSimulated >= 1 {
+        if !wasCollapsed, !report.isEmpty, report.daysSimulated >= 1 {
             pendingReport = report
         }
 
+        if isCollapsed { stopLiveUpdates() }
+
         save()
     }
+
+    /// Whether there is still a colony to play. The interface swaps to
+    /// offering a fresh start on this.
+    public var isCollapsed: Bool { !snapshot.status.isAlive }
 
     public func dismissReport() {
         pendingReport = nil
@@ -93,6 +105,9 @@ public final class GameStore {
     /// Starts refreshing the view while the app is visible.
     public func startLiveUpdates(interval: Duration = .seconds(20)) {
         stopLiveUpdates()
+        // Nothing left to refresh, and a ticker on a dead colony would keep
+        // the phone awake to recompute the same empty nest for ever.
+        guard !isCollapsed else { return }
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: interval)
@@ -199,14 +214,22 @@ public final class GameStore {
 
     /// Wipes the saved game and starts again. Destructive, so the caller is
     /// expected to have confirmed with the player first.
-    public func startNewGame(at site: HiveLocation) {
+    ///
+    /// - Parameter keepingFlowers: carries the garden across to the new
+    ///   colony, which is the default and almost always what is wanted. The
+    ///   photographs are the player's own record of places they went; the
+    ///   flowers are still there whether or not the bees are. Passing `false`
+    ///   is a genuine restart from nothing, for a player who asks for one.
+    public func startNewGame(at site: HiveLocation, keepingFlowers: Bool = true) {
         simulation = Simulation.newGame(
             at: site,
             startingAt: clock(),
             config: simulation.config,
-            seed: UInt64.random(in: 1...UInt64.max)
+            seed: UInt64.random(in: 1...UInt64.max),
+            inheriting: keepingFlowers ? simulation.patches : []
         )
         pendingReport = nil
+        startLiveUpdates()
         refresh()
     }
 }

@@ -315,6 +315,55 @@ public struct Hive: Codable, Equatable, Sendable {
         bees.filter { $0.stage == .egg || $0.stage == .larva }.count
     }
     public var adultCount: Int { bees.filter { $0.isAdult }.count }
+
+    /// Whether the colony is finished — not dying, finished.
+    ///
+    /// Two ways to be over, and both are terminal in the strict sense that no
+    /// action by the player and no luck in the simulation can reverse them.
+    ///
+    /// 1. No adults left. Sealed brood in an empty nest is not a colony that
+    ///    might recover: there is nobody to feed it, nobody to hold it at 35
+    ///    degrees, and nobody to uncap it.
+    /// 2. Queenless with no way to make a queen. Emergency queens are grafted
+    ///    from worker eggs and young larvae; with none of those, no queen
+    ///    cells under way, and no queen laying, the colony cannot produce
+    ///    another worker. From there the population can only fall.
+    ///
+    /// The second is what catches the common endings — a failed mating flight,
+    /// laying workers — which otherwise leave the player watching a colony of
+    /// drones dwindle for weeks with nothing to do and nothing to read but
+    /// "Critical".
+    ///
+    /// A colony that is merely in serious trouble is `critical`, and the
+    /// interface should push the player to act, because those can be saved.
+    /// Collapse is the state with nothing left to decide.
+    public var isCollapsed: Bool {
+        if adultCount == 0 { return true }
+        return !canRearWorkers && !couldStillGetAQueen
+    }
+
+    /// Whether any worker will ever be born here again.
+    ///
+    /// Needs a queen who is present, mated, and mated *properly*. A drone
+    /// layer — a queen who ran out of sperm, or never got enough on her
+    /// mating flight — is a queen in every visible sense and lays every day,
+    /// but every egg is a drone.
+    public var canRearWorkers: Bool {
+        isQueenright && queenIsMated && genetics.isProperlyMated
+    }
+
+    /// Whether a queen who could rear workers might still turn up.
+    ///
+    /// Three routes, and a colony only needs one: worker eggs or young larvae
+    /// it can graft an emergency queen from, a queen cell already under way,
+    /// or a virgin queen who has not yet had her mating flight. A virgin
+    /// counts — she may well fail, and often does, but it has not happened
+    /// yet and the colony is not finished until it has.
+    public var couldStillGetAQueen: Bool {
+        canStillRearAQueen
+            || comb.hasQueenCells
+            || (isQueenright && !queenIsMated)
+    }
     public var adultWorkerCount: Int {
         bees.filter { $0.kind == .worker && $0.isAdult }.count
     }

@@ -58,7 +58,7 @@ public struct PatchSystem: DailySystem {
             let rainBonus = world.weather.sky == .rain ? 1.35 : 1.0
             let rate = context.config.patchDailyRegrowth * seasonalRegrowth * rainBonus
 
-            world.patches[index].regrow(rate: rate)
+            world.patches[index].regrow(rate: rate, onDay: context.day, config: context.config)
             // Recruitment is re-decided from scratch every day by the dance.
             world.patches[index].recruitedForagers = 0
         }

@@ -71,8 +71,17 @@ public struct World: Codable, Equatable, Sendable {
     public static let dearthThresholdPerBee = 0.04
 
     /// Patches actually worth flying to right now.
-    public func availablePatches(during season: Season) -> [FlowerPatch] {
-        patches.filter { $0.isInBloom(during: season) && $0.isWithinRange && !$0.isDepleted }
+    public func availablePatches(
+        during season: Season,
+        onDay day: Int,
+        config: SimulationConfig
+    ) -> [FlowerPatch] {
+        patches.filter {
+            $0.isInBloom(during: season)
+                && $0.isWithinRange
+                && !$0.isDepleted
+                && !$0.hasFaded(onDay: day, config: config)
+        }
     }
 
     /// Closes the books on the day just ended and starts a fresh tally.

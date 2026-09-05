@@ -58,22 +58,18 @@ public struct ColonyStatusSystem: DailySystem {
     }
 
     private func detectCollapse(_ world: inout World, _ context: inout TickContext) {
-        guard !world.hive.bees.isEmpty else {
-            context.emit(.colonyCollapsed)
-            return
-        }
-
-        // A colony below critical mass cannot thermoregulate, cannot defend
-        // itself, and cannot rear enough brood to replace its losses. It is
-        // dead; it simply has not finished dying.
-        let adults = world.hive.adultWorkerCount
-        let hopeless = adults < context.config.minimumViablePopulation
-            && !world.hive.canStillRearAQueen
-            && world.hive.comb.queenCells.isEmpty
-
-        if hopeless {
-            context.emit(.colonyCollapsed)
-        }
+        // Only when the colony has actually ended, not when it is merely
+        // doomed. This event is what puts "The colony has collapsed." in the
+        // catch-up report and what flips the interface to offering a fresh
+        // start, and both of those are wrong while there are still bees in the
+        // box — a colony below critical mass usually dies, but it is the
+        // player's to lose, and occasionally an emergency queen does make it
+        // back mated.
+        //
+        // A doomed colony is reported as `critical` with an alert saying why,
+        // which is the honest version of the same news.
+        guard world.hive.isCollapsed else { return }
+        context.emit(.colonyCollapsed)
     }
 
     /// Comb the colony is too small to patrol is lost to wax moths and mould.
