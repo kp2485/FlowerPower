@@ -1,0 +1,12 @@
+# One line ending everywhere. Xcode, the Swift toolchain and the Windows
+# sessions used for engine work all cope with LF; mixing the two made every
+# `git add` warn about fifteen files and every diff suspect.
+* text=auto eol=lf
+
+# Xcode's project file is generated, and merging it by hand is a bad idea.
+# `project.yml` is the source of truth — see docs/PROJECT.md.
+*.pbxproj -merge
+
+*.png binary
+*.jpg binary
+*.mlmodel binary

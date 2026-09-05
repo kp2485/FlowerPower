@@ -15,5 +15,13 @@ their responsibilities and fixed the bugs in them:
 | `HiveView.swift` | `Views/NestView.swift` | A single-column list of hexagons became a concentric comb laid out the way a colony really organises its nest. |
 | `ContentView.swift` | `Views/ContentView.swift` | Was still Xcode's "Hello, world!" template. |
 
-**These files are not in any build target.** Delete the folder once the new app
-has been run on device and nothing here is wanted.
+**These files are excluded from every build target.** `project.yml` lists this
+folder under `excludes`, so `xcodegen generate` will not pick it up.
+
+That was not always true. Until 2026-09 the checked-in `project.pbxproj` still
+compiled five of these files, at their old paths one level up — which is why
+the project would not build at all after the pivot moved them here. The
+generated project has no such stale references by construction.
+
+Delete the folder once the new app has been run on device and nothing here is
+wanted.
