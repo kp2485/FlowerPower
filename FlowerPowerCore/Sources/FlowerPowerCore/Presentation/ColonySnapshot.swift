@@ -239,6 +239,13 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     /// at the app most wants to know.
     public let isForaging: Bool
     public let dailyNectarIntake: Double
+
+    /// What ended the colony, in a sentence, or `nil` while it is alive.
+    ///
+    /// A player who comes back to a dead colony is owed an explanation. The
+    /// simulation always knows which of a handful of things happened, and
+    /// "Critical, 0 bees" is not an answer to the only question they have.
+    public let epitaph: String?
 }
 
 // MARK: - Building
@@ -267,7 +274,8 @@ extension Simulation {
             isForaging: clock.isDaylight
                 && world.weather.isFlyingWeather
                 && hive.count(performing: .foragingBee) > 0,
-            dailyNectarIntake: world.recentNectarIntake.last ?? world.todayNectarIntake
+            dailyNectarIntake: world.recentNectarIntake.last ?? world.todayNectarIntake,
+            epitaph: epitaph()
         )
     }
 
@@ -472,6 +480,43 @@ extension Simulation {
         }
 
         return "Foraging steadily."
+    }
+
+    /// Why the colony ended.
+    ///
+    /// Ordered most specific first, because several of these are true at once
+    /// by the time a colony is finished — a starved colony ends up queenless
+    /// too — and the player wants the thing that actually did it rather than
+    /// the last domino.
+    private func epitaph() -> String? {
+        let hive = world.hive
+        guard hive.isCollapsed else { return nil }
+
+        if hive.hasLayingWorkers {
+            return "Left queenless too long, the workers began laying. Only "
+                + "drones can come from an unfertilised egg, so there was no "
+                + "way back."
+        }
+        if hive.isQueenright, hive.queenIsMated, !hive.genetics.isProperlyMated {
+            return "The queen ran out of sperm and could lay only drones. "
+                + "Without worker eggs the colony could not raise a "
+                + "replacement."
+        }
+        if !hive.isQueenright {
+            return "The colony lost its queen with no eggs young enough to "
+                + "raise another."
+        }
+        if hive.resources.edibleEnergy <= 0.01 {
+            return season == .winter
+                ? "The stores ran out before spring and the cluster starved."
+                : "The colony starved: nothing was coming in and the stores "
+                    + "were gone."
+        }
+        if hive.pathogens.totalPressure > 0.5 {
+            return "Disease took the colony faster than it could rear "
+                + "replacements."
+        }
+        return "The colony dwindled away."
     }
 
     private func alerts() -> [ColonyAlert] {

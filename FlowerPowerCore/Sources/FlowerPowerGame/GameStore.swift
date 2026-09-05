@@ -183,6 +183,10 @@ public final class GameStore {
         refresh()
     }
 
+    /// The difficulty currently in force, so a settings screen can show which
+    /// preset is selected.
+    public var currentConfig: SimulationConfig { simulation.config }
+
     public func setDifficulty(_ config: SimulationConfig) {
         simulation.config = config
         refresh()
@@ -194,6 +198,15 @@ public final class GameStore {
     public func watchSummary() -> WatchSummary {
         simulation.watchSummary(now: clock())
     }
+
+    /// The whole colony, for sending to the watch.
+    ///
+    /// Views must never touch this — they get `snapshot`, which is the point
+    /// of this type. It is here because the watch needs the *save*, not a
+    /// summary: an App Group is not shared between devices, so the only way
+    /// the watch gets a colony it can catch up itself is if the phone sends
+    /// one. See `WatchLink`.
+    public var simulationForTransfer: Simulation { simulation }
 
     // MARK: - Persistence
 

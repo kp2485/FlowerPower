@@ -16,6 +16,7 @@
 
 import SwiftUI
 import FlowerPowerCore
+import FlowerPowerGame
 
 struct NestView: View {
 

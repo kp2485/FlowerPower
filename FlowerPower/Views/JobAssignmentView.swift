@@ -17,6 +17,7 @@
 
 import SwiftUI
 import FlowerPowerCore
+import FlowerPowerGame
 
 struct JobAssignmentView: View {
 

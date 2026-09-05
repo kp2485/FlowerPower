@@ -15,6 +15,7 @@ import SwiftUI
 import PhotosUI
 import CoreLocation
 import FlowerPowerCore
+import FlowerPowerGame
 
 struct CaptureView: View {
 
@@ -24,6 +25,7 @@ struct CaptureView: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var stage: Stage = .choosing
     @State private var locationProvider = LocationProvider()
+    @State private var isUsingCamera = false
 
     private let classifier = FlowerClassifier.bundled()
 
@@ -47,7 +49,10 @@ struct CaptureView: View {
             Group {
                 switch stage {
                 case .choosing:
-                    ChooserView(pickerItem: $pickerItem)
+                    ChooserView(
+                        pickerItem: $pickerItem,
+                        onUseCamera: { isUsingCamera = true }
+                    )
                 case .identifying(let image):
                     IdentifyingView(image: image)
                 case .result(let result):
@@ -65,6 +70,16 @@ struct CaptureView: View {
                     Button("Close") { dismiss() }
                 }
             }
+        }
+        .fullScreenCover(isPresented: $isUsingCamera) {
+            CameraPicker(
+                onCapture: { image in
+                    isUsingCamera = false
+                    Task { @MainActor in await handle(image) }
+                },
+                onCancel: { isUsingCamera = false }
+            )
+            .ignoresSafeArea()
         }
         // `.task` hands back a @Sendable closure, which does not inherit the
         // view's main-actor isolation. Both bodies touch main-actor state.
@@ -89,7 +104,18 @@ struct CaptureView: View {
                 stage = .failed("That image could not be read.")
                 return
             }
+            await handle(image)
+        } catch {
+            stage = .failed(error.localizedDescription)
+        }
+    }
 
+    /// Everything after "we have an image", shared by the camera and the
+    /// library picker. The two differ only in where the pixels came from —
+    /// and in whether the photo already knows where it was taken.
+    @MainActor
+    private func handle(_ image: UIImage) async {
+        do {
             stage = .identifying(image)
 
             guard let cgImage = image.cgImage else {
@@ -138,6 +164,7 @@ struct CaptureView: View {
 private struct ChooserView: View {
 
     @Binding var pickerItem: PhotosPickerItem?
+    var onUseCamera: () -> Void
 
     var body: some View {
         VStack(spacing: 24) {
@@ -157,20 +184,45 @@ private struct ChooserView: View {
                     .padding(.horizontal, 32)
             }
 
-            PhotosPicker(
-                selection: $pickerItem,
-                matching: .images,
-                photoLibrary: .shared()
-            ) {
-                Label("Choose a Photo", systemImage: "photo.on.rectangle")
-                    .frame(maxWidth: .infinity)
+            VStack(spacing: 12) {
+                if CameraPicker.isAvailable {
+                    Button(action: onUseCamera) {
+                        Label("Take a Photo", systemImage: "camera.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.honey)
+                    .controlSize(.large)
+
+                    // Secondary once there is a camera above it: the point of
+                    // the game is going outside and finding something.
+                    photoLibraryButton
+                        .buttonStyle(.bordered)
+                        .tint(Theme.honey)
+                        .controlSize(.large)
+                } else {
+                    // No camera, which means the simulator or a device with
+                    // the camera restricted. The library is the only way in.
+                    photoLibraryButton
+                        .buttonStyle(.borderedProminent)
+                        .tint(Theme.honey)
+                        .controlSize(.large)
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.honey)
-            .controlSize(.large)
             .padding(.horizontal, 40)
 
             Spacer()
+        }
+    }
+
+    private var photoLibraryButton: some View {
+        PhotosPicker(
+            selection: $pickerItem,
+            matching: .images,
+            photoLibrary: .shared()
+        ) {
+            Label("Choose a Photo", systemImage: "photo.on.rectangle")
+                .frame(maxWidth: .infinity)
         }
     }
 }

@@ -12,6 +12,7 @@
 import SwiftUI
 import Photos
 import FlowerPowerCore
+import FlowerPowerGame
 
 struct GardenView: View {
 

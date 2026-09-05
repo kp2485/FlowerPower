@@ -1,0 +1,143 @@
+//
+//  ColonyNews.swift
+//  FlowerPowerGame
+//
+//  Deciding whether something is worth interrupting a person for.
+//
+//  This is the whole of the judgement behind a notification, kept apart from
+//  the delivering of one so it can be tested. Getting it wrong is not a small
+//  thing: an idle game that pings about nothing gets its notifications turned
+//  off within a week, and after that it cannot say the one thing that actually
+//  matters, which is that the colony is about to die.
+//
+//  Two rules do most of the work. Only tell someone about a *change*, because
+//  a colony that has been struggling for a fortnight is not news every six
+//  hours. And only ever on the way down, because nobody needs waking to hear
+//  that things are fine.
+//
+
+import Foundation
+import FlowerPowerCore
+
+public struct ColonyNews: Equatable, Sendable {
+
+    /// Stable per kind of news, so the system replaces an outstanding
+    /// notification of the same kind rather than stacking another beside it.
+    public let identifier: String
+    public let title: String
+    public let body: String
+
+    public init(identifier: String, title: String, body: String) {
+        self.identifier = identifier
+        self.title = title
+        self.body = body
+    }
+
+    /// The handful of things the decision actually turns on.
+    ///
+    /// A separate type rather than passing whole snapshots, for one practical
+    /// reason: a test needs to put the colony in an exact state — thriving to
+    /// steady, struggling to critical — and reaching those reliably by running
+    /// a simulation is luck rather than testing. Written against these, every
+    /// case can be stated directly.
+    public struct Facts: Equatable, Sendable {
+
+        public let status: ColonyStatus
+        public let headline: String
+        /// What ended the colony, when it has.
+        public let epitaph: String?
+        /// The most pressing critical alert, if there is one.
+        public let criticalAlert: ColonyAlert?
+        public let patchCount: Int
+        public let patchesInBloom: Int
+
+        public init(
+            status: ColonyStatus,
+            headline: String = "",
+            epitaph: String? = nil,
+            criticalAlert: ColonyAlert? = nil,
+            patchCount: Int = 0,
+            patchesInBloom: Int = 0
+        ) {
+            self.status = status
+            self.headline = headline
+            self.epitaph = epitaph
+            self.criticalAlert = criticalAlert
+            self.patchCount = patchCount
+            self.patchesInBloom = patchesInBloom
+        }
+    }
+
+    // MARK: - The decision
+
+    public static func between(before: Facts, after: Facts) -> ColonyNews? {
+
+        // The end. Worth saying once, whatever else is true, and said even
+        // though nothing can be done about it — a player who is never told
+        // simply finds a dead colony whenever they next happen to look.
+        if after.status == .collapsed, before.status != .collapsed {
+            return ColonyNews(
+                identifier: "collapsed",
+                title: "The colony is gone",
+                body: after.epitaph ?? "A new swarm is looking for somewhere to live."
+            )
+        }
+
+        // Nothing to say about a colony holding steady or recovering, and
+        // nothing to say about a decline that lands somewhere comfortable.
+        guard after.status < before.status, after.status <= .struggling else {
+            return nil
+        }
+
+        // A named problem beats a general one, and carries a suggestion the
+        // player can act on.
+        if let alert = after.criticalAlert {
+            return ColonyNews(
+                identifier: "alert-\(alert.kind.rawValue)",
+                title: alert.title,
+                body: alert.suggestion ?? alert.detail
+            )
+        }
+
+        // No specific alert, but worse than it was. By far the most common
+        // reason, now that photographed patches fade, is that there is nothing
+        // left to work — and that is the one thing a player fixes by going
+        // outside, which is the game.
+        if after.patchesInBloom == 0 {
+            return ColonyNews(
+                identifier: "no-forage",
+                title: "Nothing to work",
+                body: after.patchCount == 0
+                    ? "Your bees have no flowers at all. Photograph some."
+                    : "The flowers you found have gone over. Photograph some more."
+            )
+        }
+
+        return ColonyNews(
+            identifier: "status-\(after.status.rawValue)",
+            title: "The colony is \(after.status.displayName.lowercased())",
+            body: after.headline
+        )
+    }
+
+    public static func between(
+        before: ColonySnapshot,
+        after: ColonySnapshot
+    ) -> ColonyNews? {
+        between(before: before.newsFacts, after: after.newsFacts)
+    }
+}
+
+public extension ColonySnapshot {
+
+    var newsFacts: ColonyNews.Facts {
+        ColonyNews.Facts(
+            status: status,
+            headline: headline,
+            epitaph: epitaph,
+            criticalAlert: alerts.first { $0.severity == .critical },
+            patchCount: patches.count,
+            patchesInBloom: patches.filter(\.isInBloom).count
+        )
+    }
+}

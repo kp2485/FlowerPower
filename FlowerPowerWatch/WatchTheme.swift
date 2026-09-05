@@ -24,6 +24,9 @@ enum WatchTheme {
 
     static func colour(for status: ColonyStatus) -> Color {
         switch status {
+        // Grey rather than red. Red is an alarm, and an alarm asks the player
+        // to do something; there is nothing left to do about a collapse.
+        case .collapsed: return .secondary
         case .critical: return alarm
         case .struggling: return caution
         case .steady: return honey

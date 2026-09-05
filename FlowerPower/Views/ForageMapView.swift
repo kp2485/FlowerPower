@@ -16,6 +16,7 @@
 import SwiftUI
 import MapKit
 import FlowerPowerCore
+import FlowerPowerGame
 
 struct ForageMapView: View {
 

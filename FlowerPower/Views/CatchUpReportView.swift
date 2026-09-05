@@ -12,6 +12,7 @@
 
 import SwiftUI
 import FlowerPowerCore
+import FlowerPowerGame
 
 struct CatchUpReportView: View {
 

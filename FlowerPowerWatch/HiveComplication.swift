@@ -16,6 +16,7 @@
 import WidgetKit
 import SwiftUI
 import FlowerPowerCore
+import FlowerPowerGame
 
 // MARK: - Entry
 
@@ -50,6 +51,10 @@ struct HiveProvider: TimelineProvider {
         // showing what *will* be true, not what was true an hour ago.
         var entries: [HiveEntry] = []
 
+        // The watch's own copy of the save, which the phone sends across by
+        // file transfer. An App Group is shared between processes on one
+        // device, never between devices, so this is the phone's colony only
+        // because `WatchColonyModel` wrote it here when it arrived.
         if var simulation = try? GamePersistence().load() {
             for hoursAhead in stride(from: 0, through: 8, by: 2) {
                 let date = now.addingTimeInterval(TimeInterval(hoursAhead) * 3600)
