@@ -259,6 +259,17 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
 
     // MARK: - Swarming
 
+    /// How far into spring a colony must be before it will swarm, and how far
+    /// into summer it will still do so. Both are fractions of their season.
+    ///
+    /// Swarming is the product of the spring build-up rather than its opening
+    /// move, and the window is narrow in reality: late April to early June in
+    /// Britain. Sweepable because the two ends trade directly against each
+    /// other — too early and colonies halve themselves coming out of winter,
+    /// too late and they stop dividing at all.
+    public var swarmSeasonStart: Double = Season.swarmSeasonStartsAtSpringProgress
+    public var swarmSeasonEnd: Double = Season.swarmSeasonEndsAtSummerProgress
+
     public var swarmCongestionThreshold: Double = 0.45
     public var swarmMinimumPopulation: Int = 90
     public var swarmCellChance: Double = 0.45

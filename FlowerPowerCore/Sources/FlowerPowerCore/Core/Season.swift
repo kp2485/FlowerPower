@@ -105,6 +105,20 @@ public enum Season: String, Codable, CaseIterable, Sendable {
     /// to rearing the winter cohort.
     public static let winterRearingStartsAtSummerProgress = 0.6
 
+    /// Point in spring before which a colony will not swarm.
+    ///
+    /// Swarming is the *product* of the spring build-up, not its opening move.
+    /// A colony comes out of winter as a small cluster on the last of its
+    /// stores and spends six or eight weeks rebuilding; only once it is
+    /// crowded, with the flow on and stores back, does it divide. Real
+    /// swarming peaks in May, not in the first fortnight of March.
+    ///
+    /// Without this the model let a colony swarm on spring day 16, straight
+    /// out of winter, shedding sixty per cent of its workers while it still
+    /// had a hundred units of honey to last until the flow. It is the one
+    /// moment in the year a colony can least afford to halve itself.
+    public static let swarmSeasonStartsAtSpringProgress = 0.45
+
     /// Point in summer past which a colony will no longer swarm. Real swarming
     /// is concentrated around the spring flow; dividing later leaves neither
     /// half time to provision for winter.

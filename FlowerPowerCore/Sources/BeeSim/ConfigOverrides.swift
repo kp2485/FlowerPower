@@ -41,6 +41,8 @@ extension SimulationConfig {
         case "honeyPerWax": honeyPerWax = value
 
         // Swarming and pheromones
+        case "swarmSeasonStart": swarmSeasonStart = value
+        case "swarmSeasonEnd": swarmSeasonEnd = value
         case "swarmCongestionThreshold": swarmCongestionThreshold = value
         case "swarmCellChance": swarmCellChance = value
         case "swarmDepartureShare": swarmDepartureShare = value

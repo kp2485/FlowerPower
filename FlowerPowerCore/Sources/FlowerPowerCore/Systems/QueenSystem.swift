@@ -444,9 +444,27 @@ public struct QueenSystem: DailySystem {
         // Failing queen: poor condition or old age triggers a quiet replacement.
         let ageFraction = Double(queen.daysInStage)
             / Double(BeeKind.queen.baseAdultLifespanDays())
+        // A virgin who has not flown yet is not a failing queen, she is a
+        // queen in progress, and the colony has to let her try.
+        //
+        // `isProperlyMated` is false for *any* queen who has not mated
+        // adequately, and that includes one who has not mated at all. Reading
+        // it directly meant the colony superseded every virgin within days of
+        // her emerging, tore down the cell she came from, raised another virgin
+        // from its dwindling stock of worker eggs, and superseded her too.
+        // Traced on seed 8919: new queen day 387, superseded day 389, mated day
+        // 395, superseded day 399, mating failed day 410, colony dead. The
+        // colony destroyed four queens in three weeks without ever letting one
+        // start laying.
+        //
+        // A queen who *has* mated and is still not properly mated is a real
+        // drone layer and should be replaced. A virgin who runs out of time is
+        // handled separately, where she resolves to a drone layer once her
+        // mating window closes.
+        let isDroneLayer = world.hive.queenIsMated && !world.hive.genetics.isProperlyMated
         let isFailing = queen.vitality < context.config.queenFailureVitality
             || ageFraction > context.config.queenSupersedureAge
-            || !world.hive.genetics.isProperlyMated
+            || isDroneLayer
 
         // Requeening is only worth attempting when there are drones flying to
         // mate the replacement. A colony that supersedes in autumn destroys
@@ -467,13 +485,40 @@ public struct QueenSystem: DailySystem {
         // and both halves go into winter short — which is exactly what happened
         // when any summer day would do: swarming roughly tripled second-year
         // starvation deaths.
-        let isSwarmSeason = season == .spring
-            || (season == .summer && Season.progress(context.day) < Season.swarmSeasonEndsAtSummerProgress)
+        let seasonProgress = Season.progress(context.day)
+        let isSwarmSeason =
+            (season == .spring && seasonProgress >= context.config.swarmSeasonStart)
+            || (season == .summer && seasonProgress < context.config.swarmSeasonEnd)
         let crowded = world.hive.swarmPressure >= context.config.swarmCongestionThreshold
         let signalWeak = qmp < Pheromones.queenRearingThreshold
         let strongEnough = world.hive.adultWorkerCount >= context.config.swarmMinimumPopulation
 
-        if isSwarmSeason, crowded, signalWeak, strongEnough, world.isInFlow {
+        // There has to be a laying queen to leave with. A swarm *is* the old
+        // queen departing with half the workforce; a colony that has no queen,
+        // or only a virgin who has not yet flown, has nobody to send.
+        //
+        // This is not a technicality, it was the single largest cause of death
+        // in the game. `signalWeak` tests whether queen pheromone has fallen
+        // below the queen-rearing threshold — and a colony that has *just
+        // swarmed* is queenless, so its pheromone is zero and the test is
+        // trivially satisfied for as long as it takes to raise and mate a
+        // replacement. The colony would come out of winter, swarm, and then
+        // swarm again within a fortnight on the strength of its own
+        // queenlessness, each time shedding sixty per cent of the bees and
+        // staking everything on another mating flight.
+        //
+        // Traced on seed 8919: a swarm on day 376 took 61 bees, another on day
+        // 386 took 75 more, and the colony went into the rest of spring with a
+        // fifth of its workers, 154 mouths of brood and 29 units of honey.
+        // Across 60 trials this is what turned 75% survival at the end of year
+        // one into 25% sixty days later.
+        //
+        // Afterswarms led by virgin queens are real, but they are cast by
+        // colonies still strong enough to divide again, not by a remnant, and
+        // modelling them properly needs its own rules.
+        let haveAQueenToSend = world.hive.isQueenright && world.hive.queenIsMated
+
+        if isSwarmSeason, crowded, signalWeak, strongEnough, haveAQueenToSend, world.isInFlow {
             let urge = context.config.swarmCellChance * (0.5 + world.hive.genetics.swarminess)
             if context.rng.chance(urge) {
                 return .swarm

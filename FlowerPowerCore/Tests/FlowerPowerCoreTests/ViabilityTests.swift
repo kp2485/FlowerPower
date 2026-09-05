@@ -50,6 +50,117 @@ final class ViabilityTests: XCTestCase {
         return simulation
     }
 
+    // MARK: - The second year
+
+    /// The second year is harder than the first, and it is meant to be — but
+    /// it used to be harder than anything in the model justified.
+    ///
+    /// Measured across 60 trials, survival fell from 75% at day 400 to 25% at
+    /// day 460. A sixty-day window taking two colonies in three is not
+    /// attrition, it is an event, so it was traced rather than tuned. Three
+    /// things turned out to be wrong, all of them in how the colony handles
+    /// its queen, and none of them findable from unit tests:
+    ///
+    /// 1. **Swarming out of winter.** There was a rule ending swarm season but
+    ///    none starting it, so a colony could divide on spring day 16, halving
+    ///    itself while still living on the last of its stores. Real swarming
+    ///    is the product of the build-up, not its opening move.
+    /// 2. **Swarming with no queen to send.** A swarm is the old queen leaving
+    ///    with the bees, but the test for it only asked whether queen
+    ///    pheromone was weak — which is trivially true of a colony that has
+    ///    just swarmed and is therefore queenless. Colonies swarmed twice in
+    ///    ten days on the strength of their own queenlessness.
+    /// 3. **Superseding virgins.** `isProperlyMated` is false for a queen who
+    ///    has not mated *at all*, so a colony read every newly emerged virgin
+    ///    as a failing queen and replaced her within days, over and over,
+    ///    burning the worker eggs it needed to raise any queen at all.
+    ///
+    /// Fixing those took two-year survival from 15% to 25% without moving the
+    /// first year (75%), and left swarming at about one per colony per two
+    /// years, which is in the real range — not every colony swarms every year.
+    ///
+    /// What the cliff is *not*, all measured: not disease (turning pathogen
+    /// arrival off moves two-year survival by two points), not forage
+    /// (twenty-four patches restocked every fifteen days gives 13%), not
+    /// winter provisioning (the margin from 1.0 to 1.45 stays inside 7-15%).
+    /// The standing hypothesis had been that varroa crossed the
+    /// deformed-wing-virus threshold in the second season. It does not.
+    ///
+    /// What remains is real: a colony that divides, requeens, and stakes
+    /// itself on a mating flight each time will not last indefinitely, and an
+    /// unmanaged one dying in its second or third year is what happens. The
+    /// test pins the shape rather than the number.
+    func testTheSecondYearIsHarderThanTheFirstButNotImpossible() {
+        let seeds: [UInt64] = [1_000, 8_919, 16_838, 24_757,
+                               32_676, 40_595, 48_514, 56_433]
+
+        func survivors(days: Int) -> Int {
+            seeds.filter { runYear(seed: $0, days: days).hive.adultWorkerCount > 5 }.count
+        }
+
+        let firstYear = survivors(days: 400)
+        let secondYear = survivors(days: 760)
+
+        XCTAssertGreaterThan(
+            firstYear, secondYear,
+            "the second year should cost colonies; if it stops doing so, "
+            + "swarming or requeening has quietly been defanged"
+        )
+        XCTAssertGreaterThanOrEqual(
+            secondYear, 1,
+            "some colony should get through two years — at zero the game has "
+            + "no long game at all"
+        )
+    }
+
+    /// Requeening is a normal event, not an exception, and that is precisely
+    /// why the second year is dangerous: every one of these is a mating flight
+    /// the colony might not come back from.
+    func testAColonyReplacesItsQueenOverTwoYears() {
+        var simulation = Simulation.newGame(
+            at: HiveLocation(type: .livingTreeCavity),
+            startingAt: epoch,
+            seed: 8_919
+        )
+        for index in 0..<12 {
+            simulation.registerPhotograph(
+                photoLocalIdentifier: "q-\(index)",
+                species: [Fixture.clover, Fixture.heather, Fixture.crocus][index % 3],
+                confidence: 0.9,
+                coordinate: nil,
+                takenAt: epoch,
+                distanceMetres: 400
+            )
+        }
+
+        var queensEmerged = 0
+        for day in 0..<760 {
+            for event in simulation.stepDay() {
+                if case .queenEmerged = event { queensEmerged += 1 }
+            }
+            if day % 45 == 0, day > 0 {
+                simulation.pruneDepletedPatches()
+                for index in 0..<4 {
+                    simulation.registerPhotograph(
+                        photoLocalIdentifier: "r\(day)-\(index)",
+                        species: [Fixture.clover, Fixture.heather, Fixture.crocus][index % 3],
+                        confidence: 0.9,
+                        coordinate: nil,
+                        takenAt: epoch,
+                        distanceMetres: 400
+                    )
+                }
+            }
+            if simulation.hive.bees.isEmpty { break }
+        }
+
+        XCTAssertGreaterThan(
+            queensEmerged, 0,
+            "no queen was raised in two years, so swarming and supersedure "
+            + "have both stopped happening"
+        )
+    }
+
     // MARK: - The headline result
 
     /// A colony that is kept supplied with forage should usually see out a
