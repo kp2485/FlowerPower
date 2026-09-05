@@ -1,184 +1,145 @@
 # Getting FlowerPower building on the Mac
 
-The engine (`FlowerPowerCore`) is a Swift package and builds anywhere. The app
-and watch app are Xcode targets and need a Mac. This is what to do when you open
-the project there.
+The engine is a Swift package and builds anywhere, including Windows. The app
+and the watch app are Xcode targets and need a Mac.
 
-Nothing here is guesswork about the code — the engine is compiled and tested.
-But **none of the SwiftUI has been compiled**, because that needs Xcode. Expect
-to fix a few things on the first build.
+Two things to know before starting.
 
----
+**The Xcode project is generated.** `FlowerPower.xcodeproj` is not in git.
+It is built from `project.yml` by XcodeGen, because the hand-maintained one had
+drifted so far from the files on disk that it could not open and build at all.
+The previous page of drag-and-tick instructions in this file is gone with it.
 
-## 0. Fixes already applied
-
-A pass was made over the uncompiled layers from a Windows machine, using the
-Swift 6.3 compiler to check everything that does not need the Apple SDKs. The
-engine test suite passes (128 tests), and `GameStore.swift` and
-`GamePersistence.swift` were compiled for real against `FlowerPowerCore`. These
-were found and fixed:
-
-| File | Problem |
-|---|---|
-| `Services/FlowerClassifier.swift` | Used `FlowerSpecies` and `FlowerCatalogue` with no `import FlowerPowerCore`, and `MLModel` with no `import CoreML`. |
-| `Views/Theme.swift` | `MeterView.caption` was `let caption: String?` — a `let` optional gets no default in the memberwise initialiser, so `caption` was accidentally mandatory and one call in `GardenView` omitted it. |
-| `Views/ContentView.swift`, `CaptureView.swift`, `GardenView.swift` | `.task` takes a `@Sendable` closure, which does **not** inherit the view's main-actor isolation, so calls into the `@MainActor` `GameStore` were cross-actor. Bodies now open `{ @MainActor in … }`. |
-| `FlowerPowerWatch/WatchTheme.swift` | Extracted from `WatchRootView.swift` so the widget extension can use it without also compiling the watch's views and model. |
-| `FlowerPowerWatch/WatchColonyModel.swift` | `isStale` was assigned `summary == nil` directly after `summary` was set non-nil, so the watch's "out of touch with your phone" note could never appear. |
-
-**What is still unverified:** everything that needs the Apple SDKs — SwiftUI,
-MapKit, PhotosUI, Vision, WidgetKit, WatchConnectivity. The engine API calls in
-the views were checked symbol by symbol against `FlowerPowerCore`'s public
-surface and are consistent, but the framework calls themselves have never been
-through a compiler. The first build will still turn up SDK-level errors.
+**The SwiftUI has never been compiled.** The engine and the game layer are
+tested — 201 tests, run on Windows — and every engine call in the views was
+checked symbol by symbol against the package's public surface. But anything
+that needs the Apple SDKs, which is all of SwiftUI, MapKit, PhotosUI, Vision,
+WidgetKit, WatchConnectivity and BackgroundTasks, has never been near a
+compiler. Expect a round of errors on the first build. That is the known cost
+of the arrangement, not a surprise.
 
 ---
 
-## 1. Add the engine as a local package
+## 1. Generate the project
 
-In Xcode: **File ▸ Add Package Dependencies… ▸ Add Local…** and choose the
-`FlowerPowerCore` folder.
+```bash
+brew install xcodegen
+xcodegen generate
+open FlowerPower.xcodeproj
+```
 
-Then, for the `FlowerPower` target: **General ▸ Frameworks, Libraries, and
-Embedded Content ▸ +** and add `FlowerPowerCore`.
+That is the whole setup. `project.yml` already declares:
 
-Verify with:
+- three targets — the iOS app, the watch app, and the watch widget extension
+  that carries the complication;
+- the local `FlowerPowerCore` package, and which of its two libraries each
+  target uses;
+- the App Group `group.com.kylepeterson.flowerpower` on all three;
+- the camera, photo library and location usage strings;
+- background refresh, and the task identifier it registers.
+
+Re-run `xcodegen generate` after adding a file. Nothing needs ticking by hand:
+target membership is a directory now, not a list of UUIDs. The generated
+project, the generated Info.plists and the generated entitlements are all
+gitignored — edit `project.yml` instead, or the change will vanish.
+
+Verify the engine without Xcode at any point:
 
 ```bash
 swift test --package-path FlowerPowerCore
 ```
 
-That runs the whole simulation test suite on the command line, no Xcode needed.
+## 2. What lives where
 
-## 2. Add the new source files to the app target
-
-The project predates Xcode 16's synchronised folders, so files have to be added
-explicitly. Drag these into the `FlowerPower` group, with **Copy items if
-needed** unchecked and the `FlowerPower` target ticked:
-
-```
-FlowerPower/App/          GameStore.swift, GamePersistence.swift
-FlowerPower/Services/     FlowerClassifier.swift, PhotoLibrary.swift, WatchLink.swift
-FlowerPower/Views/        Theme.swift, ContentView.swift, ColonyDashboardView.swift,
-                          NestView.swift, ForageMapView.swift, GardenView.swift,
-                          CaptureView.swift, CatchUpReportView.swift,
-                          JobAssignmentView.swift
-```
-
-`FlowerPower/Legacy/` holds the superseded 2023 model files. Do **not** add them
-to the target — see `Legacy/README.md` for what replaced what. Delete the folder
-once you are happy.
-
-### Files that belong to more than one target
-
-Two files are used outside the iOS app and need their **Target Membership**
-ticked for more than one target (File inspector, right-hand pane):
-
-| File | iOS app | Watch app | Widget extension |
-|---|:--:|:--:|:--:|
-| `FlowerPower/App/GamePersistence.swift` | yes | yes | yes |
-| `FlowerPowerWatch/WatchTheme.swift` | no | yes | yes |
-
-`GamePersistence` is how all three read the same save file in the App Group:
-`WatchColonyModel.loadFromSharedContainer()` and the complication's
-`HiveProvider` both call `GamePersistence().load()` directly. `WatchTheme` is
-used by both the watch views and `HiveComplication`. Miss either and you get
-"cannot find 'GamePersistence' in scope" / "cannot find 'WatchTheme' in scope"
-in a target that otherwise looks fine.
-
-## 3. Raise the deployment target
-
-The project is set to iOS 17.0. That works, but the newer Vision API and several
-SwiftUI conveniences want iOS 18. iOS 17 is what the engine package declares, so
-either is fine — just keep the two in step.
-
-## 4. Add the watch target
-
-**File ▸ New ▸ Target ▸ watchOS ▸ App**, named `FlowerPower Watch`, embedded in
-the `FlowerPower` app. Then:
-
-- Add `FlowerPowerCore` to its Frameworks list.
-- Add these to the **watch app**: `FlowerPowerWatchApp.swift`,
-  `WatchRootView.swift`, `WatchColonyModel.swift`, `WatchTheme.swift`.
-- `HiveComplication.swift` belongs in a **Widget Extension** target rather than
-  the watch app itself (**File ▸ New ▸ Target ▸ watchOS ▸ Widget Extension**).
-  It carries its own `@main`, so it will collide if you put it in the app target.
-- The **widget extension** additionally needs `WatchTheme.swift` and
-  `GamePersistence.swift` ticked — see the table in section 2.
-
-## 5. Capabilities and permissions
-
-**App Groups** on the iOS app, the watch app *and* the widget extension:
-
-```
-group.com.kylepeterson.flowerpower
-```
-
-This must match `GamePersistence.appGroupIdentifier`. It is how the watch and the
-complication read the same save file the phone writes. If you use a different
-identifier, change it in one place — that constant.
-
-**Usage descriptions — already done.** This project has no `Info.plist` file:
-the app target builds with `GENERATE_INFOPLIST_FILE = YES`, so the usage strings
-live in Build Settings as `INFOPLIST_KEY_*`. All four have been added to both
-the Debug and Release configurations of the `FlowerPower` target:
-
-| Key | Why |
+| | |
 |---|---|
-| `INFOPLIST_KEY_NSCameraUsageDescription` | Photographing flowers |
-| `INFOPLIST_KEY_NSPhotoLibraryUsageDescription` | Reading and saving flower photos |
-| `INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription` | Saving captures |
-| `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription` | Placing flowers on the map |
+| `FlowerPowerCore/Sources/FlowerPowerCore` | The simulation. No UI, no Apple-only frameworks, no I/O. |
+| `FlowerPowerCore/Sources/FlowerPowerGame` | `GameStore`, `GamePersistence`, `ColonyNews`. Foundation and Observation only, so it compiles and is tested off-Mac. |
+| `FlowerPowerCore/Sources/BeeSim` | The headless balance runner. |
+| `FlowerPower/` | The iOS app: views and services. |
+| `FlowerPowerWatch/` | The watch app and the complication. |
+| `FlowerPower/Legacy/` | The superseded 2023 model layer, excluded from every target. Delete it once the new app has run on device. |
 
-They show up in Xcode under the target's **Info** tab. Location genuinely is
-optional — patches fall back to a nominal distance and the map shows a note.
-Don't let the prompt read as though it's required.
+The rule that keeps this honest: **if it can live in the package, put it in the
+package**, because that is the part that can be compiled and tested without a
+Mac. `ColonyNews` — the judgement about whether something deserves a
+notification — is there for exactly that reason, even though only the app uses
+it.
 
-**A note on identifiers.** The bundle identifier is
-`com.LinwoodTechnologies.FlowerPower` — left over from 2023 — while the App
-Group and both `Logger` subsystems use `com.kylepeterson.flowerpower`. Nothing
-requires an App Group to sit under the bundle id, so this builds and runs as is.
-But if you are going to renamespace the bundle id, do it before the App Group
-is provisioned rather than after.
+## 3. Deployment target
 
-## 6. The flower classifier (optional)
+iOS 17 and watchOS 10, matching what the package declares. Keep the two in
+step if you raise either.
 
-`FlowerClassifier` runs in two stages: Vision's built-in classifier asks "is this
-a plant at all?", and a Core ML model asks "which one?". **The second is
-optional.** With no model bundled, every flower is unidentified, yields 60% of
-normal, and the game plays fine.
+## 4. Signing
 
-To add species identification:
+The bundle identifier is `com.kylepeterson.flowerpower`, changed from the 2023
+`com.LinwoodTechnologies.FlowerPower` so that it, the App Group and both
+`Logger` subsystems agree. Nothing was provisioned under the old one. If that
+turns out to be wrong, it is one line in `project.yml`.
 
-1. Train a classifier in **Create ML ▸ Image Classification**. The Oxford 102
-   Flowers dataset is the usual starting point.
-2. Name the output labels to match `FlowerCatalogue` ids (`white_clover`,
-   `heather`, …), or rely on `FlowerCatalogue.match(label:)`, which also matches
-   common and scientific names.
-3. Drop `FlowerClassifier.mlmodel` into the app target. `FlowerClassifier.bundled()`
-   picks it up automatically.
+The App Group must be enabled on all three targets. It is how the phone app,
+the watch app and the widget extension read the same save file **on one
+device**. It is not how the phone talks to the watch — App Groups do not span
+devices, which was a real bug for a while. The phone sends the watch a copy of
+the save over WatchConnectivity; see `WatchLink`.
 
-**Visual Look Up — the plant identification in Photos — is not available to
-third-party apps.** There is no public API for it. This is why a model is needed
-at all.
+## 5. The flower classifier
+
+Optional, and not built. With no model bundled every flower comes back
+unidentified, yields 60% of normal, and the game plays fine — identification is
+a bonus, never a gate. In the meantime the player can name a flower themselves
+from the capture screen.
+
+**Do not start with the Oxford 102 dataset**, despite it being the obvious
+choice for flower classification. It is ornamental and glasshouse flowers;
+this catalogue is British bee forage, and about six of the thirty species
+overlap. See [docs/CLASSIFIER.md](docs/CLASSIFIER.md) for what to use instead,
+how model labels are mapped onto catalogue species, and which species will be
+hard to separate.
+
+Visual Look Up — the plant identification in Photos — has no public API and
+cannot be used. That is why a model is needed at all.
 
 ---
 
 ## Balance tooling
 
-The engine ships with a headless runner:
+The engine ships with a headless runner. Everything about colony balance is
+decided from its output rather than from reading the code; see
+[PLAN.md](PLAN.md) and the comments in `SimulationConfig.swift` for what the
+numbers are solving for.
 
 ```bash
-swift run beesim --package-path FlowerPowerCore --trials 24 --days 400
+swift run --package-path FlowerPowerCore -c release beesim \
+    --trials 60 --days 400 --patches 9 --restock 45
 ```
 
-That runs 24 seeded colonies for a bit over a simulated year and reports survival
-rate, peak population, winter cluster size, and what killed the ones that died.
+Runs 60 seeded colonies for a simulated year with a player who keeps
+photographing, and reports survival, peak population, winter cluster, autumn
+stores, and what killed the ones that died.
 
 ```bash
-swift run beesim --package-path FlowerPowerCore --days 400 --every 5 --seed 8919
+swift run --package-path FlowerPowerCore -c release beesim \
+    --days 470 --every 8 --seed 8919 --patches 9 --restock 45
 ```
 
-traces a single colony day by day, which is how nearly every balance bug in the
-engine was found. Tune against the trial statistics, never a single run — see the
-comments in `SimulationConfig.swift` for what the numbers are solving for.
+Traces one colony day by day. This is how nearly every balance bug in the
+engine has been found, including all three of the queen bugs behind the
+second-year collapse — none of them was visible in the aggregate, and all three
+were obvious in a trace.
+
+```bash
+... beesim --set swarmSeasonStart=0.3 --set pheromoneDilutionScale=70
+```
+
+Sweeps any listed constant without a rebuild. An unknown key is a hard error,
+deliberately: a silently ignored override produces a sweep whose rows all
+secretly used the same value.
+
+Two habits worth keeping:
+
+- **Use at least 60 trials.** At 24 the noise is around eight points and
+  non-monotonic, which has produced wrong conclusions more than once.
+- **Never run two trial batches at once.** They starve each other of CPU and it
+  looks like a hang.
