@@ -1,0 +1,249 @@
+# FlowerPower — Xcode project specification
+#
+# The Xcode project is generated from this file:
+#
+#     brew install xcodegen && xcodegen generate
+#
+# `FlowerPower.xcodeproj` is no longer in git. It was, and it was the single
+# worst thing in the repository: after the 2026 pivot moved the 2023 sources
+# into `FlowerPower/Legacy/`, the checked-in project still compiled five of
+# them at their old paths and knew nothing about the fifteen files that
+# replaced them. It could not open and build. A generated project cannot drift
+# that way, because the file list is a directory rather than a hand-maintained
+# array of UUIDs. The last hand-written version is at commit 0b0569c.
+#
+# Three targets, and one thing worth understanding about how they share code.
+# `GameStore` and `GamePersistence` used to live in the app target and had to
+# be ticked into the watch app and the widget extension by hand. They are now
+# the `FlowerPowerGame` library in the local Swift package, so every target
+# just depends on the package. That is also why they are compiled and tested
+# on Windows, where the engine work happens.
+#
+# Info.plist contents are written out here rather than left to
+# GENERATE_INFOPLIST_FILE. The generated form spreads the keys across build
+# settings under names that differ between Xcode versions; this is one place,
+# and it is reviewable in a diff.
+
+name: FlowerPower
+
+options:
+  bundleIdPrefix: com.kylepeterson
+  deploymentTarget:
+    iOS: "17.0"
+    watchOS: "10.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+  # Keeps generated Info.plists out of the source folders.
+  defaultConfig: Debug
+
+packages:
+  FlowerPowerCore:
+    path: FlowerPowerCore
+
+# ---------------------------------------------------------------------------
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: 588PCRUA35
+    SWIFT_VERSION: "5.0"
+    GENERATE_INFOPLIST_FILE: NO
+    SWIFT_EMIT_LOC_STRINGS: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+# ---------------------------------------------------------------------------
+
+targets:
+
+  # The phone. Where photographs are taken and where the canonical save lives.
+  FlowerPower:
+    type: application
+    platform: iOS
+    sources:
+      - path: FlowerPower
+        excludes:
+          # The superseded 2023 model layer. Kept for reference until the new
+          # app has run on device; see FlowerPower/Legacy/README.md.
+          - "Legacy/**"
+    dependencies:
+      - package: FlowerPowerCore
+        product: FlowerPowerCore
+      - package: FlowerPowerCore
+        product: FlowerPowerGame
+      - target: FlowerPowerWatch
+        embed: true
+        copy:
+          destination: productsDirectory
+          subpath: "$(CONTENTS_FOLDER_PATH)/Watch"
+    entitlements:
+      path: FlowerPower/FlowerPower.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.kylepeterson.flowerpower
+    info:
+      path: FlowerPower/Info.plist
+      properties:
+        CFBundleDisplayName: FlowerPower
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+
+        # Usage strings. Location genuinely is optional: a patch with no
+        # coordinate falls back to a nominal foraging distance and the map says
+        # so. The wording must not imply otherwise.
+        NSCameraUsageDescription: >-
+          FlowerPower uses the camera to photograph flowers for your bees.
+        NSPhotoLibraryUsageDescription: >-
+          Your flower photographs are kept in your library and shown in your
+          garden.
+        NSPhotoLibraryAddUsageDescription: >-
+          Flowers you photograph are saved to your library.
+        NSLocationWhenInUseUsageDescription: >-
+          Locations let your flowers appear on the map, and set how far your
+          bees must fly. FlowerPower works without it.
+
+        # Background refresh advances the colony and pushes a copy of the save
+        # to the watch while the app is closed. Without it the complication
+        # only ever updates when the phone app is opened. The identifier must
+        # match `BackgroundRefresh.taskIdentifier`.
+        UIBackgroundModes:
+          - fetch
+          - processing
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.kylepeterson.flowerpower.refresh
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower
+        PRODUCT_NAME: FlowerPower
+        ENABLE_PREVIEWS: YES
+        DEVELOPMENT_ASSET_PATHS: '"FlowerPower/Preview Content"'
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  # The watch. No camera, so it cannot do the thing the game is about; what it
+  # can do is tell you in a glance whether the colony needs you.
+  FlowerPowerWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: FlowerPowerWatch
+        excludes:
+          # Carries its own @main and belongs to the widget extension.
+          - "HiveComplication.swift"
+    dependencies:
+      - package: FlowerPowerCore
+        product: FlowerPowerCore
+      - package: FlowerPowerCore
+        product: FlowerPowerGame
+      - target: FlowerPowerWatchWidget
+        embed: true
+    entitlements:
+      path: FlowerPowerWatch/FlowerPowerWatch.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.kylepeterson.flowerpower
+    info:
+      path: FlowerPowerWatch/Info.plist
+      properties:
+        CFBundleDisplayName: FlowerPower
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.kylepeterson.flowerpower
+        WKRunsIndependentlyOfCompanionApp: false
+        # The watch keeps its own copy of the save and can catch the colony up
+        # itself, so it has something true to show out of range of the phone.
+        WKBackgroundModes:
+          - self-care
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.watchkitapp
+        PRODUCT_NAME: FlowerPower
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_PREVIEWS: YES
+
+  # The complication. Reads the watch's own copy of the save — see WatchLink
+  # for why that is a copy rather than the phone's file.
+  FlowerPowerWatchWidget:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - FlowerPowerWatch/HiveComplication.swift
+      - FlowerPowerWatch/WatchTheme.swift
+    dependencies:
+      - package: FlowerPowerCore
+        product: FlowerPowerCore
+      - package: FlowerPowerCore
+        product: FlowerPowerGame
+    entitlements:
+      path: FlowerPowerWatch/FlowerPowerWatchWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.kylepeterson.flowerpower
+    info:
+      path: FlowerPowerWatch/WidgetInfo.plist
+      properties:
+        CFBundleDisplayName: Hive
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.watchkitapp.widget
+        PRODUCT_NAME: FlowerPowerWatchWidget
+
+  # ------------------------------------------------------------------------
+
+  FlowerPowerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [FlowerPowerTests]
+    dependencies:
+      - target: FlowerPower
+      - package: FlowerPowerCore
+        product: FlowerPowerCore
+      - package: FlowerPowerCore
+        product: FlowerPowerGame
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.tests
+
+  FlowerPowerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [FlowerPowerUITests]
+    dependencies:
+      - target: FlowerPower
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.uitests
+
+# ---------------------------------------------------------------------------
+
+schemes:
+  FlowerPower:
+    build:
+      targets:
+        FlowerPower: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - FlowerPowerTests
+        - FlowerPowerUITests
+    profile:
+      config: Release
+    archive:
+      config: Release
+
+  FlowerPowerWatch:
+    build:
+      targets:
+        FlowerPowerWatch: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -1,6 +1,6 @@
 //
 //  GameStore.swift
-//  FlowerPower
+//  FlowerPowerGame
 //
 //  The single bridge between the simulation and SwiftUI.
 //
