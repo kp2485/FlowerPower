@@ -48,7 +48,10 @@ struct ContentView: View {
                 CatchUpReportView(report: report) { store.dismissReport() }
             }
         }
-        .task {
+        // `.task` takes a @Sendable closure, which does not inherit the view's
+        // main-actor isolation — so the hop has to be explicit to reach the
+        // @MainActor store.
+        .task { @MainActor in
             store.catchUp()
             store.startLiveUpdates()
         }

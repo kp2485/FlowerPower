@@ -10,6 +10,30 @@ to fix a few things on the first build.
 
 ---
 
+## 0. Fixes already applied
+
+A pass was made over the uncompiled layers from a Windows machine, using the
+Swift 6.3 compiler to check everything that does not need the Apple SDKs. The
+engine test suite passes (128 tests), and `GameStore.swift` and
+`GamePersistence.swift` were compiled for real against `FlowerPowerCore`. These
+were found and fixed:
+
+| File | Problem |
+|---|---|
+| `Services/FlowerClassifier.swift` | Used `FlowerSpecies` and `FlowerCatalogue` with no `import FlowerPowerCore`, and `MLModel` with no `import CoreML`. |
+| `Views/Theme.swift` | `MeterView.caption` was `let caption: String?` — a `let` optional gets no default in the memberwise initialiser, so `caption` was accidentally mandatory and one call in `GardenView` omitted it. |
+| `Views/ContentView.swift`, `CaptureView.swift`, `GardenView.swift` | `.task` takes a `@Sendable` closure, which does **not** inherit the view's main-actor isolation, so calls into the `@MainActor` `GameStore` were cross-actor. Bodies now open `{ @MainActor in … }`. |
+| `FlowerPowerWatch/WatchTheme.swift` | Extracted from `WatchRootView.swift` so the widget extension can use it without also compiling the watch's views and model. |
+| `FlowerPowerWatch/WatchColonyModel.swift` | `isStale` was assigned `summary == nil` directly after `summary` was set non-nil, so the watch's "out of touch with your phone" note could never appear. |
+
+**What is still unverified:** everything that needs the Apple SDKs — SwiftUI,
+MapKit, PhotosUI, Vision, WidgetKit, WatchConnectivity. The engine API calls in
+the views were checked symbol by symbol against `FlowerPowerCore`'s public
+surface and are consistent, but the framework calls themselves have never been
+through a compiler. The first build will still turn up SDK-level errors.
+
+---
+
 ## 1. Add the engine as a local package
 
 In Xcode: **File ▸ Add Package Dependencies… ▸ Add Local…** and choose the
@@ -45,6 +69,23 @@ FlowerPower/Views/        Theme.swift, ContentView.swift, ColonyDashboardView.sw
 to the target — see `Legacy/README.md` for what replaced what. Delete the folder
 once you are happy.
 
+### Files that belong to more than one target
+
+Two files are used outside the iOS app and need their **Target Membership**
+ticked for more than one target (File inspector, right-hand pane):
+
+| File | iOS app | Watch app | Widget extension |
+|---|:--:|:--:|:--:|
+| `FlowerPower/App/GamePersistence.swift` | yes | yes | yes |
+| `FlowerPowerWatch/WatchTheme.swift` | no | yes | yes |
+
+`GamePersistence` is how all three read the same save file in the App Group:
+`WatchColonyModel.loadFromSharedContainer()` and the complication's
+`HiveProvider` both call `GamePersistence().load()` directly. `WatchTheme` is
+used by both the watch views and `HiveComplication`. Miss either and you get
+"cannot find 'GamePersistence' in scope" / "cannot find 'WatchTheme' in scope"
+in a target that otherwise looks fine.
+
 ## 3. Raise the deployment target
 
 The project is set to iOS 17.0. That works, but the newer Vision API and several
@@ -57,10 +98,13 @@ either is fine — just keep the two in step.
 the `FlowerPower` app. Then:
 
 - Add `FlowerPowerCore` to its Frameworks list.
-- Add the files from `FlowerPowerWatch/` to it.
+- Add these to the **watch app**: `FlowerPowerWatchApp.swift`,
+  `WatchRootView.swift`, `WatchColonyModel.swift`, `WatchTheme.swift`.
 - `HiveComplication.swift` belongs in a **Widget Extension** target rather than
   the watch app itself (**File ▸ New ▸ Target ▸ watchOS ▸ Widget Extension**).
   It carries its own `@main`, so it will collide if you put it in the app target.
+- The **widget extension** additionally needs `WatchTheme.swift` and
+  `GamePersistence.swift` ticked — see the table in section 2.
 
 ## 5. Capabilities and permissions
 
@@ -74,17 +118,28 @@ This must match `GamePersistence.appGroupIdentifier`. It is how the watch and th
 complication read the same save file the phone writes. If you use a different
 identifier, change it in one place — that constant.
 
-**Info.plist**, on the iOS target:
+**Usage descriptions — already done.** This project has no `Info.plist` file:
+the app target builds with `GENERATE_INFOPLIST_FILE = YES`, so the usage strings
+live in Build Settings as `INFOPLIST_KEY_*`. All four have been added to both
+the Debug and Release configurations of the `FlowerPower` target:
 
-| Key | Why | Suggested text |
-|---|---|---|
-| `NSCameraUsageDescription` | Photographing flowers | "FlowerPower uses the camera to photograph flowers for your bees." |
-| `NSPhotoLibraryUsageDescription` | Reading and saving flower photos | "Your flower photographs are kept in your library and shown in your garden." |
-| `NSPhotoLibraryAddUsageDescription` | Saving captures | "Flowers you photograph are saved to your library." |
-| `NSLocationWhenInUseUsageDescription` | Placing flowers on the map | "Locations let your flowers appear on the map, and set how far your bees must fly. FlowerPower works without it." |
+| Key | Why |
+|---|---|
+| `INFOPLIST_KEY_NSCameraUsageDescription` | Photographing flowers |
+| `INFOPLIST_KEY_NSPhotoLibraryUsageDescription` | Reading and saving flower photos |
+| `INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription` | Saving captures |
+| `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription` | Placing flowers on the map |
 
-Location genuinely is optional — patches fall back to a nominal distance and the
-map shows a note. Don't let the prompt read as though it's required.
+They show up in Xcode under the target's **Info** tab. Location genuinely is
+optional — patches fall back to a nominal distance and the map shows a note.
+Don't let the prompt read as though it's required.
+
+**A note on identifiers.** The bundle identifier is
+`com.LinwoodTechnologies.FlowerPower` — left over from 2023 — while the App
+Group and both `Logger` subsystems use `com.kylepeterson.flowerpower`. Nothing
+requires an App Group to sit under the bundle id, so this builds and runs as is.
+But if you are going to renamespace the bundle id, do it before the App Group
+is provisioned rather than after.
 
 ## 6. The flower classifier (optional)
 

@@ -105,6 +105,11 @@ public enum Season: String, Codable, CaseIterable, Sendable {
     /// to rearing the winter cohort.
     public static let winterRearingStartsAtSummerProgress = 0.6
 
+    /// Point in summer past which a colony will no longer swarm. Real swarming
+    /// is concentrated around the spring flow; dividing later leaves neither
+    /// half time to provision for winter.
+    public static let swarmSeasonEndsAtSummerProgress = 0.35
+
     /// Point through winter at which the cluster loosens, the nest warms, and
     /// the winter bees resume developing into nurses ahead of the first brood.
     public static let winterDormancyEnds = 0.5

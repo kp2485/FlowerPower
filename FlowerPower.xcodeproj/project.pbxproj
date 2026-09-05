@@ -447,6 +447,10 @@
 				DEVELOPMENT_TEAM = 588PCRUA35;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "FlowerPower uses the camera to photograph flowers for your bees.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Locations let your flowers appear on the map, and set how far your bees must fly. FlowerPower works without it.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Flowers you photograph are saved to your library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Your flower photographs are kept in your library and shown in your garden.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -476,6 +480,10 @@
 				DEVELOPMENT_TEAM = 588PCRUA35;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "FlowerPower uses the camera to photograph flowers for your bees.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Locations let your flowers appear on the map, and set how far your bees must fly. FlowerPower works without it.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Flowers you photograph are saved to your library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Your flower photographs are kept in your library and shown in your garden.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

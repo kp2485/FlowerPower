@@ -165,7 +165,9 @@ struct MeterView: View {
 
     let label: String
     let value: Double          // 0...1
-    let caption: String?
+    // `var` with an explicit default: a `let` optional gets no default in the
+    // memberwise initialiser, which made `caption` accidentally mandatory.
+    var caption: String? = nil
     var tint: Color = Theme.honey
     var symbolName: String?
 

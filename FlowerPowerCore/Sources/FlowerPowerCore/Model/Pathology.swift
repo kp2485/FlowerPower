@@ -30,10 +30,52 @@ public enum Pathogen: String, Codable, CaseIterable, Sendable {
 
     /// Whether hygienic workers can meaningfully clear this by uncapping and
     /// removing affected brood.
-    public var respondsToHygiene: Bool {
+    /// How much of the infection hygienic workers can actually reach.
+    ///
+    /// Uncapping only exposes what is inside the cell. For a brood disease that
+    /// is the entire reservoir, and hauling the larva out removes it. Varroa is
+    /// the exception that matters: at any moment roughly half the mites are
+    /// phoretic, riding adult bees, where no amount of uncapping touches them —
+    /// and a mite whose cell is opened frequently just walks out and re-infests.
+    /// That is why hygienic stock slows varroa without ever clearing it, and
+    /// why untreated colonies still die of it.
+    ///
+    /// Treating varroa as fully exposed made hygienic removal outrun mite
+    /// growth roughly fourfold, so varroa arrived at its seed level and was
+    /// gone days later. Twenty-four test colonies recorded zero disease deaths.
+    public var hygieneSusceptibility: Double {
         switch self {
-        case .varroa, .chalkbrood, .americanFoulbrood, .deformedWingVirus: return true
-        case .nosema: return false
+        case .chalkbrood, .americanFoulbrood: return 1.0
+        // Reachable only in the small share of mites that are both inside a
+        // capped cell right now and in a cell the bees actually detect. Both
+        // fractions are well under half, and their product is what matters —
+        // which is why hygienic stock slows varroa by a useful margin rather
+        // than the order of magnitude a naive reading suggests.
+        case .varroa: return 0.05
+        // The virus is in the bees themselves, not just the brood.
+        case .deformedWingVirus: return 0.35
+        case .nosema: return 0
+        }
+    }
+
+    public var respondsToHygiene: Bool { hygieneSusceptibility > 0 }
+
+    /// How far the colony's heritable resistance slows this infection, as a
+    /// coefficient on `Genetics.diseaseResistance`.
+    ///
+    /// Per-pathogen because a single figure double-counted hygienic behaviour
+    /// against varroa: `diseaseResistance` is 40% hygiene, so hygiene both
+    /// suppressed mite reproduction *and* removed mites, and the two together
+    /// outran growth. Against varroa what genetics really buys is grooming,
+    /// which is real but modest — the strong heritable defence is VSH, and that
+    /// is already modelled as hygienic removal.
+    public var geneticSuppression: Double {
+        switch self {
+        case .varroa: return 0.20              // grooming only
+        case .deformedWingVirus: return 0.50
+        case .nosema: return 0.60
+        case .chalkbrood: return 0.70
+        case .americanFoulbrood: return 0.50
         }
     }
 

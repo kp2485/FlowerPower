@@ -66,17 +66,20 @@ struct CaptureView: View {
                 }
             }
         }
-        .task(id: pickerItem) {
+        // `.task` hands back a @Sendable closure, which does not inherit the
+        // view's main-actor isolation. Both bodies touch main-actor state.
+        .task(id: pickerItem) { @MainActor in
             guard let pickerItem else { return }
             await handle(pickerItem)
         }
-        .task {
+        .task { @MainActor in
             locationProvider.requestWhenInUse()
         }
     }
 
     // MARK: - Flow
 
+    @MainActor
     private func handle(_ item: PhotosPickerItem) async {
         do {
             guard

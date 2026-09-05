@@ -462,7 +462,13 @@ public struct QueenSystem: DailySystem {
         // Swarm preparation: a crowded colony in a flow, with the queen's
         // signal too dilute to suppress it.
         let season = context.season
-        let isSwarmSeason = season == .spring || season == .summer
+        // Swarming tracks the spring flow. A colony that divides in late summer
+        // has neither the workforce nor the season left to provision two nests,
+        // and both halves go into winter short — which is exactly what happened
+        // when any summer day would do: swarming roughly tripled second-year
+        // starvation deaths.
+        let isSwarmSeason = season == .spring
+            || (season == .summer && Season.progress(context.day) < Season.swarmSeasonEndsAtSummerProgress)
         let crowded = world.hive.swarmPressure >= context.config.swarmCongestionThreshold
         let signalWeak = qmp < Pheromones.queenRearingThreshold
         let strongEnough = world.hive.adultWorkerCount >= context.config.swarmMinimumPopulation

@@ -205,7 +205,7 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// rears a smaller cluster than its stores strictly allow â€” which is what a
     /// colony facing an uncertain winter should do, and the difference between
     /// mostly surviving and mostly starving in March.
-    public var winterProvisioningMargin: Double = 1.3
+    public var winterProvisioningMargin: Double = 1.0
 
     /// Point through winter at which the colony starts rearing again, as a
     /// fraction of the season. Earlier means a stronger spring but a heavier
@@ -246,9 +246,9 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
 
     // MARK: - Swarming
 
-    public var swarmCongestionThreshold: Double = 0.62
+    public var swarmCongestionThreshold: Double = 0.45
     public var swarmMinimumPopulation: Int = 90
-    public var swarmCellChance: Double = 0.16
+    public var swarmCellChance: Double = 0.45
     /// Days a swarm cell must have developed before the colony departs.
     public var swarmDepartureDay: Int = 8
     public var swarmDepartureShare: Double = 0.6
@@ -275,7 +275,15 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// and the signal thins as the colony grows. At 220 that point sat around
     /// 565 bees — larger than most colonies ever reach, so no colony ever
     /// swarmed. Real colonies swarm most years.
-    public var pheromoneDilutionScale: Double = 130
+    ///
+    /// 130 was still too high: it put the queen's signal below the
+    /// queen-rearing threshold only past ~276 adults, and colonies peak near
+    /// 155, so swarming stayed arithmetically unreachable and 24 test colonies
+    /// recorded 0.00 swarms over 400 days. At 45 the signal weakens from about
+    /// 96 adults, which lines up with `swarmMinimumPopulation` — strong
+    /// colonies divide, weak ones do not. Measured: 1.04 swarms per colony-year
+    /// over 120 trials.
+    public var pheromoneDilutionScale: Double = 45
     public var broodPheromoneScale: Double = 260
     /// How quickly perceived concentration tracks its target.
     public var pheromoneResponseRate: Double = 0.05
@@ -396,6 +404,11 @@ extension SimulationConfig {
         config.predatorStrength *= 1.3
         config.pathogenArrivalMultiplier = 1.8
         config.swarmCellChance *= 1.3
+        // Set explicitly rather than inherited. The standard margin dropped
+        // from 1.3 to 1.0 when swarming and varroa started actually happening,
+        // and harsh — which already cuts forage by nearly a third — collapsed
+        // to 7% survival on the inherited value.
+        config.winterProvisioningMargin = 1.3
         return config
     }
 }

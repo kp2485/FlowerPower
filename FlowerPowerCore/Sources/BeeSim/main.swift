@@ -27,6 +27,10 @@ struct Options {
     var restockEvery = 0
     var trials = 0
 
+    /// Ad-hoc config overrides, so a knob can be swept without a rebuild.
+    /// `--set pheromoneDilutionScale=45 --set swarmCongestionThreshold=0.55`
+    var overrides: [String: Double] = [:]
+
     static func parse(_ arguments: [String]) -> Options {
         var options = Options()
         var index = 0
@@ -45,6 +49,11 @@ struct Options {
             case "--every": options.every = Int(value ?? "") ?? options.every
             case "--restock": options.restockEvery = Int(value ?? "") ?? options.restockEvery
             case "--trials": options.trials = Int(value ?? "") ?? options.trials
+            case "--set":
+                let parts = (value ?? "").split(separator: "=", maxSplits: 1)
+                if parts.count == 2, let number = Double(parts[1]) {
+                    options.overrides[String(parts[0])] = number
+                }
             default: break
             }
             index += 2
@@ -53,11 +62,16 @@ struct Options {
     }
 
     var config: SimulationConfig {
+        var config: SimulationConfig
         switch preset {
-        case "gentle": return .gentle
-        case "harsh": return .harsh
-        default: return .standard
+        case "gentle": config = .gentle
+        case "harsh": config = .harsh
+        default: config = .standard
         }
+        for (key, value) in overrides {
+            config.apply(key, value)
+        }
+        return config
     }
 
     var locationType: HiveLocationType {

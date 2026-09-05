@@ -99,8 +99,9 @@ public struct DiseaseSystem: DailySystem {
                 break
             }
 
-            // Genetic resistance and diversity slow everything.
-            growth *= (1 - 0.7 * world.hive.genetics.diseaseResistance)
+            // Genetic resistance and diversity slow everything, but by
+            // different amounts — see `Pathogen.geneticSuppression`.
+            growth *= (1 - pathogen.geneticSuppression * world.hive.genetics.diseaseResistance)
 
             // Density-dependent saturation.
             let capacity = 1.0
@@ -142,7 +143,9 @@ public struct DiseaseSystem: DailySystem {
 
         for (pathogen, level) in world.hive.pathogens.active
         where pathogen.respondsToHygiene {
-            let removed = level * hygiene * effort * context.config.hygienicRemovalRate
+            let removed = level * hygiene * effort
+                * context.config.hygienicRemovalRate
+                * pathogen.hygieneSusceptibility
             let remaining = level - removed
             world.hive.pathogens[pathogen] = remaining
 

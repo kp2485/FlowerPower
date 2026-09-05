@@ -117,6 +117,14 @@ public enum BeeDevelopment {
     /// column is total days to emergence rather than pupa duration — it
     /// matches the real figures of 16, 21 and 24 days — so pupa duration is
     /// derived by subtracting the egg and larva stages.
+    ///
+    /// The larval figure had to become per-kind. A flat 9 days left a worker
+    /// with 8 days capped against 12 in a real colony, so at any moment the
+    /// nest held far less sealed brood than it should. That is not a cosmetic
+    /// error: varroa can only breed inside capped cells, so mite growth was
+    /// throttled to almost nothing and no colony ever died of disease. Real
+    /// uncapped larval periods are about 6 days for a worker, 7 for a drone
+    /// and 5 for a queen.
     public static func days(
         for kind: BeeKind,
         stage: DevelopmentStage,
@@ -126,7 +134,11 @@ public enum BeeDevelopment {
         case .egg:
             return [3, 2, 1][upgrade.rawValue]
         case .larva:
-            return [9, 7, 4][upgrade.rawValue]
+            switch kind {
+            case .queen: return [5, 4, 2][upgrade.rawValue]
+            case .worker: return [6, 5, 3][upgrade.rawValue]
+            case .drone: return [7, 5, 3][upgrade.rawValue]
+            }
         case .pupa:
             let totalToEmergence: [Int]
             switch kind {

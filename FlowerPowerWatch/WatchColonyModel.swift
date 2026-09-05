@@ -80,7 +80,10 @@ final class WatchColonyModel: NSObject {
             if summary == nil || (lastUpdated.map { Date().timeIntervalSince($0) > Self.staleAfter } ?? true) {
                 summary = computed
                 lastUpdated = Date()
-                isStale = summary == nil
+                // This is the fallback path: the figure was computed here, not
+                // sent by the phone, so it is flagged as such. `apply(_:)`
+                // clears it the moment the phone is heard from.
+                isStale = true
             }
         } catch {
             logger.error("could not read shared save: \(error.localizedDescription)")

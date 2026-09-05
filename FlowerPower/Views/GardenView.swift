@@ -222,7 +222,7 @@ struct PhotoThumbnail: View {
                     }
             }
         }
-        .task(id: localIdentifier) {
+        .task(id: localIdentifier) { @MainActor in
             image = await PhotoLibrary.thumbnail(for: localIdentifier, size: CGSize(width: 400, height: 400))
         }
     }
@@ -296,7 +296,7 @@ private struct FlowerDetailView: View {
                     }
                 }
             }
-            .task {
+            .task { @MainActor in
                 fullImage = await PhotoLibrary.thumbnail(
                     for: patch.photoLocalIdentifier,
                     size: CGSize(width: 1600, height: 1600)
