@@ -12,7 +12,7 @@ needs a Mac.
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 118 Swift Testing, 0 failures |
+| `FlowerPowerCore` engine | 248 XCTest + 123 Swift Testing, 0 failures |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
 | Balance, standard preset | 89% first year, 66% second, 2.49 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06) |
@@ -74,6 +74,16 @@ What that found and fixed:
   `Presentation/EventNarration.swift`, with `EventNarrationTests` — which is
   the general lesson: **anything that switches over an engine type belongs in
   the package**, because that is where the compiler can see it.
+
+  Acted on more widely afterwards. `Presentation/Symbols.swift` now holds the
+  SF Symbol for every drawn engine type — nine switches that were in `Theme`,
+  two of them written out a second and third time in `WatchTheme` and
+  `WidgetTheme` — along with `HiveLocationType.summary` (the site notes the
+  new-colony screen chooses on) and `AttackStyle.explanation`, which had been
+  returning the empty string for the two styles with no posture to offer, so a
+  card could show a siege and say nothing at all about it. Colours stayed in
+  the app: `Color` is SwiftUI, and a palette is house style in a way that "a
+  shield means defence" is not.
 - **Three cards drawn in the navigation bar.** `ColonyDashboardView` had
   `HoneyDecisionCard`, `RecordLinks` and `BloomPromptCard` inside a single
   `ToolbarItem`. It compiles — a `ToolbarItem` takes a `ViewBuilder` and will
