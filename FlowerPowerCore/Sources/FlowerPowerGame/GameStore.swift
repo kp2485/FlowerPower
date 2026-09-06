@@ -215,6 +215,8 @@ public final class GameStore {
 
         let coordinate = location.apply(to: patch.coordinate)
 
+        // Validated on the way out as well as on the way in, so an empty name
+        // typed and then deleted travels as no name rather than as "".
         return FlowerShare(
             speciesID: patch.species?.id,
             confidence: patch.identificationConfidence,
@@ -224,7 +226,7 @@ public final class GameStore {
             latitude: coordinate?.latitude,
             longitude: coordinate?.longitude,
             imageData: imageData
-        )
+        ).validated()
     }
 
     public enum ImportOutcome: Equatable {

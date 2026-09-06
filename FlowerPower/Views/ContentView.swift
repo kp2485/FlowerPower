@@ -25,6 +25,12 @@ struct ContentView: View {
     @State private var isCapturing = false
     @State private var isShowingSettings = false
 
+    /// A flower somebody sent, waiting to be looked at. Held here rather than
+    /// imported on arrival: content from outside the app gets shown to the
+    /// player before it changes their game.
+    @State private var incoming: FlowerShare?
+    @State private var incomingFailure: String?
+
     enum Tab: Hashable {
         case colony, nest, map, garden
     }
@@ -49,6 +55,25 @@ struct ContentView: View {
         .task { @MainActor in
             store.catchUp()
             store.startLiveUpdates()
+        }
+        .onOpenURL { url in
+            open(url)
+        }
+        .sheet(item: $incoming) { share in
+            ReceiveFlowerView(share: share)
+                .environment(store)
+        }
+        .alert(
+            "That flower could not be opened",
+            isPresented: .init(
+                get: { incomingFailure != nil },
+                set: { if !$0 { incomingFailure = nil } }
+            ),
+            presenting: incomingFailure
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { message in
+            Text(message)
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -108,6 +133,23 @@ struct ContentView: View {
             if let report = store.pendingReport {
                 CatchUpReportView(report: report) { store.dismissReport() }
             }
+        }
+    }
+
+    /// Handles a `.flower` file the player opened from a message.
+    ///
+    /// The file arrives in a location the app is only lent access to, so it is
+    /// read straight away rather than held as a URL. Nothing is imported here
+    /// — `ReceiveFlowerView` shows it first.
+    private func open(_ url: URL) {
+        let needsPermission = url.startAccessingSecurityScopedResource()
+        defer { if needsPermission { url.stopAccessingSecurityScopedResource() } }
+
+        do {
+            let share = try FlowerShare.decoded(from: Data(contentsOf: url))
+            incoming = share
+        } catch {
+            incomingFailure = error.localizedDescription
         }
     }
 

@@ -202,7 +202,12 @@ private struct FlowerThumbnail: View {
     }
 }
 
-/// Loads a thumbnail from the photo library by local identifier.
+/// Loads a thumbnail for a patch.
+///
+/// Two sources behind one view. A flower the player photographed is a
+/// `PHAsset` in their library; one somebody sent them never entered it, on
+/// purpose, and lives in the app's own container instead. The identifier says
+/// which — see `SharedImageStore`.
 struct PhotoThumbnail: View {
 
     let localIdentifier: String
@@ -224,7 +229,14 @@ struct PhotoThumbnail: View {
             }
         }
         .task(id: localIdentifier) { @MainActor in
-            image = await PhotoLibrary.thumbnail(for: localIdentifier, size: CGSize(width: 400, height: 400))
+            if FlowerShare.isSharedIdentifier(localIdentifier) {
+                image = SharedImageStore.image(forLocalIdentifier: localIdentifier)
+            } else {
+                image = await PhotoLibrary.thumbnail(
+                    for: localIdentifier,
+                    size: CGSize(width: 400, height: 400)
+                )
+            }
         }
     }
 }
@@ -235,7 +247,7 @@ private struct FlowerDetailView: View {
 
     let patch: PatchSummary
     @Environment(\.dismiss) private var dismiss
-    @State private var fullImage: UIImage?
+    @State private var isSharing = false
 
     private var species: FlowerSpecies? {
         FlowerCatalogue.all.first { $0.commonName == patch.speciesName }
@@ -262,6 +274,16 @@ private struct FlowerDetailView: View {
                         Text(patch.discoveredAt.formatted(date: .long, time: .shortened))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
+
+                        if patch.isShared {
+                            Label(
+                                patch.sharedBy.map { "Sent by \($0)" } ?? "Sent by a friend",
+                                systemImage: "gift.fill"
+                            )
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Theme.queen)
+                            .padding(.top, 2)
+                        }
                     }
 
                     if let species {
@@ -284,32 +306,21 @@ private struct FlowerDetailView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    if let fullImage {
-                        // Sharing is user-initiated and goes through the system
-                        // share sheet, so the player chooses the recipient and
-                        // nothing leaves the device without them saying so.
-                        ShareLink(
-                            item: Image(uiImage: fullImage),
-                            preview: SharePreview(shareCaption, image: Image(uiImage: fullImage))
-                        ) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                        }
+                    // Sends the flower itself rather than a picture of it.
+                    // This used to be a plain `ShareLink` on the image, which
+                    // sent a photograph that was pleasant to receive and fed
+                    // nobody's bees.
+                    Button {
+                        isSharing = true
+                    } label: {
+                        Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
             }
-            .task { @MainActor in
-                fullImage = await PhotoLibrary.thumbnail(
-                    for: patch.photoLocalIdentifier,
-                    size: CGSize(width: 1600, height: 1600)
-                )
+            .sheet(isPresented: $isSharing) {
+                ShareFlowerView(patch: patch)
             }
         }
-    }
-
-    private var shareCaption: String {
-        patch.isIdentified
-            ? "\(patch.speciesName) — found and fed to my bees 🐝"
-            : "Found this one for my bees 🐝"
     }
 }
 

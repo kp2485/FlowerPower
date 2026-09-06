@@ -115,6 +115,32 @@ targets:
           - processing
         BGTaskSchedulerPermittedIdentifiers:
           - com.kylepeterson.flowerpower.refresh
+
+        # A flower one player sends another. Declared as an exported type
+        # because this app defines it, and opened rather than merely viewed so
+        # that tapping one in a message hands it to us. `LSHandlerRank: Owner`
+        # says the same thing.
+        #
+        # The identifier, the extension and the version must agree with
+        # `FlowerShare`; a mismatch is silent, and shows up as taps on shared
+        # flowers doing nothing at all.
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.kylepeterson.flowerpower.flower
+            UTTypeDescription: FlowerPower Flower
+            UTTypeConformsTo:
+              - public.data
+              - public.content
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - flower
+              public.mime-type:
+                - application/vnd.flowerpower.flower+json
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: FlowerPower Flower
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.kylepeterson.flowerpower.flower
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower

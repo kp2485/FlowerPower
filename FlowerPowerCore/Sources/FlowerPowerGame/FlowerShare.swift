@@ -39,7 +39,7 @@
 import Foundation
 import FlowerPowerCore
 
-public struct FlowerShare: Codable, Equatable, Sendable {
+public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
 
     /// Bumped when the shape changes incompatibly. A file from the future is
     /// refused with something a person can read rather than a decode error.
