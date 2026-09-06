@@ -481,8 +481,8 @@ extension Simulation {
                 : "The flowers you found have gone over. Photograph more."
         }
 
-        if world.isInFlow { return "The nectar is flowing." }
-        if world.isInDearth { return "A dearth — little is coming in." }
+        if world.isInFlow(config) { return "The nectar is flowing." }
+        if world.isInDearth(config) { return "A dearth — little is coming in." }
         if hive.comb.queenCells.contains(where: { $0.purpose == .swarm }) {
             return "Preparing to swarm."
         }

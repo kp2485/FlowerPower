@@ -17,33 +17,31 @@ extension Date {
 
 enum Fixture {
 
-    static let clover = FlowerSpecies(
-        id: "clover",
-        commonName: "White Clover",
-        rarity: .common,
-        nectarRichness: 1.2,
-        pollenRichness: 1.0,
-        bloomSeasons: [.spring, .summer, .autumn]
-    )
+    // The real catalogue entries. Fixtures used to be stand-ins with
+    // hand-picked richness numbers, which meant the tests were exercising a
+    // forage model no player would ever meet — and could not see anything the
+    // taxonomy or the corolla depths did.
+    static let clover = FlowerCatalogue.whiteClover
+    static let heather = FlowerCatalogue.heather
+    static let crocus = FlowerCatalogue.crocus
 
-    static let heather = FlowerSpecies(
-        id: "heather",
-        commonName: "Heather",
-        rarity: .uncommon,
-        nectarRichness: 1.6,
-        pollenRichness: 0.8,
-        bloomSeasons: [.autumn],
-        isKeystone: true
-    )
-
-    static let crocus = FlowerSpecies(
-        id: "crocus",
-        commonName: "Crocus",
-        rarity: .common,
-        nectarRichness: 0.7,
-        pollenRichness: 1.4,
-        bloomSeasons: [.spring]
-    )
+    /// A plausible British year rather than a convenient handful.
+    ///
+    /// Willow for the spring pollen, hawthorn and clover for the spring and
+    /// summer nectar, bramble through high summer, heather on the moor, ivy
+    /// last of all. The long-run tests used to draw from clover, heather and
+    /// crocus, which looks like a spread and is not: crocus has a 12 mm
+    /// perianth tube and yields a honey bee no nectar at all, so spring came
+    /// down to clover alone and the colony was measured through a famine it
+    /// would never meet in the game.
+    static let palette: [FlowerSpecies] = [
+        FlowerCatalogue.willow,
+        FlowerCatalogue.hawthorn,
+        FlowerCatalogue.whiteClover,
+        FlowerCatalogue.bramble,
+        FlowerCatalogue.heather,
+        FlowerCatalogue.ivy
+    ]
 
     /// A colony with plentiful forage close to hand, so tests that are not
     /// about scarcity are not accidentally about scarcity.
@@ -158,7 +156,7 @@ extension Simulation {
     /// flow-gated behaviour — comb building especially — can be tested without
     /// having to simulate a whole spring first.
     mutating func simulateNectarFlow() {
-        let perDay = Double(world.hive.adultCount) * World.flowThresholdPerBee * 3
+        let perDay = Double(world.hive.adultCount) * config.flowThresholdPerBee * 3
         world.recentNectarIntake = Array(repeating: perDay, count: World.intakeWindow)
         world.todayNectarIntake = perDay
     }

@@ -145,8 +145,8 @@ extension Simulation {
         }
         if !world.weather.isFlyingWeather { return "Grounded" }
         if season == .winter { return "Clustered" }
-        if world.isInFlow { return "Flowing" }
-        if world.isInDearth { return "Dearth" }
+        if world.isInFlow(config) { return "Flowing" }
+        if world.isInDearth(config) { return "Dearth" }
         if snapshot.isForaging { return "Foraging" }
         return snapshot.status.displayName
     }

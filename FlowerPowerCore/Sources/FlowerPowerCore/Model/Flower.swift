@@ -60,15 +60,17 @@ public enum FlowerRarity: String, Codable, CaseIterable, Sendable {
 
 public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
 
-    /// Stable identifier, matching the label emitted by the Core ML classifier.
+    /// Stable identifier. Also the label a trained classifier is expected to
+    /// emit, though `ClassifierLabels` will translate most other vocabularies.
     public let id: String
     public let commonName: String
-    public let scientificName: String?
-    public let rarity: FlowerRarity
 
-    /// Per-visit yields before rarity and confidence are applied.
-    public let nectarRichness: Double
-    public let pollenRichness: Double
+    /// Where the plant sits botanically. Carries the family, which is what
+    /// governs floral architecture and therefore whether a honey bee can work
+    /// the flower at all.
+    public let taxon: Taxon
+
+    public let rarity: FlowerRarity
 
     /// Seasons in which this plant is actually in bloom. Photographing a
     /// crocus in August banks the sighting but yields nothing until spring.
@@ -78,41 +80,135 @@ public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
     /// they bloom when nothing else does.
     public let isKeystone: Bool
 
+    /// Measured properties of the flower. Defaults to what the family
+    /// typically offers, which is the honest estimate when nobody has measured
+    /// this particular plant.
+    public let traits: FloralTraits
+
     public init(
         id: String,
         commonName: String,
-        scientificName: String? = nil,
+        taxon: Taxon,
         rarity: FlowerRarity = .common,
-        nectarRichness: Double = 1.0,
-        pollenRichness: Double = 1.0,
         bloomSeasons: Set<Season> = [.spring, .summer],
-        isKeystone: Bool = false
+        isKeystone: Bool = false,
+        traits: FloralTraits? = nil
     ) {
         self.id = id
         self.commonName = commonName
-        self.scientificName = scientificName
+        self.taxon = taxon
         self.rarity = rarity
-        self.nectarRichness = nectarRichness
-        self.pollenRichness = pollenRichness
         self.bloomSeasons = bloomSeasons
         self.isKeystone = isKeystone
+        self.traits = traits ?? taxon.family.typicalTraits
     }
+
+    public var scientificName: String? { taxon.scientificName }
+    public var family: PlantFamily { taxon.family }
+
+    /// Nectar a colony can actually bank from this plant, relative to an
+    /// ordinary flower.
+    ///
+    /// Derived rather than stored. It used to be a hand-chosen number; it is
+    /// now the consequence of how deep the corolla is, how much nectar is in
+    /// it, and how concentrated that nectar is — which is why red clover and
+    /// white clover, the same genus with similar nectar, differ so sharply.
+    public var nectarRichness: Double {
+        traits.sugarYield / FloralTraits.referenceSugarYield
+    }
+
+    public var pollenRichness: Double { traits.effectivePollenYield }
 
     public func isInBloom(during season: Season) -> Bool {
         bloomSeasons.contains(season)
     }
 
-    /// Stand-in for a photo the classifier could not place. Deliberately
-    /// playable rather than punishing, and assumed to bloom in the warm
-    /// seasons so an unidentified flower is never dead weight.
+    /// Whether a honey bee is essentially locked out of the nectar.
+    public var nectarIsOutOfReach: Bool { traits.isOutOfReach }
+
+    /// Stand-in for a photograph that could not be placed even to a family.
+    ///
+    /// Deliberately playable rather than punishing: a middling flower of no
+    /// particular distinction, which is a fair guess about a plant nobody can
+    /// name, and assumed to bloom in the warm seasons so it is never dead
+    /// weight.
     public static let unidentified = FlowerSpecies(
         id: "unidentified",
         commonName: "Unidentified Flower",
+        taxon: Taxon(family: .rosaceae),
         rarity: .common,
-        nectarRichness: 0.6,
-        pollenRichness: 0.6,
-        bloomSeasons: [.spring, .summer, .autumn]
+        bloomSeasons: [.spring, .summer, .autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 4,
+            nectarSugarConcentration: 0.30,
+            nectarVolume: 0.6,
+            pollenProteinFraction: 0.18,
+            pollenAminoAcidCompleteness: 0.85,
+            pollenAbundance: 0.6
+        )
     )
+
+    /// The best description available for a plant placed only to a family or a
+    /// genus.
+    ///
+    /// This is what makes a coarse identification useful rather than a
+    /// consolation prize. A photograph placed in Boraginaceae is known to be a
+    /// good nectar plant with a corolla a honey bee can work, even if nobody
+    /// can say whether it is borage or viper's bugloss — so the colony gets
+    /// the family's typical forage rather than the generic unknown.
+    public static func generic(for taxon: Taxon) -> FlowerSpecies {
+        let relatives = FlowerCatalogue.all.filter { taxon.contains($0.taxon) }
+
+        // Where the catalogue has members of this group, their average is a
+        // better estimate than the family-wide default.
+        let traits = relatives.isEmpty
+            ? taxon.family.typicalTraits
+            : FloralTraits.mean(of: relatives.map(\.traits))
+
+        let seasons = relatives.isEmpty
+            ? Set(Season.allCases).subtracting([.winter])
+            : relatives.reduce(into: Set<Season>()) { $0.formUnion($1.bloomSeasons) }
+
+        return FlowerSpecies(
+            id: "taxon:\(taxon.scientificName)",
+            commonName: taxon.rank == .family
+                ? taxon.family.commonName
+                : taxon.scientificName,
+            taxon: taxon,
+            rarity: .common,
+            bloomSeasons: seasons,
+            isKeystone: relatives.contains(where: \.isKeystone),
+            traits: traits
+        )
+    }
+}
+
+extension FloralTraits {
+
+    /// Average of a set of traits, for describing a genus or family by its
+    /// known members.
+    static func mean(of traits: [FloralTraits]) -> FloralTraits {
+        guard !traits.isEmpty else {
+            return PlantFamily.rosaceae.typicalTraits
+        }
+
+        let count = Double(traits.count)
+        func average(_ value: (FloralTraits) -> Double) -> Double {
+            traits.map(value).reduce(0, +) / count
+        }
+
+        return FloralTraits(
+            corollaDepthMillimetres: average(\.corollaDepthMillimetres),
+            nectarSugarConcentration: average(\.nectarSugarConcentration),
+            nectarVolume: average(\.nectarVolume),
+            pollenProteinFraction: average(\.pollenProteinFraction),
+            pollenAminoAcidCompleteness: average(\.pollenAminoAcidCompleteness),
+            pollenAbundance: average(\.pollenAbundance),
+            // Nectarless only if every member is. A genus with one nectarless
+            // species is still a genus worth visiting for nectar.
+            producesNectar: traits.contains { $0.producesNectar }
+        )
+    }
 }
 
 // MARK: - Patches

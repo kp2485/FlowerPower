@@ -89,34 +89,47 @@ struct Options {
 
 let options = Options.parse(Array(CommandLine.arguments.dropFirst()))
 
+// `--scale` reports the catalogue's mean forage, which is the number the
+// engine's consumption constants are calibrated against.
+if CommandLine.arguments.contains("--scale") {
+    let all = FlowerCatalogue.all
+    let nectar = all.map(\.nectarRichness).reduce(0, +) / Double(all.count)
+    let pollen = all.map(\.pollenRichness).reduce(0, +) / Double(all.count)
+    let sugar = all.map(\.traits.sugarYield).reduce(0, +) / Double(all.count)
+    print(String(format: "mean nectarRichness %.3f", nectar))
+    print(String(format: "mean pollenRichness %.3f", pollen))
+    print(String(format: "mean sugarYield     %.4f", sugar))
+    let locked = all.filter(\.nectarIsOutOfReach).map(\.commonName)
+    print("out of reach: \(locked.joined(separator: ", "))")
+    exit(0)
+}
+
 // MARK: - Setup
 
 let start = Date(timeIntervalSince1970: 1_700_000_000)
 
-let clover = FlowerSpecies(
-    id: "clover", commonName: "White Clover",
-    rarity: .common, nectarRichness: 1.2, pollenRichness: 1.0,
-    bloomSeasons: [.spring, .summer, .autumn]
-)
-let willow = FlowerSpecies(
-    id: "willow", commonName: "Pussy Willow",
-    rarity: .uncommon, nectarRichness: 0.8, pollenRichness: 1.8,
-    bloomSeasons: [.spring], isKeystone: true
-)
-let heather = FlowerSpecies(
-    id: "heather", commonName: "Heather",
-    rarity: .uncommon, nectarRichness: 1.6, pollenRichness: 0.8,
-    bloomSeasons: [.autumn], isKeystone: true
-)
-let bramble = FlowerSpecies(
-    id: "bramble", commonName: "Bramble",
-    rarity: .common, nectarRichness: 1.4, pollenRichness: 1.1,
-    bloomSeasons: [.summer, .autumn]
-)
+// The real catalogue entries rather than stand-ins, so balance is measured
+// against the same corolla depths, sugar concentrations and pollen protein the
+// game runs on. Using approximations here once meant tuning against a forage
+// model no player would ever meet.
+//
+// Six species rather than four, chosen to be a plausible British year rather
+// than a convenient set: willow for the spring pollen, hawthorn and clover for
+// the spring and summer nectar, bramble through high summer, heather on the
+// moor in late summer, and ivy last of all. The old four included willow —
+// which is a great pollen plant and a poor nectar one — without anything to
+// balance it, so the tool was measuring a nectar-starved year and calling it
+// normal.
+let willow = FlowerCatalogue.willow
+let hawthorn = FlowerCatalogue.hawthorn
+let clover = FlowerCatalogue.whiteClover
+let bramble = FlowerCatalogue.bramble
+let heather = FlowerCatalogue.heather
+let ivy = FlowerCatalogue.ivy
 
 /// A spread of species, so the colony faces a realistic succession of forage
 /// rather than one flower that blooms all year.
-let palette = [clover, willow, heather, bramble]
+let palette = [willow, hawthorn, clover, bramble, heather, ivy]
 
 var simulation = Simulation.newGame(
     at: HiveLocation(type: options.locationType),

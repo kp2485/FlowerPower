@@ -21,204 +21,417 @@ public enum FlowerCatalogue {
 
     // MARK: - Spring
 
+    /// The first pollen of the year, when the colony has nothing else. The
+    /// perianth tube is long, so it is worked for pollen far more than nectar.
     public static let crocus = FlowerSpecies(
-        id: "crocus", commonName: "Crocus", scientificName: "Crocus vernus",
-        rarity: .common, nectarRichness: 0.7, pollenRichness: 1.5,
-        bloomSeasons: [.spring],
-        // The first pollen of the year, when the colony has nothing else.
-        isKeystone: true
+        id: "crocus", commonName: "Crocus",
+        taxon: Taxon(family: .iridaceae, genus: "Crocus", specificEpithet: "vernus"),
+        rarity: .common,
+        bloomSeasons: [.spring], isKeystone: true,
+        traits: FloralTraits(
+            corollaDepthMillimetres: 12, nectarSugarConcentration: 0.3,
+            nectarVolume: 0.5, pollenProteinFraction: 0.2,
+            pollenAminoAcidCompleteness: 0.85, pollenAbundance: 1.8
+        )
     )
 
+    /// Catkins with exposed nectaries and enormous quantities of pollen at about
+    /// 21% crude protein, arriving exactly when the colony is trying to build
+    /// up. Few plants matter more to a colony's year.
     public static let willow = FlowerSpecies(
-        id: "willow", commonName: "Pussy Willow", scientificName: "Salix caprea",
-        rarity: .uncommon, nectarRichness: 0.9, pollenRichness: 1.9,
-        bloomSeasons: [.spring], isKeystone: true
+        id: "willow", commonName: "Pussy Willow",
+        taxon: Taxon(family: .salicaceae, genus: "Salix", specificEpithet: "caprea"),
+        rarity: .uncommon,
+        bloomSeasons: [.spring], isKeystone: true,
+        traits: FloralTraits(
+            corollaDepthMillimetres: 0.5, nectarSugarConcentration: 0.3,
+            nectarVolume: 0.6, pollenProteinFraction: 0.21,
+            pollenAminoAcidCompleteness: 0.95, pollenAbundance: 2.2
+        )
     )
 
+    /// Abundant, shallow, easy to work, and nutritionally poor. Dandelion pollen
+    /// is measurably short of arginine, isoleucine, leucine and valine, and a
+    /// colony rearing brood on it alone does badly however much it collects.
+    /// The completeness figure is what carries that.
     public static let dandelion = FlowerSpecies(
-        id: "dandelion", commonName: "Dandelion", scientificName: "Taraxacum officinale",
-        rarity: .common, nectarRichness: 1.1, pollenRichness: 1.4,
-        bloomSeasons: [.spring, .summer]
+        id: "dandelion", commonName: "Dandelion",
+        taxon: Taxon(family: .asteraceae, genus: "Taraxacum", specificEpithet: "officinale"),
+        rarity: .common,
+        bloomSeasons: [.spring, .summer],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 2, nectarSugarConcentration: 0.32,
+            nectarVolume: 1.0, pollenProteinFraction: 0.14,
+            pollenAminoAcidCompleteness: 0.6, pollenAbundance: 1.6
+        )
     )
 
     public static let appleBlossom = FlowerSpecies(
-        id: "apple", commonName: "Apple Blossom", scientificName: "Malus domestica",
-        rarity: .common, nectarRichness: 1.2, pollenRichness: 1.1,
+        id: "apple", commonName: "Apple Blossom",
+        taxon: Taxon(family: .rosaceae, genus: "Malus", specificEpithet: "domestica"),
+        rarity: .common,
         bloomSeasons: [.spring]
     )
 
     public static let hawthorn = FlowerSpecies(
-        id: "hawthorn", commonName: "Hawthorn", scientificName: "Crataegus monogyna",
-        rarity: .common, nectarRichness: 1.3, pollenRichness: 0.9,
-        bloomSeasons: [.spring]
+        id: "hawthorn", commonName: "Hawthorn",
+        taxon: Taxon(family: .rosaceae, genus: "Crataegus", specificEpithet: "monogyna"),
+        rarity: .common,
+        bloomSeasons: [.spring],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 1.5, nectarSugarConcentration: 0.32,
+            nectarVolume: 1.1, pollenProteinFraction: 0.21,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 1.0
+        )
     )
 
+    /// Shallow, concentrated, and effectively unlimited where it is grown. It
+    /// also granulates in the comb within days, which is a real difficulty for
+    /// a beekeeper and is not modelled here.
     public static let oilseedRape = FlowerSpecies(
-        id: "oilseed_rape", commonName: "Oilseed Rape", scientificName: "Brassica napus",
-        rarity: .common, nectarRichness: 1.9, pollenRichness: 1.5,
-        bloomSeasons: [.spring]
+        id: "oilseed_rape", commonName: "Oilseed Rape",
+        taxon: Taxon(family: .brassicaceae, genus: "Brassica", specificEpithet: "napus"),
+        rarity: .common,
+        bloomSeasons: [.spring],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 2, nectarSugarConcentration: 0.48,
+            nectarVolume: 1.6, pollenProteinFraction: 0.24,
+            pollenAminoAcidCompleteness: 0.95, pollenAbundance: 1.3
+        )
     )
 
+    /// A pendent bell on a long tube. Bumblebees work it comfortably; a honey
+    /// bee reaches only the top of the nectar.
     public static let bluebell = FlowerSpecies(
-        id: "bluebell", commonName: "Bluebell", scientificName: "Hyacinthoides non-scripta",
-        rarity: .uncommon, nectarRichness: 1.0, pollenRichness: 0.7,
-        bloomSeasons: [.spring]
+        id: "bluebell", commonName: "Bluebell",
+        taxon: Taxon(family: .asparagaceae, genus: "Hyacinthoides", specificEpithet: "non-scripta"),
+        rarity: .uncommon,
+        bloomSeasons: [.spring],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 10, nectarSugarConcentration: 0.35,
+            nectarVolume: 0.9, pollenProteinFraction: 0.19,
+            pollenAminoAcidCompleteness: 0.85, pollenAbundance: 0.8
+        )
     )
 
     public static let cherryBlossom = FlowerSpecies(
-        id: "cherry", commonName: "Cherry Blossom", scientificName: "Prunus avium",
-        rarity: .common, nectarRichness: 1.1, pollenRichness: 1.2,
+        id: "cherry", commonName: "Cherry Blossom",
+        taxon: Taxon(family: .rosaceae, genus: "Prunus", specificEpithet: "avium"),
+        rarity: .common,
         bloomSeasons: [.spring]
     )
 
+
     // MARK: - Summer
 
+    /// The classic honey plant, and the reason corolla depth is modelled at all.
+    /// Its tube is about 2 mm. Red clover is the same genus with comparable
+    /// nectar and a 9-10 mm tube, and is famously close to useless for a honey
+    /// bee. The whole difference is reach.
     public static let whiteClover = FlowerSpecies(
-        id: "white_clover", commonName: "White Clover", scientificName: "Trifolium repens",
-        rarity: .common, nectarRichness: 1.4, pollenRichness: 1.0,
-        bloomSeasons: [.spring, .summer, .autumn]
+        id: "white_clover", commonName: "White Clover",
+        taxon: Taxon(family: .fabaceae, genus: "Trifolium", specificEpithet: "repens"),
+        rarity: .common,
+        bloomSeasons: [.spring, .summer, .autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 2, nectarSugarConcentration: 0.35,
+            nectarVolume: 1.2, pollenProteinFraction: 0.25,
+            pollenAminoAcidCompleteness: 0.95, pollenAbundance: 0.9
+        )
     )
 
+    /// Refills within minutes of being emptied, which is why bees work it all day
+    /// and why it out-yields plants holding far more nectar at any one moment.
     public static let borage = FlowerSpecies(
-        id: "borage", commonName: "Borage", scientificName: "Borago officinalis",
-        rarity: .uncommon, nectarRichness: 2.0, pollenRichness: 1.0,
-        bloomSeasons: [.summer, .autumn]
+        id: "borage", commonName: "Borage",
+        taxon: Taxon(family: .boraginaceae, genus: "Borago", specificEpithet: "officinalis"),
+        rarity: .uncommon,
+        bloomSeasons: [.summer],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 5, nectarSugarConcentration: 0.45,
+            nectarVolume: 2.0, pollenProteinFraction: 0.22,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 1.0
+        )
     )
 
     public static let lavender = FlowerSpecies(
-        id: "lavender", commonName: "Lavender", scientificName: "Lavandula angustifolia",
-        rarity: .common, nectarRichness: 1.5, pollenRichness: 0.6,
-        bloomSeasons: [.summer]
+        id: "lavender", commonName: "Lavender",
+        taxon: Taxon(family: .lamiaceae, genus: "Lavandula", specificEpithet: "angustifolia"),
+        rarity: .common,
+        bloomSeasons: [.summer],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 6, nectarSugarConcentration: 0.4,
+            nectarVolume: 1.2, pollenProteinFraction: 0.2,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 0.6
+        )
     )
 
+    /// Open, long-flowering and everywhere. The summer mainstay.
     public static let bramble = FlowerSpecies(
-        id: "bramble", commonName: "Bramble", scientificName: "Rubus fruticosus",
-        rarity: .common, nectarRichness: 1.5, pollenRichness: 1.1,
-        bloomSeasons: [.summer, .autumn]
+        id: "bramble", commonName: "Bramble",
+        taxon: Taxon(family: .rosaceae, genus: "Rubus", specificEpithet: "fruticosus"),
+        rarity: .common,
+        bloomSeasons: [.summer, .autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 2, nectarSugarConcentration: 0.33,
+            nectarVolume: 1.4, pollenProteinFraction: 0.21,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 1.2
+        )
     )
 
+    /// A very heavy flow over about a fortnight, and unreliable from one year to
+    /// the next. Malvaceae rather than Tiliaceae, following APG IV.
     public static let lime = FlowerSpecies(
-        id: "lime", commonName: "Lime Tree", scientificName: "Tilia europaea",
-        rarity: .uncommon, nectarRichness: 2.1, pollenRichness: 0.8,
-        bloomSeasons: [.summer]
+        id: "lime", commonName: "Lime Tree",
+        taxon: Taxon(family: .malvaceae, genus: "Tilia", specificEpithet: "europaea"),
+        rarity: .uncommon,
+        bloomSeasons: [.summer],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 3, nectarSugarConcentration: 0.35,
+            nectarVolume: 2.2, pollenProteinFraction: 0.2,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 0.8
+        )
     )
 
+    /// Sown deliberately as a bee plant, and earns it. Boraginaceae under APG IV,
+    /// where an older book would say Hydrophyllaceae.
     public static let phacelia = FlowerSpecies(
-        id: "phacelia", commonName: "Phacelia", scientificName: "Phacelia tanacetifolia",
-        rarity: .uncommon, nectarRichness: 1.9, pollenRichness: 1.6,
-        bloomSeasons: [.summer, .autumn]
+        id: "phacelia", commonName: "Phacelia",
+        taxon: Taxon(family: .boraginaceae, genus: "Phacelia", specificEpithet: "tanacetifolia"),
+        rarity: .uncommon,
+        bloomSeasons: [.summer, .autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 4, nectarSugarConcentration: 0.42,
+            nectarVolume: 1.9, pollenProteinFraction: 0.23,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 1.4
+        )
     )
 
     public static let sunflower = FlowerSpecies(
-        id: "sunflower", commonName: "Sunflower", scientificName: "Helianthus annuus",
-        rarity: .common, nectarRichness: 1.2, pollenRichness: 1.8,
-        bloomSeasons: [.summer, .autumn]
+        id: "sunflower", commonName: "Sunflower",
+        taxon: Taxon(family: .asteraceae, genus: "Helianthus", specificEpithet: "annuus"),
+        rarity: .common,
+        bloomSeasons: [.summer, .autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 4, nectarSugarConcentration: 0.35,
+            nectarVolume: 1.0, pollenProteinFraction: 0.16,
+            pollenAminoAcidCompleteness: 0.8, pollenAbundance: 1.3
+        )
     )
 
+    /// Long florets for a composite, so a honey bee reaches the nectar but not as
+    /// easily as a bumblebee does.
     public static let thistle = FlowerSpecies(
-        id: "thistle", commonName: "Thistle", scientificName: "Cirsium arvense",
-        rarity: .common, nectarRichness: 1.4, pollenRichness: 0.9,
-        bloomSeasons: [.summer, .autumn]
+        id: "thistle", commonName: "Thistle",
+        taxon: Taxon(family: .asteraceae, genus: "Cirsium", specificEpithet: "arvense"),
+        rarity: .common,
+        bloomSeasons: [.summer],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 7, nectarSugarConcentration: 0.38,
+            nectarVolume: 1.3, pollenProteinFraction: 0.17,
+            pollenAminoAcidCompleteness: 0.8, pollenAbundance: 1.0
+        )
     )
 
+    /// A bumblebee flower. The tube is well over 20 mm, so a honey bee cannot
+    /// reach the nectar however much is in there. This is the plant that
+    /// `nectarAccessibility` exists to describe. Plantaginaceae under APG IV.
     public static let foxglove = FlowerSpecies(
-        id: "foxglove", commonName: "Foxglove", scientificName: "Digitalis purpurea",
-        rarity: .uncommon, nectarRichness: 1.3, pollenRichness: 0.8,
-        bloomSeasons: [.summer]
+        id: "foxglove", commonName: "Foxglove",
+        taxon: Taxon(family: .plantaginaceae, genus: "Digitalis", specificEpithet: "purpurea"),
+        rarity: .uncommon,
+        bloomSeasons: [.summer],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 22, nectarSugarConcentration: 0.38,
+            nectarVolume: 1.5, pollenProteinFraction: 0.2,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 0.9
+        )
     )
 
+    /// No nectar whatsoever, and pollen in vast quantity. A single richness
+    /// number could not express that, and had poppies wrong in both
+    /// directions at once.
     public static let poppy = FlowerSpecies(
-        id: "poppy", commonName: "Poppy", scientificName: "Papaver rhoeas",
-        // Poppies offer pollen only — no nectar at all.
-        rarity: .common, nectarRichness: 0.0, pollenRichness: 1.7,
-        bloomSeasons: [.summer]
+        id: "poppy", commonName: "Poppy",
+        taxon: Taxon(family: .papaveraceae, genus: "Papaver", specificEpithet: "rhoeas"),
+        rarity: .common,
+        bloomSeasons: [.summer],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 0, nectarSugarConcentration: 0,
+            nectarVolume: 0, pollenProteinFraction: 0.2,
+            pollenAminoAcidCompleteness: 0.85, pollenAbundance: 2.4, producesNectar: false
+        )
     )
 
     public static let echinacea = FlowerSpecies(
-        id: "echinacea", commonName: "Coneflower", scientificName: "Echinacea purpurea",
-        rarity: .common, nectarRichness: 1.2, pollenRichness: 1.0,
-        bloomSeasons: [.summer, .autumn]
+        id: "echinacea", commonName: "Coneflower",
+        taxon: Taxon(family: .asteraceae, genus: "Echinacea", specificEpithet: "purpurea"),
+        rarity: .uncommon,
+        bloomSeasons: [.summer, .autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 5, nectarSugarConcentration: 0.34,
+            nectarVolume: 1.1, pollenProteinFraction: 0.17,
+            pollenAminoAcidCompleteness: 0.8, pollenAbundance: 0.9
+        )
     )
 
+    /// Flowers through a mild winter, which is worth far more than its yield.
     public static let rosemary = FlowerSpecies(
-        id: "rosemary", commonName: "Rosemary", scientificName: "Salvia rosmarinus",
-        rarity: .common, nectarRichness: 1.4, pollenRichness: 0.7,
-        bloomSeasons: [.spring, .summer]
+        id: "rosemary", commonName: "Rosemary",
+        taxon: Taxon(family: .lamiaceae, genus: "Salvia", specificEpithet: "rosmarinus"),
+        rarity: .common,
+        bloomSeasons: [.spring, .winter], isKeystone: true,
+        traits: FloralTraits(
+            corollaDepthMillimetres: 5, nectarSugarConcentration: 0.42,
+            nectarVolume: 1.3, pollenProteinFraction: 0.2,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 0.6
+        )
     )
+
+    /// Small accessible bells across whole moors, in late summer and autumn when
+    /// the lowland has finished. The honey is thixotropic and will not spin out
+    /// of the comb, which is a beekeeper's problem rather than a colony's.
+    public static let heather = FlowerSpecies(
+        id: "heather", commonName: "Heather",
+        taxon: Taxon(family: .ericaceae, genus: "Calluna", specificEpithet: "vulgaris"),
+        rarity: .uncommon,
+        bloomSeasons: [.autumn], isKeystone: true,
+        traits: FloralTraits(
+            corollaDepthMillimetres: 2, nectarSugarConcentration: 0.33,
+            nectarVolume: 1.5, pollenProteinFraction: 0.18,
+            pollenAminoAcidCompleteness: 0.85, pollenAbundance: 0.8
+        )
+    )
+
 
     // MARK: - Autumn
 
-    public static let heather = FlowerSpecies(
-        id: "heather", commonName: "Heather", scientificName: "Calluna vulgaris",
-        rarity: .uncommon, nectarRichness: 1.7, pollenRichness: 0.9,
-        bloomSeasons: [.autumn], isKeystone: true
-    )
-
+    /// Completely open nectaries, nectar at nearly 50% sugar, and the last real
+    /// forage of the year. What a colony goes into winter on.
     public static let ivy = FlowerSpecies(
-        id: "ivy", commonName: "Ivy", scientificName: "Hedera helix",
-        rarity: .common, nectarRichness: 1.6, pollenRichness: 1.4,
-        // The last real forage of the year, and what many colonies winter on.
-        bloomSeasons: [.autumn], isKeystone: true
+        id: "ivy", commonName: "Ivy",
+        taxon: Taxon(family: .araliaceae, genus: "Hedera", specificEpithet: "helix"),
+        rarity: .common,
+        bloomSeasons: [.autumn], isKeystone: true,
+        traits: FloralTraits(
+            corollaDepthMillimetres: 1, nectarSugarConcentration: 0.49,
+            nectarVolume: 1.5, pollenProteinFraction: 0.2,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 1.2
+        )
     )
 
-    public static let himalayanBalsam = FlowerSpecies(
-        id: "balsam", commonName: "Himalayan Balsam", scientificName: "Impatiens glandulifera",
-        rarity: .common, nectarRichness: 1.8, pollenRichness: 1.0,
-        bloomSeasons: [.autumn]
+    /// Invasive, and from a colony's point of view a windfall: a heavy late flow
+    /// that sends foragers home dusted white.
+    public static let balsam = FlowerSpecies(
+        id: "balsam", commonName: "Himalayan Balsam",
+        taxon: Taxon(family: .balsaminaceae, genus: "Impatiens", specificEpithet: "glandulifera"),
+        rarity: .common,
+        bloomSeasons: [.summer, .autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 8, nectarSugarConcentration: 0.4,
+            nectarVolume: 2.0, pollenProteinFraction: 0.19,
+            pollenAminoAcidCompleteness: 0.85, pollenAbundance: 1.5
+        )
     )
 
     public static let goldenrod = FlowerSpecies(
-        id: "goldenrod", commonName: "Goldenrod", scientificName: "Solidago virgaurea",
-        rarity: .common, nectarRichness: 1.4, pollenRichness: 1.5,
-        bloomSeasons: [.autumn], isKeystone: true
+        id: "goldenrod", commonName: "Goldenrod",
+        taxon: Taxon(family: .asteraceae, genus: "Solidago", specificEpithet: "virgaurea"),
+        rarity: .common,
+        bloomSeasons: [.autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 2, nectarSugarConcentration: 0.34,
+            nectarVolume: 1.0, pollenProteinFraction: 0.17,
+            pollenAminoAcidCompleteness: 0.8, pollenAbundance: 1.1
+        )
     )
 
     public static let aster = FlowerSpecies(
-        id: "aster", commonName: "Michaelmas Daisy", scientificName: "Symphyotrichum novi-belgii",
-        rarity: .common, nectarRichness: 1.2, pollenRichness: 1.1,
-        bloomSeasons: [.autumn]
+        id: "aster", commonName: "Michaelmas Daisy",
+        taxon: Taxon(family: .asteraceae, genus: "Symphyotrichum", specificEpithet: "novi-belgii"),
+        rarity: .common,
+        bloomSeasons: [.autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 3, nectarSugarConcentration: 0.33,
+            nectarVolume: 0.9, pollenProteinFraction: 0.17,
+            pollenAminoAcidCompleteness: 0.8, pollenAbundance: 1.0
+        )
     )
 
     public static let sedum = FlowerSpecies(
-        id: "sedum", commonName: "Ice Plant", scientificName: "Hylotelephium spectabile",
-        rarity: .common, nectarRichness: 1.3, pollenRichness: 0.9,
-        bloomSeasons: [.autumn]
+        id: "sedum", commonName: "Ice Plant",
+        taxon: Taxon(family: .crassulaceae, genus: "Hylotelephium", specificEpithet: "spectabile"),
+        rarity: .common,
+        bloomSeasons: [.autumn],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 2, nectarSugarConcentration: 0.34,
+            nectarVolume: 0.9, pollenProteinFraction: 0.18,
+            pollenAminoAcidCompleteness: 0.85, pollenAbundance: 0.8
+        )
     )
+
 
     // MARK: - Winter and rarities
 
+    /// Almost nothing flowers in winter, which is what makes this extraordinary.
     public static let winterHeather = FlowerSpecies(
-        id: "winter_heather", commonName: "Winter Heather", scientificName: "Erica carnea",
-        rarity: .rare, nectarRichness: 1.1, pollenRichness: 1.0,
-        // Almost nothing flowers in winter, which makes this extraordinary.
-        bloomSeasons: [.winter, .spring], isKeystone: true
+        id: "winter_heather", commonName: "Winter Heather",
+        taxon: Taxon(family: .ericaceae, genus: "Erica", specificEpithet: "carnea"),
+        rarity: .rare,
+        bloomSeasons: [.winter, .spring], isKeystone: true,
+        traits: FloralTraits(
+            corollaDepthMillimetres: 5, nectarSugarConcentration: 0.32,
+            nectarVolume: 0.9, pollenProteinFraction: 0.18,
+            pollenAminoAcidCompleteness: 0.85, pollenAbundance: 0.7
+        )
     )
 
     public static let mahonia = FlowerSpecies(
-        id: "mahonia", commonName: "Mahonia", scientificName: "Mahonia aquifolium",
-        rarity: .rare, nectarRichness: 1.3, pollenRichness: 1.2,
-        bloomSeasons: [.winter, .spring], isKeystone: true
+        id: "mahonia", commonName: "Mahonia",
+        taxon: Taxon(family: .berberidaceae, genus: "Mahonia", specificEpithet: "aquifolium"),
+        rarity: .rare,
+        bloomSeasons: [.winter, .spring], isKeystone: true,
+        traits: FloralTraits(
+            corollaDepthMillimetres: 4, nectarSugarConcentration: 0.35,
+            nectarVolume: 0.9, pollenProteinFraction: 0.2,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 0.9
+        )
     )
 
+    /// Among the highest-yielding nectar plants in Britain, and it refills as
+    /// fast as borage does.
     public static let vipersBugloss = FlowerSpecies(
-        id: "vipers_bugloss", commonName: "Viper's Bugloss", scientificName: "Echium vulgare",
-        rarity: .rare, nectarRichness: 2.4, pollenRichness: 1.3,
-        bloomSeasons: [.summer, .autumn], isKeystone: true
+        id: "vipers_bugloss", commonName: "Viper's Bugloss",
+        taxon: Taxon(family: .boraginaceae, genus: "Echium", specificEpithet: "vulgare"),
+        rarity: .rare,
+        bloomSeasons: [.summer, .autumn], isKeystone: true,
+        traits: FloralTraits(
+            corollaDepthMillimetres: 5, nectarSugarConcentration: 0.45,
+            nectarVolume: 2.4, pollenProteinFraction: 0.22,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 1.0
+        )
     )
 
+    /// Nectarless, like the poppy, and visited only for pollen. The scent
+    /// suggests otherwise, which is exactly why it is worth modelling.
     public static let meadowsweet = FlowerSpecies(
-        id: "meadowsweet", commonName: "Meadowsweet", scientificName: "Filipendula ulmaria",
-        rarity: .rare, nectarRichness: 0.9, pollenRichness: 1.8,
-        bloomSeasons: [.summer]
+        id: "meadowsweet", commonName: "Meadowsweet",
+        taxon: Taxon(family: .rosaceae, genus: "Filipendula", specificEpithet: "ulmaria"),
+        rarity: .rare,
+        bloomSeasons: [.summer],
+        traits: FloralTraits(
+            corollaDepthMillimetres: 0, nectarSugarConcentration: 0,
+            nectarVolume: 0, pollenProteinFraction: 0.2,
+            pollenAminoAcidCompleteness: 0.9, pollenAbundance: 1.9, producesNectar: false
+        )
     )
-
     // MARK: - Lookup
 
     public static let all: [FlowerSpecies] = [
         crocus, willow, dandelion, appleBlossom, hawthorn, oilseedRape, bluebell, cherryBlossom,
         whiteClover, borage, lavender, bramble, lime, phacelia, sunflower, thistle, foxglove,
         poppy, echinacea, rosemary,
-        heather, ivy, himalayanBalsam, goldenrod, aster, sedum,
+        heather, ivy, balsam, goldenrod, aster, sedum,
         winterHeather, mahonia, vipersBugloss, meadowsweet
     ]
 

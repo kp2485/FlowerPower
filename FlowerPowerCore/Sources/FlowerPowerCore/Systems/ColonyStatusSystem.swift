@@ -28,11 +28,12 @@ public struct ColonyStatusSystem: DailySystem {
 
         let today = world.recentNectarIntake.last ?? 0
         let yesterday = world.recentNectarIntake[world.recentNectarIntake.count - 2]
-        let threshold = Double(world.hive.adultCount) * World.flowThresholdPerBee
+        let threshold = Double(world.hive.adultCount) * context.config.flowThresholdPerBee
 
         if today > threshold && yesterday <= threshold {
             context.emit(.nectarFlowBegan)
-        } else if world.isInDearth && yesterday > Double(world.hive.adultCount) * World.dearthThresholdPerBee {
+        } else if world.isInDearth(context.config)
+            && yesterday > Double(world.hive.adultCount) * context.config.dearthThresholdPerBee {
             context.emit(.dearth)
         }
     }

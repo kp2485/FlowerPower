@@ -211,8 +211,25 @@ public struct QueenSystem: DailySystem {
         let dailyCostPerLarva = context.config.foodPerLarva * Double(SimClock.ticksPerDay)
         guard dailyCostPerLarva > 0 else { return 0 }
 
-        // What is coming in, converted to honey equivalent.
-        let dailyIncome = world.averageNectarIntake / context.config.nectarPerHoney
+        // What is coming in, converted to honey equivalent, less what the
+        // colony that gathered it eats.
+        //
+        // The maintenance term was missing, and the error grew with the
+        // colony: a nest of six hundred adults eats several units a day, and
+        // treating gross income as available for brood let a strong colony
+        // commit food it had already spent. It then reared a nest full of
+        // larvae, ran the stores flat and starved in the middle of the
+        // growing season — 32 of 60 colonies over two years, collapsing in
+        // spring and summer rather than in winter, which is the signature of
+        // over-rearing rather than of a bad autumn.
+        let adultUpkeep = Double(world.hive.adultCount)
+            * context.config.honeyPerAdult
+            * Double(SimClock.ticksPerDay)
+
+        let dailyIncome = max(
+            0,
+            world.averageNectarIntake / context.config.nectarPerHoney - adultUpkeep
+        )
 
         // Plus a measured draw on the reserve above the laying threshold. The
         // colony is willing to spend savings on brood, but not all of them —
@@ -231,7 +248,12 @@ public struct QueenSystem: DailySystem {
                 world.hive.winterStoresRequired * (1 - Season.progress(context.day))
             )
         case .spring, .summer:
-            floor = context.config.layingEnergyThreshold
+            // Scaled by population: what is a comfortable cushion for a
+            // nucleus is less than a day's food for a strong colony.
+            floor = max(
+                context.config.layingEnergyThreshold,
+                Double(world.hive.adultCount) * context.config.layingReservePerBee
+            )
         }
 
         let spendableReserve = max(0, world.hive.resources.edibleEnergy - floor)
@@ -518,7 +540,32 @@ public struct QueenSystem: DailySystem {
         // modelling them properly needs its own rules.
         let haveAQueenToSend = world.hive.isQueenright && world.hive.queenIsMated
 
-        if isSwarmSeason, crowded, signalWeak, strongEnough, haveAQueenToSend, world.isInFlow {
+        // Provisioned, rather than in a full flow.
+        //
+        // Requiring `isInFlow` looks right and is self-defeating. Nectar
+        // intake is clamped to the free comb the colony has to put it in, so a
+        // colony with no room registers a small intake however hard it is
+        // working — and a colony with no room is precisely the colony that
+        // ought to be swarming. The flow gate switched swarming off exactly
+        // when congestion switched it on, and the two cancelled.
+        //
+        // Dropping it entirely is worse. A colony that divides on thin stores
+        // in late spring puts both halves into the summer short, which is the
+        // failure that dominated second-year deaths before the swarm season
+        // was given a start. Measured: two-year survival fell from 25% to 5%.
+        //
+        // What a real swarm needs is stores, not a flow. Bees gorge before
+        // they leave and go with several days of honey in their crops, and a
+        // colony that cannot afford that does not cast one. So the test is
+        // whether the colony is fed: not in a dearth, and holding enough for
+        // both halves to eat while they rebuild.
+        let swarmProvision = Double(world.hive.adultCount)
+            * context.config.layingReservePerBee
+            * context.config.swarmProvisionMultiple
+        let provisioned = world.hive.resources.edibleEnergy >= swarmProvision
+        let worthLeaving = provisioned && !world.isInDearth(context.config)
+
+        if isSwarmSeason, crowded, signalWeak, strongEnough, haveAQueenToSend, worthLeaving {
             let urge = context.config.swarmCellChance * (0.5 + world.hive.genetics.swarminess)
             if context.rng.chance(urge) {
                 return .swarm

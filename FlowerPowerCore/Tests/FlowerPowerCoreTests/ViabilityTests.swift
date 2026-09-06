@@ -27,7 +27,7 @@ final class ViabilityTests: XCTestCase {
             for index in 0..<count {
                 simulation.registerPhotograph(
                     photoLocalIdentifier: "\(tag)-\(index)",
-                    species: [Fixture.clover, Fixture.heather, Fixture.crocus][index % 3],
+                    species: Fixture.palette[index % Fixture.palette.count],
                     confidence: 0.9,
                     coordinate: nil,
                     takenAt: epoch,
@@ -125,7 +125,7 @@ final class ViabilityTests: XCTestCase {
         for index in 0..<12 {
             simulation.registerPhotograph(
                 photoLocalIdentifier: "q-\(index)",
-                species: [Fixture.clover, Fixture.heather, Fixture.crocus][index % 3],
+                species: Fixture.palette[index % Fixture.palette.count],
                 confidence: 0.9,
                 coordinate: nil,
                 takenAt: epoch,
@@ -143,7 +143,7 @@ final class ViabilityTests: XCTestCase {
                 for index in 0..<4 {
                     simulation.registerPhotograph(
                         photoLocalIdentifier: "r\(day)-\(index)",
-                        species: [Fixture.clover, Fixture.heather, Fixture.crocus][index % 3],
+                        species: Fixture.palette[index % Fixture.palette.count],
                         confidence: 0.9,
                         coordinate: nil,
                         takenAt: epoch,
@@ -266,7 +266,7 @@ final class ViabilityTests: XCTestCase {
         for index in 0..<count {
             simulation.registerPhotograph(
                 photoLocalIdentifier: "\(tag)-\(index)",
-                species: [Fixture.clover, Fixture.heather, Fixture.crocus][index % 3],
+                species: Fixture.palette[index % Fixture.palette.count],
                 confidence: 0.9,
                 coordinate: nil,
                 takenAt: epoch,

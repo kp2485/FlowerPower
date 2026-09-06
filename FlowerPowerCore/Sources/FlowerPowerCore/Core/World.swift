@@ -81,23 +81,18 @@ public struct World: Codable, Equatable, Sendable {
     /// A nectar flow: forage arriving faster than the colony consumes it. Real
     /// colonies switch behaviour wholesale — building comb, rearing brood and,
     /// if crowded, preparing to swarm.
-    public var isInFlow: Bool {
-        averageNectarIntake > Double(hive.adultCount) * Self.flowThresholdPerBee
+    ///
+    /// Both thresholds live in `SimulationConfig` because they are expressed
+    /// in forage units, and those units were redefined when nectar became
+    /// sugar yield derived from real floral traits.
+    public func isInFlow(_ config: SimulationConfig) -> Bool {
+        averageNectarIntake > Double(hive.adultCount) * config.flowThresholdPerBee
     }
-
-    /// Daily nectar per adult above which the colony treats conditions as a
-    /// flow: it draws comb, rears brood hard, and starts thinking about
-    /// swarming.
-    public static let flowThresholdPerBee = 0.20
 
     /// A dearth. Colonies stop rearing brood, evict drones and start robbing.
-    public var isInDearth: Bool {
-        averageNectarIntake < Double(hive.adultCount) * Self.dearthThresholdPerBee
+    public func isInDearth(_ config: SimulationConfig) -> Bool {
+        averageNectarIntake < Double(hive.adultCount) * config.dearthThresholdPerBee
     }
-
-    /// Below this the colony is in dearth: brood rearing stops, drones are
-    /// evicted, and robbing begins.
-    public static let dearthThresholdPerBee = 0.04
 
     /// Patches actually worth flying to right now.
     public func availablePatches(

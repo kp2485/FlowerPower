@@ -335,16 +335,13 @@ extension GameStore {
             seed: 42
         )
 
-        let species: [FlowerSpecies] = [
-            FlowerSpecies(id: "clover", commonName: "White Clover",
-                          scientificName: "Trifolium repens",
-                          nectarRichness: 1.2, bloomSeasons: [.spring, .summer, .autumn]),
-            FlowerSpecies(id: "borage", commonName: "Borage",
-                          scientificName: "Borago officinalis", rarity: .uncommon,
-                          nectarRichness: 1.8, bloomSeasons: [.summer]),
-            FlowerSpecies(id: "heather", commonName: "Heather",
-                          scientificName: "Calluna vulgaris", rarity: .uncommon,
-                          nectarRichness: 1.6, bloomSeasons: [.autumn], isKeystone: true)
+        // Real catalogue entries rather than hand-built ones, so a preview
+        // shows the same taxonomy, corolla depths and pollen quality the game
+        // actually runs on.
+        let species = [
+            FlowerCatalogue.whiteClover,
+            FlowerCatalogue.borage,
+            FlowerCatalogue.heather
         ]
 
         for index in 0..<patches {

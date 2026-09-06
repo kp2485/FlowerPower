@@ -30,6 +30,8 @@ extension SimulationConfig {
         case "flightEnergyPerForager": flightEnergyPerForager = value
         case "forageWearPerTick": forageWearPerTick = value
 
+        case "flowThresholdPerBee": flowThresholdPerBee = value
+        case "dearthThresholdPerBee": dearthThresholdPerBee = value
         case "sharedPatchYield": sharedPatchYield = value
         case "patchFreshDays": patchFreshDays = Int(value)
         case "patchFadeDays": patchFadeDays = Int(value)
@@ -42,6 +44,7 @@ extension SimulationConfig {
         case "honeyPerWax": honeyPerWax = value
 
         // Swarming and pheromones
+        case "swarmProvisionMultiple": swarmProvisionMultiple = value
         case "swarmSeasonStart": swarmSeasonStart = value
         case "swarmSeasonEnd": swarmSeasonEnd = value
         case "swarmCongestionThreshold": swarmCongestionThreshold = value
@@ -60,6 +63,8 @@ extension SimulationConfig {
         // Brood and queen
         case "maxEggsPerDay": maxEggsPerDay = Int(value)
         case "broodPerNurse": broodPerNurse = value
+        case "layingReservePerBee": layingReservePerBee = value
+        case "layingEnergyThreshold": layingEnergyThreshold = value
         case "queenFailureVitality": queenFailureVitality = value
 
         // Disease and threats

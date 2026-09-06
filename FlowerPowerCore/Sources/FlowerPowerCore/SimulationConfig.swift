@@ -187,6 +187,25 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// Edible energy below which the queen stops laying entirely.
     public var layingEnergyThreshold: Double = 8
 
+    /// Working reserve a colony keeps back per adult bee before committing
+    /// stores to brood, in spring and summer.
+    ///
+    /// The floor used to be `layingEnergyThreshold` alone — a flat 8 units
+    /// whatever the size of the colony. Eight units is a fortnight's food for
+    /// a nucleus and rather less than a day's for a colony of six hundred, so
+    /// a big colony would rear brood until the stores were gone and then
+    /// starve with a nest full of larvae it could not feed. Traced on seed
+    /// 8919: 615 bees on day 410, honey at 14 and falling, dead by day 440
+    /// in the middle of spring.
+    ///
+    /// Real colonies hold back in proportion to their size, and a strong
+    /// colony in a June gap is exactly the one a beekeeper worries about.
+    /// 0.20 is about a fortnight of food per bee at `honeyPerAdult`, which is
+    /// the sort of buffer a colony deciding whether to expand actually keeps.
+    /// Measured: at 0.06 two-year survival is 13%, at 0.20 it is 30%, and past
+    /// that colonies grow too cautiously to swarm.
+    public var layingReservePerBee: Double = 0.20
+
     /// Fraction of the spendable reserve the colony will commit to brood each
     /// day. Higher makes colonies gamble their stores on expansion; lower makes
     /// them hoard and grow slowly.
@@ -243,6 +262,20 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
 
     public var layingWorkerOnsetDays: Int = 24
     public var layingWorkerEggsPerDay: Int = 8
+
+    /// Daily nectar per adult bee above which the colony behaves as though it
+    /// is in a flow: drawing comb, rearing hard, and considering swarming.
+    ///
+    /// Sweepable because it is expressed in forage units, and those units
+    /// changed meaning when nectar stopped being an abstract richness number
+    /// and became sugar yield derived from corolla depth, volume and sugar
+    /// concentration. A threshold in a unit that has been redefined has to be
+    /// re-measured, not carried across.
+    public var flowThresholdPerBee: Double = 0.20
+
+    /// Below this the colony is in dearth: brood rearing stops, drones are
+    /// evicted, and robbing begins.
+    public var dearthThresholdPerBee: Double = 0.04
 
     /// How much of a normal patch a *shared* flower is worth. One. A flower
     /// somebody sends you is worth exactly what a flower is worth.
@@ -301,6 +334,14 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// Britain. Sweepable because the two ends trade directly against each
     /// other — too early and colonies halve themselves coming out of winter,
     /// too late and they stop dividing at all.
+    /// How many times the working reserve a colony must be holding before it
+    /// will swarm, as a multiple of `layingReservePerBee` across the colony.
+    ///
+    /// Swarming bees gorge before they leave. A colony that cannot provision
+    /// both halves stays put, which is what stops a division on thin stores in
+    /// late spring — the pattern that used to dominate second-year deaths.
+    public var swarmProvisionMultiple: Double = 3.0
+
     public var swarmSeasonStart: Double = Season.swarmSeasonStartsAtSpringProgress
     public var swarmSeasonEnd: Double = Season.swarmSeasonEndsAtSummerProgress
 

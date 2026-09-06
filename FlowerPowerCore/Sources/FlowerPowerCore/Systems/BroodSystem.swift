@@ -69,7 +69,7 @@ public struct BroodSystem: DailySystem {
     /// winter would not survive it.
     private func evictDronesInDearth(_ world: inout World, _ context: inout TickContext) {
         let season = context.season
-        let shouldEvict = season == .autumn || season == .winter || world.isInDearth
+        let shouldEvict = season == .autumn || season == .winter || world.isInDearth(context.config)
         guard shouldEvict else { return }
 
         // A queenless colony keeps its drones: they may yet be needed to mate a

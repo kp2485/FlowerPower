@@ -40,7 +40,7 @@ public struct ConstructionSystem: SimulationSystem {
         //    cannot eat: at seven honey to one of wax, an autumn building spree
         //    is precisely how a strong colony starves in February.
         guard context.season == .spring || context.season == .summer else { return false }
-        guard world.isInFlow else { return false }
+        guard world.isInFlow(context.config) else { return false }
 
         // 4. The nest must actually be filling up.
         guard world.hive.combOccupancy >= context.config.buildCongestionThreshold else {

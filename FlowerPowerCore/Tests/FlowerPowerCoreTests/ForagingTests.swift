@@ -67,7 +67,10 @@ final class ForagingTests: XCTestCase {
             FlowerPatch(
                 id: EntityID(rawValue: 1),
                 photoLocalIdentifier: "x",
-                species: FlowerSpecies(id: "f", commonName: "F", rarity: rarity),
+                species: FlowerSpecies(
+                    id: "f", commonName: "F",
+                    taxon: Taxon(family: .rosaceae), rarity: rarity
+                ),
                 discoveredAt: epoch
             ).nectarCapacity
         }
