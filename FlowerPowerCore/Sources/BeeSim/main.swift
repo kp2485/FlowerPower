@@ -138,6 +138,10 @@ var simulation = Simulation.newGame(
     seed: options.seed
 )
 
+// Top-level code is main-actor isolated under the Swift 6 language mode, and
+// `simulation` is a top-level variable, so anything that mutates it has to say
+// where it runs.
+@MainActor
 func stockPatches(_ count: Int, tag: String) {
     for index in 0..<count {
         if options.sharedForage {

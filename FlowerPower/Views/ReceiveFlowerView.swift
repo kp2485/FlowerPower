@@ -174,7 +174,7 @@ struct ReceiveFlowerView: View {
         if let species = share.species,
            let image = UIImage(data: share.imageData)?.cgImage {
             Task.detached(priority: .utility) {
-                FeaturePrintStore.shared.learn(image, as: species, source: .received)
+                await FeaturePrintStore.shared.learn(image, as: species, source: .received)
             }
         }
     }

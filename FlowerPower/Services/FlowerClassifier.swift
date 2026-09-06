@@ -4,31 +4,31 @@
 //
 //  Turning a photograph into forage.
 //
-//  Two stages, because they answer different questions and fail differently:
+//  Two questions, answered separately because they fail differently.
 //
-//  1. Vision's built-in classifier asks "is this a flower at all?". It ships
-//     with the OS, needs no model, and is reliable at that coarse level. It is
-//     what stops a photo of a car door becoming a nectar patch.
+//  1. Is this a plant at all? Vision's built-in classifier ships with the OS,
+//     needs no model, and is reliable at that coarse level. It is what stops a
+//     photograph of a car door becoming a nectar patch.
 //
-//  2. Something asks "which flower?". This is the part that will sometimes be
-//     wrong, and there are two ways to answer it:
+//  2. *What* plant, and how precisely can that honestly be said? Three ways to
+//     answer, tried best first:
 //
-//     A trained Core ML model, if one has been bundled. Most accurate, and the
-//     most work — see docs/CLASSIFIER.md, which also explains why Oxford 102
-//     is the wrong dataset for a catalogue of British bee forage.
+//     The on-device model, through `TaxonomicClassifier`. It can place a
+//     flower to a family, a genus or a species and say which, which is the
+//     shape the game wants. Needs Apple Intelligence.
 //
-//     Otherwise a nearest-neighbour lookup against reference photographs,
-//     using the feature prints Vision produces from a network Apple already
-//     trained. No model, no dataset, no training step; less accurate, and it
-//     works on every device today. See `FeaturePrintLibrary`.
+//     A trained Core ML model, if one has been bundled. See
+//     docs/CLASSIFIER.md, which also explains why Oxford 102 is the wrong
+//     dataset for a catalogue of British bee forage.
 //
-//  The important design decision is that stage 2 is optional. An unrecognised
-//  flower still feeds the colony at a reduced yield, so a blurry photo costs
-//  the player some reward rather than breaking the loop. Ship without a model
-//  and the game still works; add one and identification becomes a bonus.
+//     Otherwise nearest-neighbour matching against reference photographs using
+//     Vision feature prints. No model, no dataset; works on every device.
 //
-//  Note on Visual Look Up: the plant identification in Photos is not available
-//  to third-party apps through any public API. It cannot be used here.
+//  Every rung down places fewer flowers, and none of them stops the game,
+//  because an unplaced flower still feeds the colony. That is the design
+//  decision the whole feature rests on: identification is a bonus, never a
+//  gate, so a classifier that is right much of the time and honest about the
+//  rest is worth having.
 //
 
 import Foundation
@@ -36,6 +36,7 @@ import Vision
 import CoreML
 import CoreImage
 import ImageIO
+import UIKit
 import os
 import FlowerPowerCore
 
@@ -43,9 +44,21 @@ import FlowerPowerCore
 
 public struct FlowerIdentification: Equatable, Sendable {
 
-    /// `nil` when the model could not place it, or when no model is bundled.
+    /// What the flower is, at whatever rank could honestly be reached, or
+    /// `nil` when it could not be placed at all.
+    ///
+    /// A family is a real answer rather than a failed species: floral
+    /// architecture is largely conserved by family, so knowing a plant is a
+    /// borage tells the game most of what governs whether a honey bee can work
+    /// it.
+    public let taxon: Taxon?
+
+    /// The forage description that follows from `taxon` — a catalogue entry
+    /// when the plant was placed to a species the game knows, and the family's
+    /// or genus's typical traits otherwise.
     public let species: FlowerSpecies?
-    /// 0...1 for the species call.
+
+    /// 0...1 for the placement at `taxon.rank`.
     public let confidence: Double
     /// Whether the image looks like a flower or plant at all.
     public let looksLikeAFlower: Bool
@@ -57,15 +70,35 @@ public struct FlowerIdentification: Equatable, Sendable {
         public let confidence: Double
     }
 
+    public init(
+        taxon: Taxon? = nil,
+        species: FlowerSpecies?,
+        confidence: Double,
+        looksLikeAFlower: Bool,
+        alternatives: [Alternative]
+    ) {
+        self.taxon = taxon
+        self.species = species
+        self.confidence = confidence
+        self.looksLikeAFlower = looksLikeAFlower
+        self.alternatives = alternatives
+    }
+
+    /// How precisely the plant was placed, when it was placed at all.
+    public var rank: TaxonomicRank? { taxon?.rank }
+
     /// Nothing recognisable in the frame.
     public static let notAFlower = FlowerIdentification(
         species: nil, confidence: 0, looksLikeAFlower: false, alternatives: []
     )
 
-    /// A flower, but an unidentified one. Still perfectly playable.
-    public static let unidentifiedFlower = FlowerIdentification(
+    /// A flower, but one nothing could place. Still perfectly playable.
+    public static let unplacedFlower = FlowerIdentification(
         species: nil, confidence: 0, looksLikeAFlower: true, alternatives: []
     )
+
+    @available(*, deprecated, renamed: "unplacedFlower")
+    public static var unidentifiedFlower: FlowerIdentification { unplacedFlower }
 }
 
 public enum FlowerClassifierError: Error, LocalizedError {
@@ -81,58 +114,53 @@ public enum FlowerClassifierError: Error, LocalizedError {
 }
 
 public protocol FlowerIdentifying: Sendable {
-    func identify(_ image: CGImage, orientation: CGImagePropertyOrientation) async throws -> FlowerIdentification
+    func identify(
+        _ image: CGImage,
+        orientation: CGImagePropertyOrientation
+    ) async throws -> FlowerIdentification
 }
 
 // MARK: - Classifier
 
-public final class FlowerClassifier: FlowerIdentifying {
+public struct FlowerClassifier: FlowerIdentifying {
 
-    /// Minimum Vision confidence for "there is a plant in this photo".
-    public static let plantGateThreshold: Float = 0.15
-    /// Minimum species confidence before we claim an identification.
-    public static let speciesThreshold: Double = 0.25
-
-    /// Vision taxonomy labels that count as plant material.
-    private static let plantLabels: Set<String> = [
-        "flower", "flowers", "plant", "plants", "blossom", "petal",
-        "flowering_plant", "garden", "wildflower", "bud", "shrub",
-        "tree", "herb", "foliage", "leaf", "botany"
-    ]
+    /// Minimum confidence before a placement is claimed at all.
+    public static let placementThreshold: Double = 0.25
 
     private let model: VNCoreMLModel?
     private let library: FeaturePrintLibrary?
+    private let onDevice: TaxonomicClassifier?
     private let logger = Logger(subsystem: "com.kylepeterson.flowerpower", category: "classifier")
 
-    /// - Parameters:
-    ///   - model: a compiled Core ML flower classifier, when one has been
-    ///     trained and bundled. It takes precedence.
-    ///   - library: reference photographs to match against instead. This is
-    ///     what makes identification work at all before a model exists.
-    public init(model: VNCoreMLModel? = nil, library: FeaturePrintLibrary? = nil) {
+    public init(
+        model: VNCoreMLModel? = nil,
+        library: FeaturePrintLibrary? = nil,
+        onDevice: TaxonomicClassifier? = nil
+    ) {
         self.model = model
         self.library = library
+        self.onDevice = onDevice
     }
 
     /// The best identifier available on this device right now.
-    ///
-    /// A bundled Core ML model if there is one, otherwise the reference
-    /// library, otherwise the plant gate alone. Each rung down names fewer
-    /// flowers; none of them stops the game, because an unidentified flower
-    /// still feeds the colony.
-    public static func bundled(named name: String = "FlowerClassifier") -> FlowerClassifier {
-        let library = FeaturePrintStore.shared.library
+    public static func bundled(named name: String = "FlowerClassifier") async -> FlowerClassifier {
+        let library = await FeaturePrintStore.shared.library
+        let onDevice = TaxonomicClassifier.isAvailable ? TaxonomicClassifier() : nil
 
         guard let url = Bundle.main.url(forResource: name, withExtension: "mlmodelc") else {
-            return FlowerClassifier(model: nil, library: library)
+            return FlowerClassifier(model: nil, library: library, onDevice: onDevice)
         }
 
         do {
             let coreML = try MLModel(contentsOf: url)
-            return FlowerClassifier(model: try VNCoreMLModel(for: coreML), library: library)
+            return FlowerClassifier(
+                model: try VNCoreMLModel(for: coreML),
+                library: library,
+                onDevice: onDevice
+            )
         } catch {
-            // A missing or broken model degrades identification, never the game.
-            return FlowerClassifier(model: nil, library: library)
+            // A missing or broken model degrades placement, never the game.
+            return FlowerClassifier(model: nil, library: library, onDevice: onDevice)
         }
     }
 
@@ -141,28 +169,33 @@ public final class FlowerClassifier: FlowerIdentifying {
         orientation: CGImagePropertyOrientation = .up
     ) async throws -> FlowerIdentification {
 
-        let handler = VNImageRequestHandler(cgImage: image, orientation: orientation, options: [:])
-
         // Stage one: is this plant material?
-        let looksLikeAFlower = try classifyAsPlant(handler)
-        guard looksLikeAFlower else { return .notAFlower }
+        guard try await FeaturePrints.looksLikePlantMaterial(image, orientation: orientation)
+        else { return .notAFlower }
 
-        // Stage two: which plant? Optional, and answered by whichever of the
-        // two identifiers is available.
-        let matches: [FlowerIdentification.Alternative]
-        if let model {
-            matches = try classifySpecies(handler, model: model)
-        } else if let library, !library.isEmpty {
-            matches = try matchAgainstReferences(image, orientation: orientation, library: library)
-        } else {
-            return .unidentifiedFlower
+        // Stage two, best available answer first.
+        if let onDevice, let placed = try? await onDevice.place(UIImage(cgImage: image)),
+           let placement = placed, placement.confidence >= Self.placementThreshold {
+            return identification(for: placement.taxon, confidence: placement.confidence)
         }
 
-        guard let best = matches.first, best.confidence >= Self.speciesThreshold else {
-            return .unidentifiedFlower
+        let matches: [FlowerIdentification.Alternative]
+        if let model {
+            matches = try await classifySpecies(image, orientation: orientation, model: model)
+        } else if let library, !library.isEmpty {
+            matches = try await matchAgainstReferences(
+                image, orientation: orientation, library: library
+            )
+        } else {
+            return .unplacedFlower
+        }
+
+        guard let best = matches.first, best.confidence >= Self.placementThreshold else {
+            return .unplacedFlower
         }
 
         return FlowerIdentification(
+            taxon: best.species.taxon,
             species: best.species,
             confidence: best.confidence,
             looksLikeAFlower: true,
@@ -172,37 +205,44 @@ public final class FlowerClassifier: FlowerIdentifying {
 
     // MARK: - Stages
 
-    private func classifyAsPlant(_ handler: VNImageRequestHandler) throws -> Bool {
-        let request = VNClassifyImageRequest()
+    /// Builds a result from a placement at any rank.
+    ///
+    /// A species the catalogue knows becomes that catalogue entry. Anything
+    /// coarser becomes the family's or genus's typical forage, which is a real
+    /// description rather than a fallback.
+    private func identification(
+        for taxon: Taxon,
+        confidence: Double
+    ) -> FlowerIdentification {
 
-        do {
-            try handler.perform([request])
-        } catch {
-            throw FlowerClassifierError.visionFailed(underlying: error)
-        }
+        let known = FlowerCatalogue.all.first { $0.taxon == taxon }
+        let species = known ?? FlowerSpecies.generic(for: taxon)
 
-        guard let observations = request.results else { return false }
+        // Members of the same group the catalogue knows about, offered as
+        // "did you mean?" so a player can sharpen a family into a species.
+        let relatives = FlowerCatalogue.all
+            .filter { taxon.contains($0.taxon) && $0.id != species.id }
+            .prefix(3)
+            .map { FlowerIdentification.Alternative(species: $0, confidence: confidence * 0.5) }
 
-        return observations.contains { observation in
-            observation.confidence >= Self.plantGateThreshold
-                && Self.plantLabels.contains(observation.identifier.lowercased())
-        }
+        return FlowerIdentification(
+            taxon: taxon,
+            species: species,
+            confidence: confidence,
+            looksLikeAFlower: true,
+            alternatives: Array(relatives)
+        )
     }
 
     /// Nearest neighbour against the reference photographs.
-    ///
-    /// A second pass over the image rather than reusing the handler above,
-    /// because a feature print request wants its own crop-and-scale setting —
-    /// the plant gate looks at the whole frame, this wants the middle of it.
     private func matchAgainstReferences(
         _ image: CGImage,
         orientation: CGImagePropertyOrientation,
         library: FeaturePrintLibrary
-    ) throws -> [FlowerIdentification.Alternative] {
+    ) async throws -> [FlowerIdentification.Alternative] {
 
-        guard let print = try FeaturePrints.print(for: image, orientation: orientation) else {
-            return []
-        }
+        guard let print = try await FeaturePrints.print(for: image, orientation: orientation)
+        else { return [] }
 
         return library.identifications(for: print).map {
             FlowerIdentification.Alternative(species: $0.species, confidence: $0.confidence)
@@ -210,14 +250,17 @@ public final class FlowerClassifier: FlowerIdentifying {
     }
 
     private func classifySpecies(
-        _ handler: VNImageRequestHandler,
+        _ image: CGImage,
+        orientation: CGImagePropertyOrientation,
         model: VNCoreMLModel
-    ) throws -> [FlowerIdentification.Alternative] {
+    ) async throws -> [FlowerIdentification.Alternative] {
 
         let request = VNCoreMLRequest(model: model)
         // Flowers are usually the subject and centred; cropping to the centre
         // square beats squashing the whole frame.
         request.imageCropAndScaleOption = .centerCrop
+
+        let handler = VNImageRequestHandler(cgImage: image, orientation: orientation, options: [:])
 
         do {
             try handler.perform([request])
@@ -246,7 +289,7 @@ public final class FlowerClassifier: FlowerIdentifying {
 // MARK: - Test double
 
 /// Returns whatever it is told to, so the capture flow and the game logic can
-/// be tested without a camera or a model.
+/// be tested without a camera, a model or Apple Intelligence.
 public struct StubFlowerClassifier: FlowerIdentifying {
 
     private let result: FlowerIdentification

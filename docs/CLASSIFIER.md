@@ -7,60 +7,65 @@ never a gate**: a flower the app cannot name still feeds the colony, at a yield
 scaled by confidence. That is what makes a merely-decent identifier worth
 having.
 
-## The three routes, and which is in use
+## What identification now means
 
-**1. Vision feature prints, nearest neighbour. Built, and working today.**
+The question is no longer "which species is this?" with a name or nothing as
+the answer. It is "how precisely can this honestly be placed?", and family,
+genus and species are all real answers.
 
-`VNGenerateImageFeaturePrintRequest` returns a vector describing what is in an
-image, from a network Apple already trained. Photographs of the same flower
-land near each other in that space. So a set of labelled reference photographs
-plus a nearest-neighbour lookup is a working classifier with no training step,
-no dataset pipeline and no model to ship — and it runs on every device the app
-supports, back to iOS 13.
+That works because floral architecture is largely conserved by family. Knowing
+a plant is in Boraginaceae tells the game it is a good nectar plant with a
+corolla a honey bee can work, even with no idea whether it is borage or viper's
+bugloss. Knowing it is in Plantaginaceae tells the game a honey bee will not
+reach the nectar at all. So a family-level placement carries most of the useful
+information, and being told the rank beats being handed a confident guess at a
+species the plant might not be.
 
-The arithmetic is `FeaturePrintLibrary` in the package, and it is tested. The
-Vision call is `FeaturePrints` in the app.
+Getting it wrong is worse than saying nothing: a patch placed as the wrong
+species is given the wrong corolla depth, the wrong nectar and the wrong bloom
+season, and tells the player something plainly false about the world.
 
-It is less accurate than a trained model. Two things make that affordable:
-identification is a bonus, and the library **grows as the game is played**. A
-player who names a flower themselves has just labelled a photograph; a flower
-somebody shares arrives with a label and a picture attached. Both are recorded
-as references, tagged with where the label came from.
+## The three routes, best first
 
-No reference photographs are bundled yet, which is the honest state of things.
-Until some are, the library starts empty and fills from what the player names —
-so identification works from the first flower they name by hand rather than not
-at all. Curating a starter set means photographing the thirty catalogue species
-or embedding research-grade observations; that is the cheapest real win
-available here.
+**1. The on-device model, through `TaxonomicClassifier`. Built.**
 
-**2. A trained Core ML model. The upgrade.**
+Foundation Models gained image attachments in iOS 27, so the system model can
+be handed a photograph. What makes it the right tool rather than merely an
+available one is guided generation: `@Generable` constrains the answer to a
+schema, so the question is a form with a family, a genus, an epithet and a
+confidence, any of which may be left blank. The prompt argues against the
+model's instinct to name a species, because that instinct is exactly wrong for
+this problem.
 
-Most accurate, and the most work. The rest of this document is the brief.
+Answers are refused unless coherent - an epithet with no genus, a family with
+no plant, a confidence that is not a number. A genus the catalogue knows
+sitting in the wrong family corrects the family rather than discarding the
+answer, because the genus is the more specific claim.
+
+Needs Apple Intelligence, so it cannot be the only path. Availability is
+reported with a reason, since "your device cannot" and "turn Apple Intelligence
+on" want different things said to the player.
+
+**2. Vision feature prints, nearest neighbour. Built.**
+
+`GenerateImageFeaturePrintRequest` returns a vector describing an image, from a
+network Apple already trained. Reference photographs plus a nearest-neighbour
+lookup is a working classifier with no training step and no model to ship, on
+every device. The arithmetic is `FeaturePrintLibrary` in the package and is
+tested; the Vision call is `FeaturePrints` in the app.
+
+No references are bundled yet. The library fills from flowers the player names
+and flowers people share, so it improves with use - curating a starter set is
+the cheapest real win available.
+
+**3. A trained Core ML model. The upgrade.**
+
+Most accurate, most work. The rest of this document is the brief.
 `FlowerClassifier` prefers a bundled model over the reference library
-automatically, so adding one needs no other change.
+automatically.
 
-**3. Apple Intelligence, with image input. Not usable as the base.**
-
-The Foundation Models framework gained image attachments in **iOS 27**,
-announced at WWDC26. You can hand `LanguageModelSession` a `UIImage` alongside
-text and ask what is in it, entirely on device.
-
-It is genuinely attractive as an *enhancement*: guided generation can constrain
-the answer to the thirty catalogue species, which is exactly the shape of this
-problem. But it cannot be the only path. It requires iOS 27 against a
-deployment target of iOS 17, and it runs only on Apple Intelligence hardware,
-so most devices would get nothing. Its accuracy on fine-grained British
-wildflower species is also unmeasured — a general model asked to distinguish
-*Calluna vulgaris* from *Erica carnea* is a different proposition from one
-asked to spot a dog.
-
-Worth revisiting as a fourth stage on capable devices, behind an availability
-check, once routes 1 and 2 exist.
-
-**Visual Look Up is still not available.** The plant identification in Photos
-has no public API for third-party apps, checked again in September 2026. That
-is why any of this is necessary.
+**Visual Look Up is still not available.** No public API for third-party apps,
+checked again in September 2026.
 
 ---
 

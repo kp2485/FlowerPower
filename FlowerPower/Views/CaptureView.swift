@@ -27,7 +27,10 @@ struct CaptureView: View {
     @State private var locationProvider = LocationProvider()
     @State private var isUsingCamera = false
 
-    private let classifier = FlowerClassifier.bundled()
+    /// Built asynchronously, because working out the best available
+    /// identifier means asking the reference-print actor and the on-device
+    /// model whether they are there.
+    @State private var classifier: FlowerIdentifying?
 
     enum Stage: Equatable {
         case choosing
@@ -72,7 +75,7 @@ struct CaptureView: View {
                             // is bundled yet.
                             if let cgImage = result.image.cgImage {
                                 Task.detached(priority: .utility) {
-                                    FeaturePrintStore.shared.learn(
+                                    await FeaturePrintStore.shared.learn(
                                         cgImage, as: species, source: .named
                                     )
                                 }
@@ -112,6 +115,9 @@ struct CaptureView: View {
         }
         .task { @MainActor in
             locationProvider.requestWhenInUse()
+            if classifier == nil {
+                classifier = await FlowerClassifier.bundled()
+            }
         }
     }
 
@@ -146,7 +152,10 @@ struct CaptureView: View {
                 return
             }
 
-            let identification = try await classifier.identify(
+            // Falls back to the plant gate alone if the capture screen was
+            // opened and used faster than the classifier could be built.
+            let identifier = classifier ?? FlowerClassifier()
+            let identification = try await identifier.identify(
                 cgImage,
                 orientation: image.imageOrientation.cgOrientation
             )
@@ -290,6 +299,14 @@ private struct ResultView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
 
                 if let species = corrected ?? result.identification.species {
+                    if corrected == nil, let rank = result.identification.rank, rank < .species {
+                        // Says plainly how far the placement got. A family is a
+                        // real answer, not a failure, and the player should be
+                        // told which they have rather than left to assume a
+                        // species was meant.
+                        RankNote(rank: rank, taxon: result.identification.taxon)
+                    }
+
                     IdentifiedCard(
                         species: species,
                         confidence: corrected == nil
@@ -333,6 +350,49 @@ private struct ResultView: View {
     private func correct(to species: FlowerSpecies, confidence: Double) {
         corrected = species
         onCorrect(species, confidence)
+    }
+}
+
+/// Explains a placement that stopped short of a species.
+private struct RankNote: View {
+
+    let rank: TaxonomicRank
+    let taxon: Taxon?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(headline, systemImage: "leaf.arrow.triangle.circlepath")
+                .font(.subheadline.weight(.medium))
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    private var headline: String {
+        switch rank {
+        case .family: return "Placed to a family"
+        case .genus: return "Placed to a genus"
+        case .species: return "Placed to a species"
+        }
+    }
+
+    private var detail: String {
+        let name = taxon?.scientificName ?? "this group"
+        switch rank {
+        case .family:
+            return "This is \(name), but not which member of it. Your bees do not "
+                + "mind: the family decides the shape of the flower, and that is "
+                + "what settles whether they can reach the nectar."
+        case .genus:
+            return "This is \(name), but not which species. Close relatives offer "
+                + "much the same forage, so your bees will work it as one of them."
+        case .species:
+            return name
+        }
     }
 }
 
@@ -482,47 +542,57 @@ private struct FailureView: View {
 
 // MARK: - Location
 
-/// Supplies a coarse location for freshly captured photos.
+/// Where the player is standing, when they have said that is allowed.
 ///
-/// Deliberately undemanding: when-in-use only, reduced accuracy, and the whole
-/// game works without it. Location turns photographs into map pins and real
-/// foraging distances, which is a nice thing to have and not a thing to insist on.
+/// Rewritten onto `CLLocationUpdate.liveUpdates()`, the async-sequence API,
+/// which replaces four delegate callbacks and an `NSObject` subclass with a
+/// loop. It is also the reason this can be `@Observable` and main-actor bound
+/// without any of the usual dance about which queue a delegate arrives on.
+///
+/// Location is optional throughout the game. A patch without a coordinate sits
+/// at a nominal foraging distance and does not appear on the map, which costs
+/// accuracy and nothing else — so every failure here is silent by design.
 @Observable
-final class LocationProvider: NSObject, CLLocationManagerDelegate {
+@MainActor
+final class LocationProvider {
 
-    private let manager = CLLocationManager()
     private(set) var currentLocation: CLLocation?
 
-    override init() {
-        super.init()
-        manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
-    }
+    @ObservationIgnored private var updates: Task<Void, Never>?
 
+    deinit { updates?.cancel() }
+
+    /// Starts listening. Asking for a location is what prompts for permission,
+    /// so there is nothing separate to request.
     func requestWhenInUse() {
-        switch manager.authorizationStatus {
-        case .notDetermined:
-            manager.requestWhenInUseAuthorization()
-        case .authorizedWhenInUse, .authorizedAlways:
-            manager.requestLocation()
-        default:
-            break
+        guard updates == nil else { return }
+
+        updates = Task { [weak self] in
+            do {
+                for try await update in CLLocationUpdate.liveUpdates(.default) {
+                    guard !Task.isCancelled else { return }
+
+                    // The player declined, or location is restricted. Nothing
+                    // to report and nothing to say — the game plays without it.
+                    if update.authorizationDenied || update.authorizationRestricted {
+                        self?.currentLocation = nil
+                        return
+                    }
+
+                    if let location = update.location {
+                        self?.currentLocation = location
+                    }
+                }
+            } catch {
+                // No location simply means no map pin.
+                self?.currentLocation = nil
+            }
         }
     }
 
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        guard manager.authorizationStatus == .authorizedWhenInUse
-                || manager.authorizationStatus == .authorizedAlways else { return }
-        manager.requestLocation()
-    }
-
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        currentLocation = locations.last
-    }
-
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // No location simply means no map pin.
-        currentLocation = nil
+    func stop() {
+        updates?.cancel()
+        updates = nil
     }
 }
 

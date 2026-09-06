@@ -1,13 +1,17 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 
 import PackageDescription
 
 let package = Package(
     name: "FlowerPowerCore",
+    // Platform versions are given as strings rather than enum cases so the
+    // manifest does not need a toolchain that has heard of the newest release
+    // just to parse. The engine is also built and tested on Windows, where
+    // none of these apply.
     platforms: [
-        .iOS(.v17),
-        .watchOS(.v10),
-        .macOS(.v14)
+        .iOS("27.0"),
+        .watchOS("27.0"),
+        .macOS("27.0")
     ],
     products: [
         // The simulation. No UI, no Apple-only frameworks, no I/O.
@@ -22,9 +26,17 @@ let package = Package(
         .executable(name: "beesim", targets: ["BeeSim"])
     ],
     targets: [
-        .target(name: "FlowerPowerCore"),
-        .target(name: "FlowerPowerGame", dependencies: ["FlowerPowerCore"]),
-        .executableTarget(name: "BeeSim", dependencies: ["FlowerPowerCore"]),
+        .target(name: "FlowerPowerCore", swiftSettings: .strict),
+        .target(
+            name: "FlowerPowerGame",
+            dependencies: ["FlowerPowerCore"],
+            swiftSettings: .strict
+        ),
+        .executableTarget(
+            name: "BeeSim",
+            dependencies: ["FlowerPowerCore"],
+            swiftSettings: .strict
+        ),
         .testTarget(name: "FlowerPowerCoreTests", dependencies: ["FlowerPowerCore"]),
         .testTarget(
             name: "FlowerPowerGameTests",
@@ -32,3 +44,18 @@ let package = Package(
         )
     ]
 )
+
+extension [SwiftSetting] {
+
+    /// Swift 6 language mode across the package.
+    ///
+    /// The engine is almost entirely value types that are already `Sendable`,
+    /// which is what makes this affordable: the determinism the whole design
+    /// rests on and the data-race safety the compiler wants turn out to be the
+    /// same property. Test targets are left in Swift 5 mode, because
+    /// XCTest fixtures are shared mutable state by nature and rewriting two
+    /// hundred passing tests to satisfy the checker would be churn.
+    static var strict: [SwiftSetting] {
+        [.swiftLanguageMode(.v6)]
+    }
+}

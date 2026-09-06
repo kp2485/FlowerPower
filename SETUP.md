@@ -11,7 +11,7 @@ drifted so far from the files on disk that it could not open and build at all.
 The previous page of drag-and-tick instructions in this file is gone with it.
 
 **The SwiftUI has never been compiled.** The engine and the game layer are
-tested — 248 tests, run on Windows — and every engine call in the views was
+tested — 248 XCTest plus 19 Swift Testing cases, run on Windows — and every engine call in the views was
 checked symbol by symbol against the package's public surface. But anything
 that needs the Apple SDKs, which is all of SwiftUI, MapKit, PhotosUI, Vision,
 WidgetKit, WatchConnectivity and BackgroundTasks, has never been near a
@@ -68,10 +68,22 @@ Mac. `ColonyNews` — the judgement about whether something deserves a
 notification — is there for exactly that reason, even though only the app uses
 it.
 
-## 3. Deployment target
+## 3. Deployment target and language mode
 
-iOS 17 and watchOS 10, matching what the package declares. Keep the two in
-step if you raise either.
+iOS 27 and watchOS 27, matching what the package declares. Keep the two in step
+if you move either.
+
+The package builds in the **Swift 6 language mode** with complete concurrency
+checking, and does so cleanly - which is less of a surprise than it sounds. The
+engine is almost entirely `Sendable` value types, because the determinism the
+whole design rests on and the data-race safety the compiler wants turn out to
+be the same property. The test targets stay in Swift 5 mode: XCTest fixtures
+are shared mutable state by nature, and rewriting two hundred passing tests to
+satisfy the checker would be churn.
+
+New tests are written with **Swift Testing**, which runs on Windows alongside
+the existing XCTest suites. Parameterised cases are the reason: one test covers
+the whole flower catalogue rather than thirty near-copies.
 
 ## 4. Signing
 
