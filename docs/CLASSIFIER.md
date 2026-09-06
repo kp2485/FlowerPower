@@ -1,16 +1,66 @@
 # Identifying the flower
 
 The app runs two stages. Vision's built-in classifier asks "is this a plant at
-all?", which needs no model and ships with the OS. A Core ML model asks "which
-one?", and that is the part that has to be trained.
+all?", which needs no model and ships with the OS. Something then asks "which
+one?", and there are three ways to answer that. Identification is a **bonus,
+never a gate**: a flower the app cannot name still feeds the colony, at a yield
+scaled by confidence. That is what makes a merely-decent identifier worth
+having.
 
-**The second stage is optional and is not built yet.** With no model bundled,
-every flower comes back unidentified, yields 60% of normal, and the game plays
-fine. Identification is a bonus, never a gate — that is the point of the
-design, and it is why shipping without a model is a real option rather than an
-excuse.
+## The three routes, and which is in use
 
-This document is what a Mac session needs in order to build one.
+**1. Vision feature prints, nearest neighbour. Built, and working today.**
+
+`VNGenerateImageFeaturePrintRequest` returns a vector describing what is in an
+image, from a network Apple already trained. Photographs of the same flower
+land near each other in that space. So a set of labelled reference photographs
+plus a nearest-neighbour lookup is a working classifier with no training step,
+no dataset pipeline and no model to ship — and it runs on every device the app
+supports, back to iOS 13.
+
+The arithmetic is `FeaturePrintLibrary` in the package, and it is tested. The
+Vision call is `FeaturePrints` in the app.
+
+It is less accurate than a trained model. Two things make that affordable:
+identification is a bonus, and the library **grows as the game is played**. A
+player who names a flower themselves has just labelled a photograph; a flower
+somebody shares arrives with a label and a picture attached. Both are recorded
+as references, tagged with where the label came from.
+
+No reference photographs are bundled yet, which is the honest state of things.
+Until some are, the library starts empty and fills from what the player names —
+so identification works from the first flower they name by hand rather than not
+at all. Curating a starter set means photographing the thirty catalogue species
+or embedding research-grade observations; that is the cheapest real win
+available here.
+
+**2. A trained Core ML model. The upgrade.**
+
+Most accurate, and the most work. The rest of this document is the brief.
+`FlowerClassifier` prefers a bundled model over the reference library
+automatically, so adding one needs no other change.
+
+**3. Apple Intelligence, with image input. Not usable as the base.**
+
+The Foundation Models framework gained image attachments in **iOS 27**,
+announced at WWDC26. You can hand `LanguageModelSession` a `UIImage` alongside
+text and ask what is in it, entirely on device.
+
+It is genuinely attractive as an *enhancement*: guided generation can constrain
+the answer to the thirty catalogue species, which is exactly the shape of this
+problem. But it cannot be the only path. It requires iOS 27 against a
+deployment target of iOS 17, and it runs only on Apple Intelligence hardware,
+so most devices would get nothing. Its accuracy on fine-grained British
+wildflower species is also unmeasured — a general model asked to distinguish
+*Calluna vulgaris* from *Erica carnea* is a different proposition from one
+asked to spot a dog.
+
+Worth revisiting as a fourth stage on capable devices, behind an availability
+check, once routes 1 and 2 exist.
+
+**Visual Look Up is still not available.** The plant identification in Photos
+has no public API for third-party apps, checked again in September 2026. That
+is why any of this is necessary.
 
 ---
 
@@ -129,12 +179,14 @@ plainly false about the world.
 
 ---
 
-## 4. Until then
+## 4. Meanwhile
 
 The player can name the flower themselves — `SpeciesPickerView`, reachable from
 the capture result. That was added because with no model the classifier cannot
 name *anything*, so the entire catalogue was invisible and every patch yielded
-60% for ever.
+60% for ever. It now does double duty: every name a player supplies becomes a
+reference photograph for the feature-print library, so the classifier they are
+compensating for gets better because they compensated for it.
 
 A self-chosen name is recorded at 0.8 confidence rather than 1.0. Confidence
 scales yield, and perfect confidence would make naming a flower by hand strictly

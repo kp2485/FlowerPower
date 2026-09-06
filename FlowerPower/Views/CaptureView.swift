@@ -64,6 +64,19 @@ struct CaptureView: View {
                                 confidence: confidence,
                                 to: result.patchID
                             )
+                            // A person naming a flower has just labelled a
+                            // photograph. That is exactly what the reference
+                            // library is short of, so it is worth keeping —
+                            // and it means identification gets better the more
+                            // the game is played, which matters when nothing
+                            // is bundled yet.
+                            if let cgImage = result.image.cgImage {
+                                Task.detached(priority: .utility) {
+                                    FeaturePrintStore.shared.learn(
+                                        cgImage, as: species, source: .named
+                                    )
+                                }
+                            }
                         },
                         onDone: { dismiss() }
                     )

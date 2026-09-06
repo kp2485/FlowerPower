@@ -86,10 +86,15 @@ the save over WatchConnectivity; see `WatchLink`.
 
 ## 5. The flower classifier
 
-Optional, and not built. With no model bundled every flower comes back
-unidentified, yields 60% of normal, and the game plays fine — identification is
-a bonus, never a gate. In the meantime the player can name a flower themselves
-from the capture screen.
+Identification is a bonus, never a gate: a flower the app cannot name still
+feeds the colony at a reduced yield.
+
+It works today, without a trained model, by matching Vision feature prints
+against reference photographs. No references are bundled yet, so the library
+starts empty and fills from flowers the player names themselves and flowers
+other people share with them — which means it gets better as the game is used.
+Curating a starter set of reference photographs is the cheapest real
+improvement available.
 
 **Do not start with the Oxford 102 dataset**, despite it being the obvious
 choice for flower classification. It is ornamental and glasshouse flowers;

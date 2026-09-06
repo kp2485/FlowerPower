@@ -165,5 +165,17 @@ struct ReceiveFlowerView: View {
         // show for it.
         SharedImageStore.store(share.imageData, forShare: share.id)
         outcome = store.importShared(share)
+
+        // A flower arriving with a name attached is a labelled photograph,
+        // which is what the reference library is built from. Somebody else's
+        // identification is worth rather less than one this player made
+        // themselves, but it is a real example of a real flower and the
+        // library records where its labels came from.
+        if let species = share.species,
+           let image = UIImage(data: share.imageData)?.cgImage {
+            Task.detached(priority: .utility) {
+                FeaturePrintStore.shared.learn(image, as: species, source: .received)
+            }
+        }
     }
 }

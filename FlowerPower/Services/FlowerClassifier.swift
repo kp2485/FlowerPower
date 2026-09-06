@@ -10,9 +10,17 @@
 //     with the OS, needs no model, and is reliable at that coarse level. It is
 //     what stops a photo of a car door becoming a nectar patch.
 //
-//  2. A Core ML model asks "which flower?". This is the part that needs
-//     training — Create ML over a flower dataset such as Oxford 102 — and it is
-//     the part that will sometimes be wrong.
+//  2. Something asks "which flower?". This is the part that will sometimes be
+//     wrong, and there are two ways to answer it:
+//
+//     A trained Core ML model, if one has been bundled. Most accurate, and the
+//     most work — see docs/CLASSIFIER.md, which also explains why Oxford 102
+//     is the wrong dataset for a catalogue of British bee forage.
+//
+//     Otherwise a nearest-neighbour lookup against reference photographs,
+//     using the feature prints Vision produces from a network Apple already
+//     trained. No model, no dataset, no training step; less accurate, and it
+//     works on every device today. See `FeaturePrintLibrary`.
 //
 //  The important design decision is that stage 2 is optional. An unrecognised
 //  flower still feeds the colony at a reduced yield, so a blurry photo costs
@@ -93,27 +101,38 @@ public final class FlowerClassifier: FlowerIdentifying {
     ]
 
     private let model: VNCoreMLModel?
+    private let library: FeaturePrintLibrary?
     private let logger = Logger(subsystem: "com.kylepeterson.flowerpower", category: "classifier")
 
-    /// - Parameter model: a compiled Core ML flower classifier. Pass `nil` — the
-    ///   default — to run with the plant gate only, which is the shipping
-    ///   configuration until a model has been trained.
-    public init(model: VNCoreMLModel? = nil) {
+    /// - Parameters:
+    ///   - model: a compiled Core ML flower classifier, when one has been
+    ///     trained and bundled. It takes precedence.
+    ///   - library: reference photographs to match against instead. This is
+    ///     what makes identification work at all before a model exists.
+    public init(model: VNCoreMLModel? = nil, library: FeaturePrintLibrary? = nil) {
         self.model = model
+        self.library = library
     }
 
-    /// Loads `FlowerClassifier.mlmodelc` from the bundle if it is there.
+    /// The best identifier available on this device right now.
+    ///
+    /// A bundled Core ML model if there is one, otherwise the reference
+    /// library, otherwise the plant gate alone. Each rung down names fewer
+    /// flowers; none of them stops the game, because an unidentified flower
+    /// still feeds the colony.
     public static func bundled(named name: String = "FlowerClassifier") -> FlowerClassifier {
+        let library = FeaturePrintStore.shared.library
+
         guard let url = Bundle.main.url(forResource: name, withExtension: "mlmodelc") else {
-            return FlowerClassifier(model: nil)
+            return FlowerClassifier(model: nil, library: library)
         }
 
         do {
             let coreML = try MLModel(contentsOf: url)
-            return FlowerClassifier(model: try VNCoreMLModel(for: coreML))
+            return FlowerClassifier(model: try VNCoreMLModel(for: coreML), library: library)
         } catch {
             // A missing or broken model degrades identification, never the game.
-            return FlowerClassifier(model: nil)
+            return FlowerClassifier(model: nil, library: library)
         }
     }
 
@@ -128,10 +147,17 @@ public final class FlowerClassifier: FlowerIdentifying {
         let looksLikeAFlower = try classifyAsPlant(handler)
         guard looksLikeAFlower else { return .notAFlower }
 
-        // Stage two: which plant? Optional.
-        guard let model else { return .unidentifiedFlower }
+        // Stage two: which plant? Optional, and answered by whichever of the
+        // two identifiers is available.
+        let matches: [FlowerIdentification.Alternative]
+        if let model {
+            matches = try classifySpecies(handler, model: model)
+        } else if let library, !library.isEmpty {
+            matches = try matchAgainstReferences(image, orientation: orientation, library: library)
+        } else {
+            return .unidentifiedFlower
+        }
 
-        let matches = try classifySpecies(handler, model: model)
         guard let best = matches.first, best.confidence >= Self.speciesThreshold else {
             return .unidentifiedFlower
         }
@@ -160,6 +186,26 @@ public final class FlowerClassifier: FlowerIdentifying {
         return observations.contains { observation in
             observation.confidence >= Self.plantGateThreshold
                 && Self.plantLabels.contains(observation.identifier.lowercased())
+        }
+    }
+
+    /// Nearest neighbour against the reference photographs.
+    ///
+    /// A second pass over the image rather than reusing the handler above,
+    /// because a feature print request wants its own crop-and-scale setting —
+    /// the plant gate looks at the whole frame, this wants the middle of it.
+    private func matchAgainstReferences(
+        _ image: CGImage,
+        orientation: CGImagePropertyOrientation,
+        library: FeaturePrintLibrary
+    ) throws -> [FlowerIdentification.Alternative] {
+
+        guard let print = try FeaturePrints.print(for: image, orientation: orientation) else {
+            return []
+        }
+
+        return library.identifications(for: print).map {
+            FlowerIdentification.Alternative(species: $0.species, confidence: $0.confidence)
         }
     }
 
