@@ -49,7 +49,8 @@ enum Trials {
         config: SimulationConfig,
         site: HiveLocationType,
         palette: [FlowerSpecies],
-        start: Date
+        start: Date,
+        shared: Bool = false
     ) -> [TrialOutcome] {
 
         (0..<trials).map { trial in
@@ -62,14 +63,27 @@ enum Trials {
 
             func stock(_ count: Int, tag: String) {
                 for index in 0..<count {
-                    simulation.registerPhotograph(
-                        photoLocalIdentifier: "\(tag)-\(index)",
-                        species: palette[index % palette.count],
-                        confidence: 0.9,
-                        coordinate: nil,
-                        takenAt: start,
-                        distanceMetres: distance
-                    )
+                    if shared {
+                        simulation.importSharedFlower(
+                            shareID: "\(tag)-\(index)",
+                            photoLocalIdentifier: "\(tag)-\(index)",
+                            species: palette[index % palette.count],
+                            confidence: 0.9,
+                            coordinate: nil,
+                            takenAt: start,
+                            sharedBy: "a friend",
+                            distanceMetres: distance
+                        )
+                    } else {
+                        simulation.registerPhotograph(
+                            photoLocalIdentifier: "\(tag)-\(index)",
+                            species: palette[index % palette.count],
+                            confidence: 0.9,
+                            coordinate: nil,
+                            takenAt: start,
+                            distanceMetres: distance
+                        )
+                    }
                 }
             }
 

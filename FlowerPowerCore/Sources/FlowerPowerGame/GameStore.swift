@@ -192,6 +192,73 @@ public final class GameStore {
         refresh()
     }
 
+    // MARK: - Sharing flowers
+
+    /// Packages one of the player's flowers to send to somebody.
+    ///
+    /// The image is supplied by the caller rather than fetched here, because
+    /// the engine has no idea what a photograph is — it stores an identifier
+    /// and nothing else. The app loads and downscales the picture and hands
+    /// the bytes in.
+    ///
+    /// - Parameter location: how precisely to say where it was found.
+    ///   Defaults to not saying at all. See `FlowerShare` for why that is the
+    ///   default rather than a setting somebody has to find.
+    public func share(
+        patch id: EntityID,
+        imageData: Data,
+        from senderName: String?,
+        note: String? = nil,
+        location: LocationSharing = .none
+    ) -> FlowerShare? {
+        guard let patch = simulation.patches.first(where: { $0.id == id }) else { return nil }
+
+        let coordinate = location.apply(to: patch.coordinate)
+
+        return FlowerShare(
+            speciesID: patch.species?.id,
+            confidence: patch.identificationConfidence,
+            takenAt: patch.discoveredAt,
+            sharedBy: senderName,
+            note: note,
+            latitude: coordinate?.latitude,
+            longitude: coordinate?.longitude,
+            imageData: imageData
+        )
+    }
+
+    public enum ImportOutcome: Equatable {
+        case added(EntityID)
+        /// Already taken in. Worth saying so: silently doing nothing looks
+        /// like a bug, and a share stays tappable in a message thread for ever.
+        case alreadyHave
+    }
+
+    /// Takes in a flower somebody sent.
+    @discardableResult
+    public func importShared(_ share: FlowerShare) -> ImportOutcome {
+        let share = share.validated()
+
+        guard let patch = simulation.importSharedFlower(
+            shareID: share.id,
+            photoLocalIdentifier: share.localIdentifier,
+            species: share.species,
+            confidence: share.confidence,
+            coordinate: share.coordinate,
+            takenAt: share.takenAt,
+            sharedBy: share.sharedBy
+        ) else {
+            return .alreadyHave
+        }
+
+        refresh()
+        return .added(patch.id)
+    }
+
+    public func hasImported(_ share: FlowerShare) -> Bool {
+        simulation.hasImported(shareID: share.id)
+    }
+
     // MARK: - Watch
 
     /// The compact payload sent to the watch.

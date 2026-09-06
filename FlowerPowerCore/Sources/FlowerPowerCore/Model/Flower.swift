@@ -117,6 +117,14 @@ public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
 
 // MARK: - Patches
 
+/// Where a patch came from.
+public enum PatchOrigin: String, Codable, Sendable, CaseIterable {
+    /// The player found it and photographed it.
+    case photographed
+    /// Somebody sent it to them.
+    case shared
+}
+
 /// One photographed flower, which becomes a depleting forage patch on the map.
 public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
 
@@ -151,6 +159,21 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
     /// than being given a fabricated one that would age them out instantly.
     public var registeredOnDay: Int?
 
+    /// How the patch got here.
+    ///
+    /// Optional for the same reason as `registeredOnDay`: a patch saved before
+    /// flowers could be shared was necessarily one the player found, so a
+    /// missing value means `.photographed` rather than being an error.
+    public var storedOrigin: PatchOrigin?
+
+    /// Who sent it, when somebody did. Display only — the simulation does not
+    /// care, but a garden full of anonymous flowers loses the point of having
+    /// been given them.
+    public var sharedBy: String?
+
+    public var origin: PatchOrigin { storedOrigin ?? .photographed }
+    public var isShared: Bool { origin == .shared }
+
     public var remainingNectar: Double
     public var remainingPollen: Double
 
@@ -169,7 +192,10 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         coordinate: GeoPoint? = nil,
         distanceMetres: Double = FlowerPatch.nominalDistance,
         discoveredAt: Date,
-        registeredOnDay: Int? = nil
+        registeredOnDay: Int? = nil,
+        origin: PatchOrigin = .photographed,
+        sharedBy: String? = nil,
+        capacityScale: Double = 1
     ) {
         self.id = id
         self.photoLocalIdentifier = photoLocalIdentifier
@@ -179,13 +205,19 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         self.distanceMetres = max(0, distanceMetres)
         self.discoveredAt = discoveredAt
         self.registeredOnDay = registeredOnDay
+        self.storedOrigin = origin
+        self.sharedBy = sharedBy
         self.recruitedForagers = 0
 
         let resolved = species ?? .unidentified
         // A confident identification is worth roughly 40% more forage than a
         // guess, so identifying is rewarding without being mandatory.
         let confidenceBonus = 1.0 + 0.4 * max(0, min(1, identificationConfidence))
-        let scale = resolved.rarity.yieldMultiplier * confidenceBonus
+        // `capacityScale` is how a shared flower is worth less than one the
+        // player found. Applied here rather than at harvest so that everything
+        // downstream — regrowth ceiling, forage quality, the fraction the
+        // garden shows — is consistent about how big the patch is.
+        let scale = resolved.rarity.yieldMultiplier * confidenceBonus * max(0, capacityScale)
 
         self.nectarCapacity = Self.baseCapacity * resolved.nectarRichness * scale
         self.pollenCapacity = Self.baseCapacity * resolved.pollenRichness * scale

@@ -27,6 +27,10 @@ struct Options {
     var restockEvery = 0
     var trials = 0
 
+    /// Model a player who is fed by other people rather than going out
+    /// themselves: every restock arrives as a shared flower.
+    var sharedForage = false
+
     /// Ad-hoc config overrides, so a knob can be swept without a rebuild.
     /// `--set pheromoneDilutionScale=45 --set swarmCongestionThreshold=0.55`
     var overrides: [String: Double] = [:]
@@ -49,6 +53,10 @@ struct Options {
             case "--every": options.every = Int(value ?? "") ?? options.every
             case "--restock": options.restockEvery = Int(value ?? "") ?? options.restockEvery
             case "--trials": options.trials = Int(value ?? "") ?? options.trials
+            case "--shared":
+                options.sharedForage = true
+                index += 1
+                continue
             case "--set":
                 let parts = (value ?? "").split(separator: "=", maxSplits: 1)
                 if parts.count == 2, let number = Double(parts[1]) {
@@ -119,14 +127,27 @@ var simulation = Simulation.newGame(
 
 func stockPatches(_ count: Int, tag: String) {
     for index in 0..<count {
-        simulation.registerPhotograph(
-            photoLocalIdentifier: "\(tag)-\(index)",
-            species: palette[index % palette.count],
-            confidence: 0.9,
-            coordinate: nil,
-            takenAt: start,
-            distanceMetres: options.distance
-        )
+        if options.sharedForage {
+            simulation.importSharedFlower(
+                shareID: "\(tag)-\(index)",
+                photoLocalIdentifier: "\(tag)-\(index)",
+                species: palette[index % palette.count],
+                confidence: 0.9,
+                coordinate: nil,
+                takenAt: start,
+                sharedBy: "a friend",
+                distanceMetres: options.distance
+            )
+        } else {
+            simulation.registerPhotograph(
+                photoLocalIdentifier: "\(tag)-\(index)",
+                species: palette[index % palette.count],
+                confidence: 0.9,
+                coordinate: nil,
+                takenAt: start,
+                distanceMetres: options.distance
+            )
+        }
     }
 }
 
@@ -142,7 +163,8 @@ if options.trials > 0 {
         config: options.config,
         site: options.locationType,
         palette: palette,
-        start: start
+        start: start,
+        shared: options.sharedForage
     )
     Trials.report(outcomes, days: options.days)
     exit(0)

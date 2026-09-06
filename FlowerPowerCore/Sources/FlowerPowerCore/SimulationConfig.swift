@@ -244,6 +244,40 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     public var layingWorkerOnsetDays: Int = 24
     public var layingWorkerEggsPerDay: Int = 8
 
+    /// How much of a normal patch a *shared* flower is worth. One. A flower
+    /// somebody sends you is worth exactly what a flower is worth.
+    ///
+    /// This was briefly 0.7, on two arguments that both turned out to be
+    /// wrong. The knob is kept, at 1, so that the next person to have the same
+    /// idea finds the measurement instead of the intuition.
+    ///
+    /// The first argument was balance: a penalty would stop a well-connected
+    /// player from skipping the core loop. Measured over 60 trials, a colony
+    /// fed entirely by shared flowers survives at 77-82% against 75% for one
+    /// fed by the player's own photographs — and it still does at a yield of
+    /// 0.5. The penalty did not do the thing it existed to do, because
+    /// survival is bounded by comb space and colony dynamics rather than by
+    /// how much forage is on offer.
+    ///
+    /// The second was thematic: a shared flower is second-hand information,
+    /// like a forager recruited by a waggle dance rather than a scout who
+    /// found the patch herself. But recruitment is *already* modelled, in
+    /// `ForagingSystem`, and applies to every patch the same way. Charging a
+    /// shared patch again for it was double-counting a mechanic the engine
+    /// already has.
+    ///
+    /// What is left is a patch of clover, which is a patch of clover. Somebody
+    /// went outside and found it; that it was not you does not change what is
+    /// in the flower. A gift that arrives worth less than the real thing is
+    /// also a poor gift, and the point of sharing is to genuinely feed
+    /// somebody's bees.
+    ///
+    /// The real difference between a shared flower and one you found is not
+    /// yield but *distance*, and the engine already handles that: a share
+    /// carrying a coordinate is placed relative to the recipient's own hive,
+    /// and may be out of foraging range entirely.
+    public var sharedPatchYield: Double = 1.0
+
     /// Days a photographed patch holds full strength before it starts to go.
     ///
     /// Sized against the seasons rather than against real time: 60 is two

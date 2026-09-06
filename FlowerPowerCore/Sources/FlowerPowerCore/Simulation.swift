@@ -239,6 +239,72 @@ public struct Simulation: Codable, Equatable, Sendable {
         return patch
     }
 
+    /// Takes in a flower somebody else photographed and sent.
+    ///
+    /// The recipient gets a real patch their bees can work, the same size as
+    /// one they photographed themselves. A patch of clover is a patch of
+    /// clover; somebody went outside and found it, and that it was not the
+    /// recipient does not change what is in the flower. See
+    /// `SimulationConfig.sharedPatchYield` for the penalty that used to be
+    /// here and the measurement that removed it.
+    ///
+    /// - Parameters:
+    ///   - shareID: the sender's identifier for this flower. Importing the
+    ///     same one twice does nothing and returns `nil`. A share arrives in a
+    ///     message that stays in the thread for ever, so the tap that imports
+    ///     it can happen any number of times.
+    ///   - distanceMetres: how far the recipient's bees must fly. Shares
+    ///     usually carry no coordinate — see `FlowerShare` on why sending one
+    ///     is a privacy decision — so this is normally the nominal distance
+    ///     rather than anything derived from where the photograph was taken.
+    /// - Returns: the new patch, or `nil` if this flower was already imported.
+    @discardableResult
+    public mutating func importSharedFlower(
+        shareID: String,
+        photoLocalIdentifier: String,
+        species: FlowerSpecies?,
+        confidence: Double,
+        coordinate: GeoPoint?,
+        takenAt: Date,
+        sharedBy: String?,
+        distanceMetres: Double? = nil
+    ) -> FlowerPatch? {
+        guard !world.importedShares.contains(shareID) else { return nil }
+
+        let distance: Double
+        if let distanceMetres {
+            distance = distanceMetres
+        } else if let coordinate, let hiveCoordinate = world.hive.location.coordinate {
+            distance = coordinate.distance(to: hiveCoordinate)
+        } else {
+            distance = FlowerPatch.nominalDistance
+        }
+
+        let patch = FlowerPatch(
+            id: ids.next(),
+            photoLocalIdentifier: photoLocalIdentifier,
+            species: species,
+            identificationConfidence: confidence,
+            coordinate: coordinate,
+            distanceMetres: distance,
+            discoveredAt: takenAt,
+            registeredOnDay: clock.day,
+            origin: .shared,
+            sharedBy: sharedBy,
+            capacityScale: config.sharedPatchYield
+        )
+
+        world.patches.append(patch)
+        world.importedShares.insert(shareID)
+        return patch
+    }
+
+    /// Whether this flower has already been taken in, so the interface can say
+    /// so instead of appearing to do nothing.
+    public func hasImported(shareID: String) -> Bool {
+        world.importedShares.contains(shareID)
+    }
+
     /// Attaches a species to a patch once classification finishes, which may
     /// well be after the patch was registered.
     public mutating func identifyPatch(

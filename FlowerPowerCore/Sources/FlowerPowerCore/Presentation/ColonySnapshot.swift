@@ -208,6 +208,12 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
     /// knows to photograph a replacement.
     public let vigour: Double
 
+    /// Where it came from, and who sent it.
+    public let origin: PatchOrigin
+    public let sharedBy: String?
+
+    public var isShared: Bool { origin == .shared }
+
     /// Past its best but not yet gone. The cue to go out again.
     public var isFading: Bool { vigour < 0.999 && vigour > 0 }
 
@@ -399,7 +405,9 @@ extension Simulation {
                 remainingFraction: capacity > 0 ? remaining / capacity : 0,
                 foragersWorkingIt: patch.recruitedForagers,
                 discoveredAt: patch.discoveredAt,
-                vigour: vigour
+                vigour: vigour,
+                origin: patch.origin,
+                sharedBy: patch.sharedBy
             )
         }
         // Best forage first: that is the order a player wants to scan.

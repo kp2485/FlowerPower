@@ -24,6 +24,15 @@ public struct World: Codable, Equatable, Sendable {
     /// Nectar gathered so far today, folded into the window at the day boundary.
     public var todayNectarIntake: Double
 
+    /// Identifiers of flowers other people have sent, so the same one cannot
+    /// be imported twice.
+    ///
+    /// Kept here rather than inferred from `patches` because a patch can be
+    /// pruned or a colony started afresh, and neither of those should make an
+    /// old share importable again — a shared flower arrives in a message that
+    /// stays in the thread for ever and can be tapped any number of times.
+    public var importedShares: Set<String> = []
+
     public init(
         hive: Hive,
         patches: [FlowerPatch] = [],
@@ -38,6 +47,26 @@ public struct World: Codable, Equatable, Sendable {
         self.attackHistory = attackHistory
         self.recentNectarIntake = recentNectarIntake
         self.todayNectarIntake = todayNectarIntake
+    }
+
+    /// Decoded by hand for one reason: Swift's synthesised decoder ignores
+    /// property defaults and throws on a missing key, so adding
+    /// `importedShares` would have made every save written before sharing
+    /// existed undecodable. `GameStore.load` treats an unreadable save as no
+    /// save, so that would have silently deleted people's colonies.
+    ///
+    /// Only `init(from:)` is written out; the encoder is still synthesised.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        hive = try container.decode(Hive.self, forKey: .hive)
+        patches = try container.decode([FlowerPatch].self, forKey: .patches)
+        weather = try container.decode(Weather.self, forKey: .weather)
+        attackHistory = try container.decode([AttackRecord].self, forKey: .attackHistory)
+        recentNectarIntake = try container.decode([Double].self, forKey: .recentNectarIntake)
+        todayNectarIntake = try container.decode(Double.self, forKey: .todayNectarIntake)
+        importedShares = try container.decodeIfPresent(
+            Set<String>.self, forKey: .importedShares
+        ) ?? []
     }
 
     public static let attackHistoryLimit = 40
