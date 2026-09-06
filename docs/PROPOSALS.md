@@ -5,6 +5,14 @@ every proposal is measured and tested; the interface half is written and, like
 the rest of the app, has never been compiled. What each one became is noted at
 the end of its entry under *Built*.
 
+**Later the same day, four more things were built that are not proposals here**
+— they came off PLAN.md's roadmap rather than out of this document, and they are
+written up there rather than added as numbers 22 to 25. In short: something to
+do about swarming (open the nest up, or divide the colony deliberately);
+something to read in winter; alarm pheromone wired to defence and foraging; and
+two modelling errors behind the second-year cliff. The measured effect of each
+is in PLAN.md, including the two that measured *worse* than doing nothing.
+
 Twenty-one proposals, numbered so you can approve or deny each one by
 number. Each has a pitch, what the player would actually see, the decision it
 puts in front of them if any, the biology it rests on, a cost, and a
@@ -351,6 +359,15 @@ symptom: winter is dull because there is nothing in it, not because it is long.
 **Recommendation: Deny.** Prefer 4 and 14.
 
 *Built, overruling the recommendation.* `SimClock.winterSpeed`, default 2, part of the save so catch-up and the watch's replay stay exact. Old saves decode as uniform. A toggle in settings.
+
+*And then the symptom was treated too, later the same day.* The objection above
+— "winter is dull because there is nothing in it, not because it is long" — was
+the right one, and the faster clock did not answer it. Winter now has the
+colony's own account of the year it has just finished (`Almanac.review`), a
+headline that moves through the four things a wintering colony is actually
+doing rather than one sentence for ninety days, and the bloom prompt is no
+longer hidden in the one season where it matters most: two plants in the
+catalogue flower in winter, and both are keystones. See PLAN.md, roadmap item 6.
 
 ---
 
