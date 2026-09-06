@@ -12,10 +12,10 @@ needs a Mac.
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 tests, 0 failures |
-| `FlowerPowerGame` (store, persistence, notifications, sharing) | Moved into the package, 76 tests |
-| Balance, standard preset | 75% first-year survival, 25% second-year, ~1 swarm per colony per two years |
-| `beesim` | Runs, sweeps any constant with `--set` |
+| `FlowerPowerCore` engine | 248 XCTest + 19 Swift Testing, 0 failures |
+| Swift 6 language mode | Builds clean, complete concurrency checking |
+| Balance, standard preset | 80% first-year survival, 30% second-year, 1.43 swarms per colony per two years |
+| `beesim` | Runs, sweeps any constant with `--set`, reports forage scale with `--scale` |
 
 ### Not verified, and cannot be here
 
@@ -76,9 +76,20 @@ photograph's coordinate is where a person was standing. Everything received is
 clamped rather than trusted.
 
 **Identification without a model.** Vision feature prints matched against
-reference photographs, so the app can name flowers today rather than after a
+reference photographs, so the app can place flowers today rather than after a
 dataset exists. The library grows from flowers the player names and flowers
 people share.
+
+**Botanical classification.** Flowers are placed to a family, genus or species
+— whichever can honestly be reached — and forage is derived from measured
+floral traits rather than two abstract numbers. Corolla depth against a honey
+bee's reach, sugar concentration apart from volume, pollen protein and amino
+acid completeness apart from abundance. The engine reports exactly four plants
+a honey bee cannot work for nectar, which is the right four.
+
+**iOS 27 and the Swift 6 language mode.** Foundation Models with image input
+and guided generation places flowers at whatever rank it is sure of. Vision and
+CoreLocation move to their modern async APIs. New tests are Swift Testing.
 
 ---
 
@@ -96,10 +107,11 @@ people share.
 
 ### Then
 
-4. **Second-year survival, again.** 25% is a large improvement on 15% but still
-   short of the ~75% a year that established colonies manage. The remaining
-   deaths are spring starvation and failed mating flights. Worth one more
-   tracing pass before deciding it is realism.
+4. **Second-year survival, again.** 30% is short of the ~75% a year that
+   established colonies manage. Two over-rearing bugs were found and fixed on
+   the way here — brood headroom ignoring adult upkeep, and a laying reserve
+   that did not scale with the colony — so another tracing pass is likely to
+   find more.
 5. **Give the player something to do about swarming.** It is now the main thing
    that ends colonies, the alert exists, but nothing acts on it. Real
    beekeeping answers congestion with space. Adding comb, or splitting
@@ -107,17 +119,23 @@ people share.
 6. **Winter.** A quarter of the year with nothing to photograph and little to
    watch. The pacing note in `SimClock` argues the answer is something to do in
    winter rather than a faster clock.
-7. **Curate reference photographs.** The cheapest real win: the feature-print
-   classifier works but ships with an empty library, so it names nothing until
-   the player names something first. Thirty species, a handful of photographs
-   each. `docs/CLASSIFIER.md` has the sources.
-8. **Tune `FeaturePrintLibrary.maximumDistance` on device.** It is the number
+7. **Curate reference photographs.** Still the cheapest real win for devices
+   without Apple Intelligence: the feature-print classifier works but ships
+   with an empty library, so it places nothing until the player does. Thirty
+   species, a handful of photographs each. `docs/CLASSIFIER.md` has the
+   sources.
+8. **Check the on-device model against real photographs.** The taxonomic
+   classifier is written and its answer-handling is tested, but nobody has
+   seen what the model actually says about a British hedgerow. The open
+   question is whether it places to family honestly or reaches for a species,
+   which is what the prompt is written to discourage.
+9. **Tune `FeaturePrintLibrary.maximumDistance` on device.** It is the number
    that decides between naming things wrongly and naming nothing, and it was
    set by reasoning rather than by measurement — feature-print distances are
    not normalised, so it needs real photographs.
-9. **Train the classifier**, if the reference library proves not good enough.
+10. **Train the classifier**, if neither of the above is good enough.
    `docs/CLASSIFIER.md` is the brief.
-10. **App icon.** There is an empty `AppIcon.appiconset`.
+11. **App icon.** There is an empty `AppIcon.appiconset`.
 
 ### Not decided
 
@@ -139,4 +157,9 @@ people share.
   25% in sixty days was three modelling errors.
 - **If it can live in the package, put it there.** That is the part that can be
   compiled and tested without a Mac.
+- **Relative values come from the science; the absolute scale is calibrated.**
+  Floral traits are measurements. The unit they are expressed in is normalised
+  to the catalogue mean, because every consumption constant in the engine
+  assumes the mean flower is 1. Never fix a balance problem by shaving a
+  measured trait.
 - **Nothing in the Xcode targets is verified until Xcode has seen it.** Say so.
