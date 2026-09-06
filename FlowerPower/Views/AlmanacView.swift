@@ -43,7 +43,7 @@ struct AlmanacView: View {
                                         .font(.caption.monospacedDigit())
                                         .foregroundStyle(.secondary)
                                         .frame(width: 56, alignment: .leading)
-                                    Label(entry.text, systemImage: symbol(for: entry.kind))
+                                    Label(entry.text, systemImage: entry.kind.symbolName)
                                         .font(.subheadline)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
@@ -86,19 +86,6 @@ struct AlmanacView: View {
         }
     }
 
-    private func symbol(for kind: AlmanacEntry.Kind) -> String {
-        switch kind {
-        case .season: return "calendar"
-        case .forage: return "leaf.fill"
-        case .queen: return "crown.fill"
-        case .swarm: return "arrow.triangle.branch"
-        case .threat: return "exclamationmark.shield.fill"
-        case .disease: return "microbe.fill"
-        case .stores: return "drop.fill"
-        case .harvest: return "hand.raised.fill"
-        case .colony: return "hexagon.fill"
-        }
-    }
 }
 
 

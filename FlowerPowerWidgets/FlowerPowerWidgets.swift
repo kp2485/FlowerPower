@@ -217,12 +217,7 @@ enum WidgetTheme {
         }
     }
 
-    static func symbol(for season: Season) -> String {
-        switch season {
-        case .spring: return "leaf.fill"
-        case .summer: return "sun.max.fill"
-        case .autumn: return "wind"
-        case .winter: return "snowflake"
-        }
-    }
+    /// The engine owns the symbol names — see `Symbols.swift` in the package.
+    /// This was the same switch a third time.
+    static func symbol(for season: Season) -> String { season.symbolName }
 }

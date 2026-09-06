@@ -83,64 +83,24 @@ enum Theme {
         }
     }
 
-    static func symbol(for season: Season) -> String {
-        switch season {
-        case .spring: return "leaf.fill"
-        case .summer: return "sun.max.fill"
-        case .autumn: return "wind"
-        case .winter: return "snowflake"
-        }
-    }
+    // MARK: Symbols
 
-    static func symbol(for sky: Sky) -> String {
-        switch sky {
-        case .clear: return "sun.max.fill"
-        case .cloudy: return "cloud.fill"
-        case .rain: return "cloud.rain.fill"
-        case .storm: return "cloud.bolt.rain.fill"
-        }
-    }
+    // The engine owns these now — see `Symbols.swift` in the package. They
+    // were exhaustive switches over engine types living in a file no compiler
+    // on the development machine can see, and two of them were a second and
+    // third time over in `WatchTheme` and `WidgetTheme`. `Theme` keeps the
+    // colours, because `Color` is SwiftUI and a palette is a house style in a
+    // way that "a shield means defence" is not.
 
-    static func symbol(for resource: ResourceKind) -> String {
-        switch resource {
-        case .honey: return "drop.fill"
-        case .nectar: return "drop"
-        case .pollen: return "circle.grid.3x3.fill"
-        case .beeBread: return "square.grid.3x3.fill"
-        case .royalJelly: return "sparkles"
-        case .wax: return "hexagon.fill"
-        case .propolis: return "shield.lefthalf.filled"
-        case .water: return "drop.triangle.fill"
-        }
-    }
+    static func symbol(for season: Season) -> String { season.symbolName }
 
-    static func symbol(for job: WorkerJob) -> String {
-        switch job {
-        case .cellCleaner: return "sparkles"
-        case .nurseBee: return "heart.fill"
-        case .mortuary: return "arrow.up.bin.fill"
-        case .droneFeeder: return "fork.knife"
-        case .queenAttendant: return "crown.fill"
-        case .nectarConcentrator: return "drop.degreesign"
-        case .pollenPacker: return "shippingbox.fill"
-        case .honeycombBuilder: return "hammer.fill"
-        case .fanning: return "wind"
-        case .waterCarrier: return "drop.triangle"
-        case .guardBee: return "shield.fill"
-        case .foragingBee: return "figure.walk.motion"
-        }
-    }
+    static func symbol(for sky: Sky) -> String { sky.symbolName }
 
-    static func symbol(for predator: Predator) -> String {
-        switch predator.attackStyle {
-        case .catastrophic: return "exclamationmark.octagon.fill"
-        case .entrance: return "door.left.hand.closed"
-        case .field: return "eye.trianglebadge.exclamationmark"
-        case .comb: return "ant.fill"
-        case .pilfer: return "hand.raised.fill"
-        case .parasite: return "microbe.fill"
-        }
-    }
+    static func symbol(for resource: ResourceKind) -> String { resource.symbolName }
+
+    static func symbol(for job: WorkerJob) -> String { job.symbolName }
+
+    static func symbol(for predator: Predator) -> String { predator.symbolName }
 
     // MARK: - Layout
 

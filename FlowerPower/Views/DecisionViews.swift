@@ -78,20 +78,12 @@ struct ThreatDecisionCard: View {
         return days <= 0 ? "resolves today" : "\(days) day\(days == 1 ? "" : "s") to decide"
     }
 
-    private var explanation: String {
-        switch threat.style {
-        case .entrance:
-            return "They are trying to force the door. Guards can meet them head on, or the bees can narrow the entrance to a slot they cannot get through."
-        case .pilfer:
-            return "A raider at the entrance, night after night. A narrowed entrance keeps it out; guards can meet it but will die stinging."
-        case .field:
-            return "It is picking foragers off at the flowers, where guards cannot help. The only defence is not to send them."
-        case .comb:
-            return "Larvae in the comb, eating it. Cleaners can hunt them down, at the cost of everything else the cleaners would be doing."
-        case .catastrophic, .parasite:
-            return ""
-        }
-    }
+    /// The engine owns this now, as `AttackStyle.explanation` — and it gained
+    /// something in the move. The two styles with no posture to offer used to
+    /// return the empty string, so a card could show a siege and then say
+    /// nothing at all about it. They now say that there is nothing to be done,
+    /// which is a better thing for a player to read than a blank.
+    private var explanation: String { threat.style.explanation }
 }
 
 // MARK: - A swarm gathering

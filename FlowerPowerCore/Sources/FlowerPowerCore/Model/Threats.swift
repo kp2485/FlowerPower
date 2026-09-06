@@ -37,6 +37,35 @@ public enum AttackStyle: String, Codable, Sendable {
     }
 }
 
+public extension AttackStyle {
+
+    /// What the colony is actually facing, and what can be done about it.
+    ///
+    /// The text a decision card shows beside the postures. Here rather than in
+    /// the view because it is an exhaustive switch over an engine type — see
+    /// `Symbols.swift` — and because the two styles with no decision to offer
+    /// should say so in one place.
+    var explanation: String {
+        switch self {
+        case .entrance:
+            return "They are trying to force the door. Guards can meet them head on, or the bees can narrow the entrance to a slot they cannot get through."
+        case .pilfer:
+            return "A raider at the entrance, night after night. A narrowed entrance keeps it out; guards can meet it but will die stinging."
+        case .field:
+            return "It is picking foragers off at the flowers, where guards cannot help. The only defence is not to send them."
+        case .comb:
+            return "Larvae in the comb, eating it. Cleaners can hunt them down, at the cost of everything else the cleaners would be doing."
+        case .catastrophic:
+            return "There is nothing to be done about this one. It will take what it takes and leave."
+        case .parasite:
+            return "This one is already inside, and lives there. No posture reaches it."
+        }
+    }
+
+    /// Whether there is a posture worth offering against it.
+    var hasAnswer: Bool { !HivePosture.options(against: self).isEmpty }
+}
+
 public enum Predator: String, Codable, CaseIterable, Sendable {
 
     // Mammals

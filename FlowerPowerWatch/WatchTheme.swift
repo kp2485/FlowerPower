@@ -43,12 +43,8 @@ enum WatchTheme {
         }
     }
 
-    static func symbol(for season: Season) -> String {
-        switch season {
-        case .spring: return "leaf.fill"
-        case .summer: return "sun.max.fill"
-        case .autumn: return "wind"
-        case .winter: return "snowflake"
-        }
-    }
+    /// The engine owns the symbol names — see `Symbols.swift` in the package.
+    /// This was the same switch as the phone's, written out a second time in a
+    /// file no compiler here can see.
+    static func symbol(for season: Season) -> String { season.symbolName }
 }

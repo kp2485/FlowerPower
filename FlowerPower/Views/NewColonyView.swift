@@ -206,37 +206,11 @@ private struct Trait: View {
     }
 }
 
-// MARK: - Plain-language site notes
-
-private extension HiveLocationType {
-
-    /// Written so a player can choose without reading the numbers. Each says
-    /// the one thing that actually decides whether the site is a good idea.
-    var summary: String {
-        switch self {
-        case .livingTreeCavity:
-            return "What wild colonies choose when they can. Roomy, warm and easy to defend."
-        case .fallenTree:
-            return "Damp and closer to the ground, so more finds its way in, but a fair size."
-        case .underTreeBranch:
-            return "Open comb hanging in the air. Beautiful, tiny, cold and indefensible — a colony here will not see winter."
-        case .cliff:
-            return "Exposed rock. Cramped and draughty, though hard for anything heavy to reach."
-        case .cave:
-            return "The most room there is, and safe. Cold, though: it will cost honey to keep warm."
-        case .insideWalls:
-            return "Roomy, very warm and easily held. The best site in the game, if you do not mind the neighbours."
-        case .humanStructure:
-            return "A shed roof or a chimney. Warm and reasonably large."
-        case .termiteMound:
-            return "Thick earth walls hold heat well. Middling for space."
-        case .animalBurrow:
-            return "Underground, so warm-ish and well hidden, but damp and easy for a digger to reach."
-        case .nestbox:
-            return "Built for bees. Modest and unremarkable, which is the point."
-        }
-    }
-}
+// The plain-language site notes moved into the package as
+// `HiveLocationType.summary`. They were an exhaustive switch over an engine
+// type in a file nothing here can compile, which is exactly the shape of the
+// `SimEvent.narration` bug — add a site and one screen silently describes it
+// as nothing. `SymbolTests` now checks every site has a sentence.
 
 // MARK: - Preview
 
