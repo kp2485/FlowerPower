@@ -12,7 +12,7 @@ needs a Mac.
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 123 Swift Testing, 0 failures |
+| `FlowerPowerCore` engine | 248 XCTest + 124 Swift Testing, 0 failures |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
 | Balance, standard preset | 89% first year, 66% second, 2.49 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06) |
@@ -388,6 +388,12 @@ Where the room comes from is a property of the site: a nestbox takes another
 box, a wall cavity runs on, rotten wood can be chewed away, and a cliff face
 gives nothing. So the choice of where the swarm settled, made months earlier,
 decides whether space is an option at all.
+
+**The interface is ordered by that table now, not by the order things were
+built.** The swarm notification offers "Make Room" first, because it measures
+best; the decision card styles none of the three as the recommendation, because
+the best of them is the oldest one and an interface that pushed a new mechanic
+forward would be pushing the wrong one.
 
 **Alarm pheromone, wired to something.** It was tracked, raised on every attack,
 decayed on a careful schedule, and read by nothing at all. It is now the

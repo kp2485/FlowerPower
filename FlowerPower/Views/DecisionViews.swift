@@ -121,6 +121,13 @@ struct SwarmDecisionCard: View {
                 // Space first. It is what a beekeeper actually does about
                 // congestion, and the only answer here that does not cost the
                 // colony bees.
+                // None of these is styled as the recommendation, deliberately.
+                // Measured over 200 colonies, making room is worth more than
+                // either of the others and more than any of them is worth
+                // against simply letting the swarm go — so an interface that
+                // pushed one of them forward would be pushing the wrong one.
+                // They are alternatives with different costs, and the card
+                // says what each costs.
                 if snapshot.canAddComb, snapshot.canAffordComb {
                     Button {
                         store.addComb()
@@ -132,7 +139,7 @@ struct SwarmDecisionCard: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .tint(Theme.honey)
                 } else if snapshot.canAddComb {
                     Label(

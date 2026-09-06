@@ -306,6 +306,14 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
 
     public let posture: HivePosture
     public let postureDaysRemaining: Int?
+
+    /// How roused the colony is, 0...1.
+    ///
+    /// Alarm pheromone, which now drives defence, foraging and how many
+    /// defenders die stinging. Exposed because it is also the most legible
+    /// thing the colony does that a player cannot otherwise see: it spikes
+    /// when something comes to the entrance and is gone within the day.
+    public let alarm: Double
     public let activeThreat: ActiveThreat?
     public let pendingSwarm: PendingSwarm?
     /// A swarm has left and the player has not yet chosen whether to follow.
@@ -391,6 +399,7 @@ extension Simulation {
             epitaph: epitaph(),
             posture: world.posture,
             postureDaysRemaining: world.postureUntilDay.map { max(0, $0 - clock.day) },
+            alarm: hive.pheromones.alarm,
             activeThreat: world.activeThreat,
             pendingSwarm: world.pendingSwarm,
             departedSwarm: world.lastSwarm.map { swarm in

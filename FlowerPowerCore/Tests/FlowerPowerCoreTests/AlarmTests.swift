@@ -93,6 +93,22 @@ struct AlarmTests {
         #expect(roaring == 1 + config.alarmCasualtyRate)
     }
 
+    /// The interface can see it, which is the other half of wiring it to
+    /// something: it is the most legible thing the colony does that a player
+    /// cannot otherwise tell, and the hive hum rides it.
+    @Test("The snapshot carries how roused the colony is")
+    func snapshotCarriesAlarm() {
+        var simulation = Fixture.thrivingSimulation(config: .standard, seed: 4_043)
+        #expect(simulation.snapshot().alarm == 0)
+
+        simulation.mutateWorld { $0.hive.pheromones.alarm = 0.8 }
+        #expect(simulation.snapshot().alarm == 0.8)
+
+        // And it is bounded, because the interface scales things by it.
+        simulation.mutateWorld { $0.hive.pheromones.alarm = 1 }
+        #expect(simulation.snapshot().alarm <= 1)
+    }
+
     /// An attack is what raises it, and it is raised before the colony's
     /// response is rolled — the guards call, and the colony answers.
     @Test("Being attacked is what raises it")

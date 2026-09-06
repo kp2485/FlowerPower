@@ -68,10 +68,18 @@ final class HiveHum {
         switch snapshot.status {
         case .collapsed:
             tone.targetGain = 0
-        case .critical where snapshot.activeThreat != nil:
-            // Alarm pheromone. The pitch rises and the volume with it.
-            tone.targetFrequency = 260
-            tone.targetGain = 0.09
+        case _ where snapshot.alarm > 0.15:
+            // Alarm pheromone, read rather than guessed at. This used to fire
+            // on "critical, and something is at the entrance", which is a
+            // reasonable proxy for a roused colony and not the same thing: a
+            // healthy colony that has just seen off a wasp is roaring, and a
+            // dying one under siege may barely be able to muster a hum.
+            //
+            // The pitch and the volume both ride the signal, so the hive rises
+            // as the raid arrives and settles over the following hours, which
+            // is what a colony actually sounds like.
+            tone.targetFrequency = 190 + 90 * snapshot.alarm
+            tone.targetGain = 0.055 + 0.045 * snapshot.alarm
         default:
             if snapshot.season == .winter {
                 tone.targetFrequency = 120
