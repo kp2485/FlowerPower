@@ -65,15 +65,28 @@ struct ColonyDashboardView: View {
                         HoneyDecisionCard(snapshot: snapshot)
                     }
 
+                    // Winter is a quarter of the year with nothing to
+                    // photograph and, until now, nothing to look at either.
+                    // The colony's own account of the year it has just lived
+                    // is what there is to read.
+                    if snapshot.season == .winter, snapshot.hasSomethingToRead {
+                        YearInReviewCard(
+                            review: snapshot.review(year: snapshot.yearWorthReading)
+                        )
+                    }
+
                     RecordLinks()
 
-                    // The gentlest possible way of getting someone outside.
-                    if snapshot.season != .winter {
-                        BloomPromptCard(prompt: BloomPrompt(
-                            hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern,
-                            patches: snapshot.patches
-                        ))
-                    }
+                    // The gentlest possible way of getting someone outside —
+                    // and emphatically not hidden in winter, which is where
+                    // this used to be switched off. Two plants flower in
+                    // winter, both of them keystones, and they are the only
+                    // things that do. That is exactly when it is worth being
+                    // told.
+                    BloomPromptCard(prompt: BloomPrompt(
+                        hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern,
+                        patches: snapshot.patches
+                    ))
                 }
                 .padding()
             }

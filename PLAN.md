@@ -227,9 +227,12 @@ uncompiled.
 
 ### Then
 
-6. **Winter.** A quarter of the year with nothing to photograph and little to
-   watch. The pacing note in `SimClock` argues the answer is something to do in
-   winter rather than a faster clock.
+Items 4, 5 and 6 — second-year survival, something to do about swarming, and
+winter — were done on 2026-09-06 and are written up under "Done since" below.
+The numbering of what is left is unchanged so it still matches what you knew it
+as. Everything remaining needs a Mac, a device, real photographs or a trained
+model, so none of it could be started here.
+
 7. **Curate reference photographs.** Still the cheapest real win for devices
    without Apple Intelligence: the feature-print classifier works but ships
    with an empty library, so it places nothing until the player does. Thirty
@@ -382,6 +385,32 @@ multi-day siege raises alarm again every morning and holds it up. The three
 effects were then measured one at a time, which is the only way to see that,
 since turning all three on at once changes every trajectory and confounds the
 comparison.
+
+**6. Winter.** Not a faster clock — the clock is already double speed — but
+something to read and something still to look for.
+
+The season had one sentence for ninety simulated days: "Clustered for winter."
+That is a quarter of the year during which the one line the game offers a player
+who opens it never changed. It now moves through the four things that are
+actually going on — the cluster forming, the deep of it with the days to spring
+counting down, the turn of the year, and brood again weeks before the first
+flower — and a colony that is short of stores is told that instead, with the
+number of days it has to last.
+
+`Almanac.review(year:lineage:)` reads a year back: what the stores peaked at,
+what the player took, whether the colony swarmed or was divided, how many queens
+were raised and how many of them came back from their mating flights, how many
+raids came and how many were driven off. The counts are tallied from the events
+as the lines are written rather than parsed back out of the prose, because the
+prose cannot be counted — "swarm cells are started", "a swarm leaves" and "the
+swarm is called off" are all `.swarm` entries and mean quite different things.
+A quiet year gets a short review rather than a padded one.
+
+And the bloom prompt is no longer hidden in winter, which is where the dashboard
+used to switch it off. Two plants in the catalogue flower in winter — winter
+heather and mahonia — and both are keystones, because that is what being a
+winter flower means. Hiding the prompt removed the one season where knowing
+about them matters most.
 
 ### Not decided
 

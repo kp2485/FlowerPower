@@ -29,6 +29,12 @@ struct AlmanacView: View {
                 )
             } else {
                 List {
+                    Section {
+                        YearInReviewCard(review: store.snapshot.review(year: shownYear))
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                    }
+
                     ForEach(groupedBySeason, id: \.season) { group in
                         Section {
                             ForEach(group.entries) { entry in
@@ -54,7 +60,7 @@ struct AlmanacView: View {
             if years.count > 1 {
                 ToolbarItem(placement: .primaryAction) {
                     Picker("Year", selection: Binding(
-                        get: { year ?? almanac.latestYear },
+                        get: { shownYear },
                         set: { year = $0 }
                     )) {
                         ForEach(years, id: \.self) { Text("Year \($0)").tag($0) }
@@ -69,8 +75,11 @@ struct AlmanacView: View {
         let entries: [AlmanacEntry]
     }
 
+    /// The year on the page: whichever the player picked, or the latest.
+    private var shownYear: Int { year ?? almanac.latestYear }
+
     private var groupedBySeason: [SeasonGroup] {
-        let selected = almanac.entries(inYear: year ?? almanac.latestYear)
+        let selected = almanac.entries(inYear: shownYear)
         return Season.allCases.compactMap { season in
             let entries = selected.filter { $0.season == season }
             return entries.isEmpty ? nil : SeasonGroup(season: season, entries: entries)
@@ -89,5 +98,50 @@ struct AlmanacView: View {
         case .harvest: return "hand.raised.fill"
         case .colony: return "hexagon.fill"
         }
+    }
+}
+
+
+// MARK: - The year, read back
+
+/// The colony's own account of a year, which is what winter is for.
+///
+/// Built in the package as `YearInReview`, so what is shown here is the same
+/// thing the tests check and not a second telling of it written in a view.
+struct YearInReviewCard: View {
+
+    let review: YearInReview
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(review.headline, systemImage: "book.pages")
+                .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if review.notes.isEmpty {
+                Text("Nothing worth writing down yet. There will be.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(review.notes.enumerated()), id: \.offset) { _, note in
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            if !review.queens.isEmpty {
+                Text(review.queens.map(\.title).spokenList + " reigned.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
     }
 }

@@ -308,6 +308,13 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     /// Whether the autumn entrance decision is open right now.
     public let entranceDecisionOpen: Bool
 
+    /// Days until the next spring begins.
+    ///
+    /// The horizon the colony is provisioning against, and in winter the only
+    /// number that is really moving. Winter runs at double speed, so this is
+    /// also the number that tells a player how long the quiet part lasts.
+    public let daysUntilSpring: Int
+
     /// Whether the colony could be divided on purpose: a laying queen to send
     /// and enough bees that both halves are still colonies afterwards.
     public let canSplit: Bool
@@ -372,6 +379,7 @@ extension Simulation {
             },
             entranceSealed: world.entranceSealed,
             entranceDecisionOpen: season == .autumn && !world.entranceSealed,
+            daysUntilSpring: Season.daysUntilSpring(from: clock.day),
             canSplit: canSplit,
             lineage: world.lineage,
             almanac: world.almanac,
@@ -557,10 +565,10 @@ extension Simulation {
         if !hive.queenIsMated { return "A virgin queen is waiting to fly." }
         if !hive.genetics.isProperlyMated { return "The queen is laying only drones." }
 
+        if season == .winter { return winterHeadline() }
         if !world.weather.isFlyingWeather {
             return "Grounded by the weather — no foraging today."
         }
-        if season == .winter { return "Clustered for winter." }
         if world.patches.isEmpty { return "No flowers found yet. Photograph some." }
 
         let bloomingPatches = world.patches.filter {
@@ -586,6 +594,40 @@ extension Simulation {
         }
 
         return "Foraging steadily."
+    }
+
+    /// What the cluster is doing, which changes four times over the winter.
+    ///
+    /// This was the single sentence "Clustered for winter." for ninety
+    /// simulated days — a quarter of the year, and at double speed still the
+    /// best part of a real week, during which the one line the game offers a
+    /// player who opens it never changed. Winter is not a pause in a colony's
+    /// life; it is the part of it that everything else was for, and there are
+    /// four quite different things going on in it.
+    private func winterHeadline() -> String {
+        let hive = world.hive
+        let progress = Season.progress(clock.day)
+        let untilSpring = Season.daysUntilSpring(from: clock.day)
+
+        // Being short is the only thing worth saying, if it is true.
+        if !hive.isWinterReady, hive.resources.edibleEnergy < hive.winterStoresRequired * 0.6 {
+            return "Clustered, and short of stores with \(untilSpring) days to spring."
+        }
+
+        if progress < 0.25 {
+            return "Clustered against the cold. The cluster shivers to keep "
+                + "its centre at thirty-five degrees."
+        }
+        if progress < Season.winterDormancyEnds {
+            return "The deep of it. \(untilSpring) days to spring, and every "
+                + "one of them paid for out of the larder."
+        }
+        if hive.broodCount == 0 {
+            return "The turn of the year. The queen will begin laying again "
+                + "before there is anything to forage."
+        }
+        return "Brood again, weeks before the first flower. These are the "
+            + "bees that will meet the spring."
     }
 
     /// Why the colony ended.
@@ -785,4 +827,32 @@ extension Simulation {
             + "would let them grow, or divide the colony before it divides "
             + "itself."
     }
+}
+
+
+// MARK: - Reading the record
+
+public extension ColonySnapshot {
+
+    /// Which year of the colony's life this is, counting from one.
+    var year: Int { day / Season.daysPerYear + 1 }
+
+    /// The year's account, for the interface to render.
+    ///
+    /// A convenience over `almanac.review(year:lineage:)`, because both halves
+    /// it needs are already on the snapshot and a view should not have to know
+    /// that it takes two of them.
+    func review(year: Int) -> YearInReview {
+        almanac.review(year: year, lineage: lineage)
+    }
+
+    /// The year worth reading right now.
+    ///
+    /// Winter is the last season of a year, so in winter the year on the page
+    /// is the one just lived — which is the point. The record is what winter
+    /// is for.
+    var yearWorthReading: Int { year }
+
+    /// Whether there is enough in the record to be worth offering.
+    var hasSomethingToRead: Bool { !review(year: year).isEmpty }
 }

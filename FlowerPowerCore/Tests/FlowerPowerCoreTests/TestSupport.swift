@@ -148,6 +148,14 @@ extension Simulation {
     }
 
     /// Direct world access for arranging test preconditions.
+    /// Places the colony on a given simulated day without living through it.
+    ///
+    /// Only the clock moves — no systems run — so this is for tests about how
+    /// a given day *reads* rather than about how a colony gets there.
+    mutating func setDay(_ day: Int) {
+        while clock.day < day { clock.commitTick() }
+    }
+
     mutating func mutateWorld(_ body: (inout World) -> Void) {
         body(&world)
     }
