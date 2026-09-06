@@ -12,8 +12,8 @@ needs a Mac.
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 201 tests, 0 failures |
-| `FlowerPowerGame` (store, persistence, notification logic) | Moved into the package, 48 tests |
+| `FlowerPowerCore` engine | 248 tests, 0 failures |
+| `FlowerPowerGame` (store, persistence, notifications, sharing) | Moved into the package, 76 tests |
 | Balance, standard preset | 75% first-year survival, 25% second-year, ~1 swarm per colony per two years |
 | `beesim` | Runs, sweeps any constant with `--set` |
 
@@ -67,6 +67,19 @@ flower themselves.
 bugs, not realism: no start to the swarm season, swarming permitted without a
 queen to send, and every virgin queen superseded before she could fly. Now 25%.
 
+**Sharing flowers.** A flower travels between players as a `.flower` file
+through the share sheet — no server, no accounts. It arrives at full strength:
+a yield penalty was tried and removed, because measurement showed it did not
+prevent anything and a gift that arrives diminished is a poor gift. Location is
+opt-in and rounds to about a kilometre by default, because a flower
+photograph's coordinate is where a person was standing. Everything received is
+clamped rather than trusted.
+
+**Identification without a model.** Vision feature prints matched against
+reference photographs, so the app can name flowers today rather than after a
+dataset exists. The library grows from flowers the player names and flowers
+people share.
+
 ---
 
 ## 3. What is next
@@ -94,9 +107,17 @@ queen to send, and every virgin queen superseded before she could fly. Now 25%.
 6. **Winter.** A quarter of the year with nothing to photograph and little to
    watch. The pacing note in `SimClock` argues the answer is something to do in
    winter rather than a faster clock.
-7. **Train the classifier.** `docs/CLASSIFIER.md` is the brief. Independent of
-   everything else.
-8. **App icon.** There is an empty `AppIcon.appiconset`.
+7. **Curate reference photographs.** The cheapest real win: the feature-print
+   classifier works but ships with an empty library, so it names nothing until
+   the player names something first. Thirty species, a handful of photographs
+   each. `docs/CLASSIFIER.md` has the sources.
+8. **Tune `FeaturePrintLibrary.maximumDistance` on device.** It is the number
+   that decides between naming things wrongly and naming nothing, and it was
+   set by reasoning rather than by measurement — feature-print distances are
+   not normalised, so it needs real photographs.
+9. **Train the classifier**, if the reference library proves not good enough.
+   `docs/CLASSIFIER.md` is the brief.
+10. **App icon.** There is an empty `AppIcon.appiconset`.
 
 ### Not decided
 

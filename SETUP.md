@@ -11,7 +11,7 @@ drifted so far from the files on disk that it could not open and build at all.
 The previous page of drag-and-tick instructions in this file is gone with it.
 
 **The SwiftUI has never been compiled.** The engine and the game layer are
-tested — 201 tests, run on Windows — and every engine call in the views was
+tested — 248 tests, run on Windows — and every engine call in the views was
 checked symbol by symbol against the package's public surface. But anything
 that needs the Apple SDKs, which is all of SwiftUI, MapKit, PhotosUI, Vision,
 WidgetKit, WatchConnectivity and BackgroundTasks, has never been near a
@@ -36,7 +36,9 @@ That is the whole setup. `project.yml` already declares:
   target uses;
 - the App Group `group.com.kylepeterson.flowerpower` on all three;
 - the camera, photo library and location usage strings;
-- background refresh, and the task identifier it registers.
+- background refresh, and the task identifier it registers;
+- the `.flower` document type, which is how one player's flower reaches
+  another and what makes tapping one in a message open the app.
 
 Re-run `xcodegen generate` after adding a file. Nothing needs ticking by hand:
 target membership is a directory now, not a list of UUIDs. The generated
