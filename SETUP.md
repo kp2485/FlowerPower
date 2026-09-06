@@ -135,22 +135,39 @@ numbers are solving for.
 
 ```bash
 swift run --package-path FlowerPowerCore -c release beesim \
-    --trials 60 --days 400 --patches 9 --restock 45
+    --trials 200 --days 730 --patches 9 --restock 45
 ```
 
-Runs 60 seeded colonies for a simulated year with a player who keeps
+Runs 200 seeded colonies for two simulated years with a player who keeps
 photographing, and reports survival, peak population, winter cluster, autumn
-stores, and what killed the ones that died.
+stores, the share of attacks repelled, total nectar gathered, and what killed
+the ones that died.
+
+```bash
+... beesim --trials 60 --days 730 --patches 9 --restock 45 --list
+```
+
+Adds a line per colony — its seed, how it died, and on what day of which
+season. That is how a colony worth tracing gets picked.
+
+```bash
+... beesim --trials 200 --days 730 --policy split
+```
+
+Measures what a player who *answers* the decisions gets, against one who never
+opens the app. `instinct` is the default and the baseline; the others are
+`makeRoom`, `addComb`, `split` and `roomThenSplit`.
 
 ```bash
 swift run --package-path FlowerPowerCore -c release beesim \
-    --days 470 --every 8 --seed 8919 --patches 9 --restock 45
+    --days 560 --every 4 --seed 32676 --patches 9 --restock 45
 ```
 
 Traces one colony day by day. This is how nearly every balance bug in the
-engine has been found, including all three of the queen bugs behind the
-second-year collapse — none of them was visible in the aggregate, and all three
-were obvious in a trace.
+engine has been found — five of them now, including all three queen bugs behind
+the second-year collapse, comb being drawn out of the winter larder, and a
+second swarm cast on the day a new queen mated. None was visible in an
+aggregate and every one was obvious within a few lines of a trace.
 
 ```bash
 ... beesim --set swarmSeasonStart=0.3 --set pheromoneDilutionScale=70
@@ -160,9 +177,23 @@ Sweeps any listed constant without a rebuild. An unknown key is a hard error,
 deliberately: a silently ignored override produces a sweep whose rows all
 secretly used the same value.
 
-Two habits worth keeping:
+Habits worth keeping:
 
-- **Use at least 60 trials.** At 24 the noise is around eight points and
-  non-monotonic, which has produced wrong conclusions more than once.
+- **Run the same command twice and diff the output before believing either.**
+  The engine is deterministic across processes and byte-identical run to run,
+  and it was not until 2026-09-06 — Swift seeds its `Hasher` per process, and a
+  dictionary iterated in hash order inside `DiseaseSystem` forked the random
+  stream. Two identical runs returned 30% and 33%. If a diff ever shows a
+  difference again, that is a bug in the engine rather than in the tool.
+- **Use 200 trials, not 60.** At 60 a `waxIncomeShare` sweep looked like a
+  clean step from 45% to 60%; at 200 the same sweep is flat within three
+  points. At 24 the noise is around eight points and non-monotonic.
+- **Always `-c release`.** A 200-colony two-year run takes about 45 seconds
+  against more than half an hour in debug. Release and debug agree on the
+  trajectory but not always on the last bit, so never quote one against the
+  other.
+- **Isolate one change at a time.** Turning three related constants on together
+  moves every trajectory, and the comparison reads as a null result even when
+  each one on its own does something.
 - **Never run two trial batches at once.** They starve each other of CPU and it
   looks like a hang.
