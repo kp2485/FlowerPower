@@ -1,7 +1,8 @@
 # FlowerPower — state of the project and what is next
 
-Audited and worked through on 2026-09-05. The engine was built and its full
-suite run on Windows; the Xcode side was written but not compiled, because that
+Audited and worked through on 2026-09-05, and worked on again on 2026-09-06.
+The engine is built and its full suite runs on Windows; the Xcode side is
+written, desk-checked once, and has still never been compiled, because that
 needs a Mac.
 
 ---
@@ -33,6 +34,11 @@ release build it was 79% and 36% over 200 colonies.
 being drawn out of the winter larder, and a second swarm cast on the day a new
 queen mated. Both are in section 3. Together they took the standard preset from
 79%/36% to 92%/66%.
+
+Wiring alarm pheromone up afterwards cost about three points of the first year
+and none of the second, which is the 89%/66% in the table above. That is the
+whole ledger: 79/36 measured properly, 92/66 after two bugs, 89/66 once the
+colony pays for being roused.
 
 Every balance number in this document is now from `beesim --trials 200 --days
 730 --patches 9 --restock 45` on a release build, and every one of them
@@ -272,6 +278,7 @@ and neither visible in the summary. Measured over 200 colonies:
 | before | 79% | 36% | 1.25 | 57 | 288 |
 | comb drawn from the flow | 88% | 54% | 2.76 | 124 | 384 |
 | and no afterswarm on requeening | 92% | 66% | 2.53 | 293 | 608 |
+| and alarm pheromone wired up | 89% | 66% | 2.49 | 313 | 612 |
 
 **Comb was being drawn out of the larder.** `ConstructionSystem`'s own header
 has always said "no flow, no drawn comb, no matter how much foundation you give
