@@ -47,6 +47,9 @@ public struct QueenSystem: DailySystem {
         if age > context.config.matingFlightLatestDay {
             world.hive.queenIsMated = true
             world.hive.genetics.patrilines = 0
+            // See `retireSwarmCells`. This branch is how the trace on seed
+            // 24757 read "MATING FAILED, SWARM (-136)" on one line.
+            retireSwarmCells(&world)
             context.emit(.matingFlightFailed)
             return
         }
@@ -86,13 +89,66 @@ public struct QueenSystem: DailySystem {
 
         if world.hive.genetics.isProperlyMated {
             world.hive.queenIsMated = true
+
+            // The colony has requeened, so every cell still standing comes
+            // down. `emergeQueens` deliberately leaves developing cells alone
+            // as insurance against exactly the flight she has just survived —
+            // and that insurance is worth having right up to this moment, and
+            // is a liability the moment after it.
+            //
+            // Left standing, those cells are the swarm cells of the swarm that
+            // produced her, and they keep developing while she is a virgin.
+            // `attemptSwarm` needs a laying queen to send, so it cannot fire
+            // while she is one — and then fires on the very tick she stops
+            // being one. Traced on seed 198975: the colony swarmed on day 410,
+            // raised her, and on day 437 the trace reads "mated x13, SWARM
+            // (-245)" on a single line. It lost 57% of what it had rebuilt, on
+            // the day it finally had a queen again, and starved on day 468.
+            //
+            // Real colonies do this: a laying queen's pheromone suppresses
+            // queen rearing and the workers dismantle what is left. It is also
+            // why afterswarms happen within days of the primary swarm, led by
+            // virgins, rather than a month later behind a mated queen.
+            //
+            // Everything, not only the swarm cells: a properly mated laying
+            // queen is the end of queen rearing, and there is nothing left for
+            // the insurance to insure against.
+            world.hive.comb.tearDownQueenCells()
+
             context.emit(.queenMated(patrilines: world.hive.genetics.patrilines))
         } else {
             // Poorly mated queens do start laying, but only drones, and the
             // colony dwindles. Treated as a failure the player can act on.
             world.hive.queenIsMated = true
+            retireSwarmCells(&world)
             context.emit(.matingFlightFailed)
         }
+    }
+
+    /// Brings down the swarm cells left over from the swarm that produced
+    /// this queen, whatever the flight came to.
+    ///
+    /// They are the cells the primary swarm left standing, and `emergeQueens`
+    /// keeps developing ones deliberately, as insurance against the mating
+    /// flight. Once the flight has resolved one way or the other that
+    /// insurance has paid out or expired, and what is left is a liability:
+    ///
+    /// - `attemptSwarm` needs a laying queen to send, so it cannot fire while
+    ///   she is a virgin — and fires on the very tick she stops being one.
+    ///   Traced on seed 198975, where the trace reads "mated x13, SWARM
+    ///   (-245)" on a single line, and on seed 24757, where it reads "MATING
+    ///   FAILED, SWARM (-136)". Both colonies lost more than half of what they
+    ///   had spent a month rebuilding, on the day the question was settled,
+    ///   and both starved within a month.
+    /// - A swarm cell cannot emerge into a queenright colony, so leftovers
+    ///   also sit in the `maximumQueenCells` budget for ever, crowding out the
+    ///   supersedure cell a colony with a drone layer urgently needs.
+    ///
+    /// Supersedure and emergency cells are left alone here: a colony that has
+    /// just acquired a drone layer needs them, and will start them within the
+    /// day.
+    private func retireSwarmCells(_ world: inout World) {
+        world.hive.comb.removeQueenCells(ofPurpose: .swarm)
     }
 
     // MARK: - Laying

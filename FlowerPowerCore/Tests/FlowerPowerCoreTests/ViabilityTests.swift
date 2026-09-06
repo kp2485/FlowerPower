@@ -116,11 +116,36 @@ final class ViabilityTests: XCTestCase {
     /// Requeening is a normal event, not an exception, and that is precisely
     /// why the second year is dangerous: every one of these is a mating flight
     /// the colony might not come back from.
-    func testAColonyReplacesItsQueenOverTwoYears() {
+    /// Across several colonies rather than one.
+    ///
+    /// This ran a single seed, 8919, and asserted that it raised at least one
+    /// queen in two years. That is a population property being tested on one
+    /// sample: the colony has to survive long enough to requeen, and when
+    /// balance changed, 8919 became one of the colonies that dies in its first
+    /// winter — at which point the test failed while requeening was in fact
+    /// *healthier* than before, 3.33 queens per colony against 2.31 measured
+    /// over 200.
+    func testColoniesReplaceTheirQueensOverTwoYears() {
+        let seeds: [UInt64] = [8_919, 12, 77, 314, 1_618, 2_718]
+        let raised = seeds.map { queensRaisedOverTwoYears(seed: $0) }
+
+        XCTAssertGreaterThan(
+            raised.reduce(0, +), 0,
+            "no queen was raised by any colony in two years, so swarming and "
+            + "supersedure have both stopped happening"
+        )
+        XCTAssertGreaterThanOrEqual(
+            raised.filter { $0 > 0 }.count, seeds.count / 2,
+            "requeening should be the normal course of a colony's second year, "
+            + "not something that happens to the lucky ones"
+        )
+    }
+
+    private func queensRaisedOverTwoYears(seed: UInt64) -> Int {
         var simulation = Simulation.newGame(
             at: HiveLocation(type: .livingTreeCavity),
             startingAt: epoch,
-            seed: 8_919
+            seed: seed
         )
         for index in 0..<12 {
             simulation.registerPhotograph(
@@ -154,11 +179,7 @@ final class ViabilityTests: XCTestCase {
             if simulation.hive.bees.isEmpty { break }
         }
 
-        XCTAssertGreaterThan(
-            queensEmerged, 0,
-            "no queen was raised in two years, so swarming and supersedure "
-            + "have both stopped happening"
-        )
+        return queensEmerged
     }
 
     // MARK: - The headline result

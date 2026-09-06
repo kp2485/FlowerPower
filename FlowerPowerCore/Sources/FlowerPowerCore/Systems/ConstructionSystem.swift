@@ -70,8 +70,43 @@ public struct ConstructionSystem: SimulationSystem {
         _ context: inout TickContext,
         builders: Double
     ) {
-        // Never spend the reserve the colony needs to stay alive.
-        let spendable = max(0, world.hive.resources[.honey] - context.config.buildHoneyReserve)
+        // Wax comes out of the flow, not out of the larder.
+        //
+        // `shouldBuild` establishes that a flow is on. This decides how much of
+        // it the colony is willing to turn into wax, and it used to be
+        // everything above a flat 25-unit reserve — which, for a colony that
+        // has just overwintered, is its entire standing store.
+        //
+        // What that produced, traced on seed 32676: 60 bees came through
+        // winter with 107 units, met a day or two of willow in early spring,
+        // and spent 71 of those units drawing 127 cells they had no bees to
+        // fill. Stores hit zero on day 390, the whole nest of brood starved
+        // with the adults, and the colony was dead on day 416 — at full
+        // vitality a fortnight earlier. Six more of the same sixty did it
+        // inside the same fortnight.
+        //
+        // A real colony builds while nectar is arriving faster than it can be
+        // stored: the wax scales are secreted by bees gorged on incoming
+        // nectar, which is why beekeepers get comb drawn during a flow and
+        // never outside one. So the budget is the day's surplus, and a colony
+        // whose income stops stops building that day rather than eating its
+        // way through its savings.
+        let upkeep = Double(world.hive.adultCount)
+            * context.config.honeyPerAdult
+            * Double(SimClock.ticksPerDay)
+        let dailySurplus = max(
+            0,
+            world.averageNectarIntake / context.config.nectarPerHoney - upkeep
+        )
+        let fromIncome = dailySurplus
+            * context.config.waxIncomeShare
+            / Double(SimClock.ticksPerDay)
+
+        // And still never below the reserve the colony needs to stay alive.
+        let spendable = min(
+            max(0, world.hive.resources[.honey] - context.config.buildHoneyReserve),
+            fromIncome
+        )
         let capacity = builders * context.config.waxPerBuilder
         let affordable = spendable / context.config.honeyPerWax
 

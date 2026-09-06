@@ -452,32 +452,66 @@ final class DefenceTests: XCTestCase {
 
     /// Over a long run, a well-defended strong colony should fare better than a
     /// weak one in an exposed site.
-    func testStrongColonyInGoodSiteLosesLessToPredators() {
-        func lossesOverAYear(location: HiveLocationType, workers: Int, seed: UInt64) -> Int {
+    /// Measured as the share of attacks the colony *repels*, which is what
+    /// `defensibility` actually decides in `attemptDefence`.
+    ///
+    /// This used to count predation deaths and assert that a good site had
+    /// fewer. That passed for the wrong reason and eventually stopped passing
+    /// at all: deaths are dominated by how long the colony lives, not by how
+    /// well it holds the door. An indefensible site kills its colony, and a
+    /// dead colony is not raided — so the numbers came out as 251 predation
+    /// deaths in a wall cavity against 94 under an open branch, which reads as
+    /// defensibility working backwards and is really survivorship.
+    ///
+    /// The repel rate has no such confound, and it separates the sites
+    /// cleanly: 38% behind a wall, 35% in a tree, 15% on a cliff face, 4% on
+    /// open comb hanging from a branch.
+    func testGoodSitesRepelMoreOfWhatComes() {
+        func repelRate(location: HiveLocationType, seed: UInt64) -> (attacks: Int, repelled: Int) {
             var simulation = Fixture.thrivingSimulation(seed: seed, locationType: location)
             simulation.mutateWorld { world in
                 world.hive.resources.add(600, of: .honey)
-                for index in 0..<workers {
+                for index in 0..<250 {
                     world.hive.bees.append(Bee(
                         id: EntityID(rawValue: UInt64(200_000 + index)),
                         kind: .worker, stage: .adult, daysInStage: 19
                     ))
                 }
             }
-            let report = simulation.runDays(200)
-            return report.died[.predation] ?? 0
+            var attacks = 0
+            var repelled = 0
+            for _ in 0..<200 {
+                for event in simulation.stepDay() {
+                    if case .attacked = event { attacks += 1 }
+                    if case .attackRepelled = event { repelled += 1 }
+                }
+            }
+            return (attacks, repelled)
         }
 
         // One colony's luck proves nothing — a single bear swamps the signal —
-        // so compare totals across several seeds.
+        // so pool across several seeds.
         let seeds: [UInt64] = [12, 77, 314, 1_618, 2_718]
-        let strong = seeds.reduce(0) {
-            $0 + lossesOverAYear(location: .insideWalls, workers: 250, seed: $1)
-        }
-        let weak = seeds.reduce(0) {
-            $0 + lossesOverAYear(location: .underTreeBranch, workers: 250, seed: $1)
+
+        func pooled(_ location: HiveLocationType) -> Double {
+            let totals = seeds.reduce(into: (0, 0)) { running, seed in
+                let outcome = repelRate(location: location, seed: seed)
+                running.0 += outcome.attacks
+                running.1 += outcome.repelled
+            }
+            XCTAssertGreaterThan(totals.0, 20, "too few attacks at \(location) to measure anything")
+            return Double(totals.1) / Double(totals.0)
         }
 
-        XCTAssertLessThan(strong, weak, "site defensibility is not affecting predation losses")
+        let wall = pooled(.insideWalls)
+        let branch = pooled(.underTreeBranch)
+
+        XCTAssertGreaterThan(
+            wall, branch,
+            "site defensibility is not affecting whether attacks are repelled"
+        )
+        // And by a margin worth having, not a rounding difference. An open
+        // branch nest is meant to be genuinely indefensible.
+        XCTAssertGreaterThan(wall, branch * 2)
     }
 }

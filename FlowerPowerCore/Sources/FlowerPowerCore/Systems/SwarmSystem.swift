@@ -32,7 +32,16 @@ public struct SwarmSystem: DailySystem {
             return
         }
         guard leadCell.daysDeveloped >= context.config.swarmDepartureDay else { return }
-        guard world.hive.hasLayingQueen else { return }
+
+        // A queen worth following, not merely a laying one.
+        //
+        // `hasLayingQueen` is true of a drone layer, and a colony headed by one
+        // has nothing to send: she cannot found anything, so the bees that go
+        // with her are simply subtracted. Worse, the moment a failed mating
+        // flight resolves her to a drone layer is the moment this becomes true,
+        // so a colony holding leftover swarm cells cast a swarm on the day it
+        // learned its queen had failed. Seed 24757, day 445.
+        guard world.hive.hasLayingQueen, world.hive.genetics.isProperlyMated else { return }
 
         // The swarm will not leave in weather it cannot fly in.
         guard world.weather.isFlyingWeather else { return }

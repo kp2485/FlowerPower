@@ -41,6 +41,7 @@ extension SimulationConfig {
         case "splitDepartureShare": splitDepartureShare = value
 
         // Comb
+        case "waxIncomeShare": waxIncomeShare = value
         case "buildCongestionThreshold": buildCongestionThreshold = value
         case "buildHoneyReserve": buildHoneyReserve = value
         case "cellsPerBuilderPerTick": cellsPerBuilderPerTick = value

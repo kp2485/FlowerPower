@@ -15,19 +15,29 @@ needs a Mac.
 | `FlowerPowerCore` engine | 248 XCTest + 96 Swift Testing, 0 failures |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
-| Balance, standard preset | See the table below. Re-baselined 2026-09-06 on a deterministic release build |
+| Balance, standard preset | 92% first year, 66% second, 2.53 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06) |
 | `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale` |
 
 #### The balance baseline, and why the numbers moved
 
-The previously recorded baseline — 75% first year, 37% second — was measured
-before the determinism fix above and in a debug build. It was not wrong so much
-as unrepeatable: the same command gave anything from 30% to 37% depending on
-what hash seed the process happened to get. Nothing about the colony changed on
-2026-09-06; the measurement did.
+Twice, for two different reasons, and it is worth keeping them apart.
 
-Every number below is from `beesim --trials 60 --days 730 --patches 9
---restock 45` on a release build, and every one of them reproduces exactly.
+**The measurement changed first.** The previously recorded baseline — 75% first
+year, 37% second — was taken before the determinism fix above and in a debug
+build. It was not wrong so much as unrepeatable: the same command gave anything
+from 30% to 37% depending on what hash seed the process happened to get. Nothing
+about the colony changed; the measurement did. Re-measured on a deterministic
+release build it was 79% and 36% over 200 colonies.
+
+**Then the colony changed.** Two modelling errors were found and fixed — comb
+being drawn out of the winter larder, and a second swarm cast on the day a new
+queen mated. Both are in section 3. Together they took the standard preset from
+79%/36% to 92%/66%.
+
+Every balance number in this document is now from `beesim --trials 200 --days
+730 --patches 9 --restock 45` on a release build, and every one of them
+reproduces byte for byte. Anything quoted at 60 trials says so, and should be
+treated as indicative: a 60-colony sample moves five points on nothing.
 
 ### Not verified, and cannot be here
 
@@ -217,14 +227,6 @@ uncompiled.
 
 ### Then
 
-4. **Second-year survival, again.** Short of the ~75% a year that established
-   colonies manage. Two over-rearing bugs were found and fixed on the way here
-   — brood headroom ignoring adult upkeep, and a laying reserve that did not
-   scale with the colony — so another tracing pass is likely to find more.
-
-   One strong lead, from the policy table below: simply *answering* the swarm
-   at all — by any means — is worth 5 to 16 points of two-year survival. The
-   second-year cliff is substantially a swarming problem.
 6. **Winter.** A quarter of the year with nothing to photograph and little to
    watch. The pacing note in `SimClock` argues the answer is something to do in
    winter rather than a faster clock.
@@ -248,54 +250,121 @@ uncompiled.
 
 ### Done since
 
+**4. Second-year survival.** Two more modelling errors, both found by tracing
+single seeds through their second spring rather than by reading the aggregate,
+and neither visible in the summary. Measured over 200 colonies:
+
+| | first year | second year | swarms per 2 yr | winter cluster | autumn stores |
+|---|---|---|---|---|---|
+| before | 79% | 36% | 1.25 | 57 | 288 |
+| comb drawn from the flow | 88% | 54% | 2.76 | 124 | 384 |
+| and no afterswarm on requeening | 92% | 66% | 2.53 | 293 | 608 |
+
+**Comb was being drawn out of the larder.** `ConstructionSystem`'s own header
+has always said "no flow, no drawn comb, no matter how much foundation you give
+them", and the code gated on a flow being *on* and then spent everything above a
+flat 25-unit reserve — which, for a colony that has just overwintered, is its
+entire standing store. Traced on seed 32676: 60 bees came through winter with
+107 units, met a day or two of willow in early spring, spent 71 of those units
+drawing 127 cells they had no bees to fill, and starved on day 416 with their
+whole nest of brood, at full vitality a fortnight earlier. Six more of the same
+sixty did it inside the same fortnight, which is what the flat cluster of
+starvations at days 408 to 424 in the trial list turned out to be. Wax is now
+made out of the day's surplus income (`waxIncomeShare`), so a colony whose
+income stops stops building that day.
+
+**A requeening did not end the swarm that caused it.** `emergeQueens`
+deliberately leaves developing queen cells standing as insurance against the new
+virgin's mating flight, which is right and worth keeping. But `attemptSwarm`
+needs a laying queen to send, so those leftover cells could not fire while she
+was a virgin — and fired on the very tick she stopped being one. Seed 198975
+reads `mated x13, SWARM (-245)` on a single line: the colony swarmed on day 410,
+spent a month rebuilding and raising a replacement, and cast a second swarm with
+57% of everything it had rebuilt on the day it finally had a queen again. It
+starved on day 468. Seed 24757 reads `MATING FAILED, SWARM (-136)` — the same
+thing through the failure branch, which also sets `queenIsMated` because that is
+how a queen resolves to a drone layer.
+
+So a mating flight, however it resolves, now brings down the swarm cells left
+over from the swarm that produced her, and a colony headed by a drone layer does
+not swarm at all — she cannot found anything, so every bee that leaves with her
+is simply subtracted.
+
+Note what this does to the *first* year as well as the second: 79% to 92%. Some
+of the old first-year losses were the same over-building bug, hitting founding
+colonies in their first spring.
+
 **5. Something to do about swarming.** Two decisions, in the same shape as the
-existing ones, with instinct still the default: `addComb` opens the nest up,
-and `split` divides the colony deliberately. Measured across 60 colonies over
-two years, each policy played by a notional player who acts on the
-notifications:
+existing ones, with instinct still the default: `addComb` opens the nest up and
+gives the bees drawn comb at the honey price of the wax, and `split` divides the
+colony deliberately — the queen and the house bees move out, the foragers stay
+with the nest because they know where it is, and one queen cell is kept so there
+is no afterswarm behind the first.
+
+Measured over 200 colonies across two years, each policy played by a notional
+player who acts on the notifications (`beesim --policy`, new):
 
 | policy | survival | peak pop | swarms | comb added | splits | autumn stores | winter cluster |
 |---|---|---|---|---|---|---|---|
-| instinct (nobody answers) | 32% | 464 | 1.20 | — | — | 249 | 41 |
-| make room (the old answer) | 48% | 518 | 0.93 | — | — | 389 | 164 |
-| add comb | 42% | 500 | 1.52 | 1.50 | — | 285 | 80 |
-| split | 30% | 496 | 0.00 | — | 0.93 | 251 | 47 |
-| add comb, then split | 37% | 518 | 0.00 | 1.58 | 0.97 | 298 | 80 |
+| instinct (nobody answers) | 66% | 730 | 2.53 | — | — | 608 | 293 |
+| make room (the old answer) | 67% | 780 | 1.66 | — | — | 735 | 378 |
+| add comb | 62% | 720 | 2.54 | 2.02 | — | 626 | 319 |
+| split | 30% | 671 | 0.00 | — | 2.09 | 343 | 69 |
+| add comb, then split | 26% | 665 | 0.00 | 2.15 | 2.06 | 345 | 114 |
 
-First-year survival on the same deterministic build is **75%**, with 0.17
-swarms per colony — unchanged from what was recorded before, and the reason to
-believe the tooling rather than suspect it. The first year was never the
-problem; only the second-year figure was being read off a noisy measurement.
+**Read that table against the one this section used to contain, because the
+difference is the point.** These mechanics were built and measured *before* the
+two modelling errors in item 4 were found, on an engine where colonies burned
+their winter stores on wax and cast a second swarm on the day their new queen
+mated. On that engine, answering the swarm at all looked enormously valuable —
+make room appeared to take two-year survival from 32% to 48%, and adding comb
+from 32% to 42%. On a correct engine almost all of that goes away: make room is
+worth a point, and adding comb is slightly *negative*.
 
-Three things in that table are worth saying plainly.
+That is worth stating plainly rather than quietly restating the numbers. The
+first measurement was not sloppy — it was 60 deterministic colonies, before and
+after, exactly as the working rules ask. It was measuring a broken engine, and
+no amount of care with the statistics fixes that. Balance conclusions are only
+as good as the model underneath them, and a mechanic that looks strong is a
+reason to go and check the model rather than to ship the mechanic.
 
-**Adding comb had to give drawn comb, not room.** The obvious implementation —
-raise `Comb.capacity` and let `ConstructionSystem` fill it — was built first and
-measured at exactly nothing: it never fired once in 60 colonies over two years,
-and when the trigger was loosened until it did, swarming was unmoved. The reason
-is that `swarmPressure` is driven by `combOccupancy`, which is cells *used* over
-cells *drawn*. Empty cavity is not in that ratio, and a congested colony cannot
-afford to draw into it, because comb costs seven honey to one of wax and it has
-none to spare. This is exactly why beekeepers prize drawn comb over foundation,
-and giving the bees drawn comb at the honey price of the wax is what the method
-now does.
+**What survived the correction, and what did not:**
 
-**Adding comb does not stop them swarming — it makes them survive it.** Swarms
-went *up*, 1.20 to 1.52, while survival went up 10 points. A colony with room
-puts away more (autumn stores 249 to 285) and goes into winter twice the size
-(cluster 41 to 80), and a bigger colony swarms more. That is the real relationship, not a
-bug.
+- **The mechanics do what they say.** A split takes swarms to exactly zero, in
+  every colony, every time. Adding comb reliably gives the colony room it can
+  use. Both are real levers.
+- **Neither improves survival any more, and splitting badly hurts it.** 30%
+  against instinct's 66%. The reason is in "Not decided" below and is a
+  modelling weakness rather than a balance one: a split can be taken the moment
+  swarm cells are *started*, and it keeps the best cell of a bad lot, so the
+  colony ends up queenless about a fortnight longer than a swarm would have left
+  it. A beekeeper performs an artificial swarm on a charged cell, not on a cup
+  with an egg in it. Fixing that is the obvious next move on this mechanic.
+- **Adding comb still had to give drawn comb, not room.** The first
+  implementation raised `Comb.capacity` and let `ConstructionSystem` fill it,
+  and measured at exactly nothing: it never fired once in 60 colonies over two
+  years. `swarmPressure` runs on `combOccupancy` — cells used over cells
+  *drawn* — and empty cavity is not in that ratio. Which is why beekeepers
+  prize drawn comb over foundation.
 
-**A deliberate split does not improve survival.** It does exactly what it says —
-swarms fall to zero, reliably, every time — but the colony pays about what a
-swarm would have cost it, and two-year survival lands at 30% against instinct's
-32%, which is inside the noise. It is a decision, not an upgrade: it buys
-certainty and timing, and it makes the half that leaves something the player can
-give to a friend, follow, or let go. It is not a way to win.
+Where the room comes from is a property of the site: a nestbox takes another
+box, a wall cavity runs on, rotten wood can be chewed away, and a cliff face
+gives nothing. So the choice of where the swarm settled, made months earlier,
+decides whether space is an option at all.
 
 ### Not decided
 
-- Whether the two-year cliff, now that it is 25% rather than 15%, is where it
+- **The colony is now healthier than the realism target, and that is a
+  calibration call rather than a bug.** Fixing the two modelling errors above
+  took the standard preset to 92% first-year and 66% second-year. The target in
+  this document has been "the ~75% a year that established colonies manage",
+  which implies roughly 56% at two years — so the game now overshoots at both
+  ends. Nothing was tuned to get there and nothing should be tuned back without
+  deciding what the game is aiming at first: a wild swarm's real first year is
+  far *worse* than 75%, and an established colony's is about 80%, and this game
+  models the first thing while quoting the second. `predatorStrength`,
+  `pathogenArrivalMultiplier` and forage density are the levers.
+- Whether the two-year cliff, now that it is 66% rather than 15%, is where it
   should sit for an idle game.
 - Whether the catch-up ceiling of 180 simulated days — a fortnight of real
   absence — is generous enough. Beyond it, time is skipped rather than lived.

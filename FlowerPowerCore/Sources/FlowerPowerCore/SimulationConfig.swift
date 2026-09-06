@@ -91,6 +91,34 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     public var buildCongestionThreshold: Double = 0.55
     /// Honey the colony refuses to spend on wax, whatever the demand.
     public var buildHoneyReserve: Double = 25
+
+    /// The share of a day's *surplus income* a colony will turn into wax.
+    ///
+    /// Comb is built out of the flow, not out of the larder. That is what
+    /// `ConstructionSystem`'s own header has always said — "no flow, no drawn
+    /// comb, no matter how much foundation you give them" — but the code
+    /// gated on a flow being *on* and then spent everything above
+    /// `buildHoneyReserve`, which for an overwintered colony is its entire
+    /// standing store.
+    ///
+    /// Traced on seed 32676. A colony came out of winter with 60 bees and 107
+    /// units, met a day or two of willow, and spent 71 of those units drawing
+    /// 127 cells it had no bees to fill. It starved on day 416 in the middle
+    /// of spring, with its brood, at full vitality a fortnight earlier. Six
+    /// more colonies in the same 60 did the same thing within a fortnight of
+    /// each other.
+    ///
+    /// Three quarters, which is the honest reading of what a congested colony
+    /// does with nectar it has nowhere to put: most of it becomes room, and
+    /// the rest goes on the brood being fed out of the same flow.
+    ///
+    /// Not fitted to a target. Over 200 colonies the two-year survival across
+    /// 0.5, 0.75 and 1.0 is 50%, 54% and 56%, which is inside the spread of a
+    /// 200-colony sample, so the exact value is not what the improvement rests
+    /// on. (At 60 colonies the same sweep looked like a step from 45% to 60%
+    /// between 0.7 and 0.8. It was noise, and it is the reason the number
+    /// above comes from 200.)
+    public var waxIncomeShare: Double = 0.75
     /// Bees cannot secrete wax below this nest temperature.
     public var minimumWaxTemperature: Double = 30
 
