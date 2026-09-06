@@ -40,6 +40,11 @@ extension SimulationConfig {
         case "combExtensionStep": combExtensionStep = value
         case "splitDepartureShare": splitDepartureShare = value
 
+        // Alarm
+        case "alarmDefenceBoost": alarmDefenceBoost = value
+        case "alarmForageCost": alarmForageCost = value
+        case "alarmCasualtyRate": alarmCasualtyRate = value
+
         // Comb
         case "waxIncomeShare": waxIncomeShare = value
         case "buildCongestionThreshold": buildCongestionThreshold = value

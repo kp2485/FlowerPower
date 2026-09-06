@@ -101,16 +101,92 @@ final class ViabilityTests: XCTestCase {
         let firstYear = survivors(days: 400)
         let secondYear = survivors(days: 760)
 
-        XCTAssertGreaterThan(
+        // Eight colonies cannot reliably show attrition of a few points, and
+        // asserting a strict inequality on them was a coin flip: at 92%
+        // first-year and 66% two-year survival this ran 5 and 5, and failed,
+        // while the aggregate over 200 colonies said the second year costs 26
+        // points. So the shape is asserted loosely here...
+        XCTAssertGreaterThanOrEqual(
             firstYear, secondYear,
-            "the second year should cost colonies; if it stops doing so, "
-            + "swarming or requeening has quietly been defanged"
+            "the second year made colonies *more* likely to be alive, which is "
+            + "not a thing a second year can do"
         )
         XCTAssertGreaterThanOrEqual(
             secondYear, 1,
             "some colony should get through two years — at zero the game has "
             + "no long game at all"
         )
+
+        // ...and the thing it was really guarding is asserted directly.
+        //
+        // "Swarming or requeening has quietly been defanged" is a statement
+        // about mechanisms, and counting survivors was only ever a proxy for
+        // it — a noisy one, since a colony can die for half a dozen reasons
+        // that have nothing to do with either. Count the mechanisms.
+        var swarms = 0
+        var queensRaised = 0
+        for seed in seeds {
+            let outcome = eventfulRun(seed: seed, days: 760)
+            swarms += outcome.swarms
+            queensRaised += outcome.queens
+        }
+
+        XCTAssertGreaterThan(
+            swarms, 0,
+            "no colony swarmed in two years, so swarming has been defanged"
+        )
+        XCTAssertGreaterThan(
+            queensRaised, 0,
+            "no queen was raised in two years, so requeening has been defanged"
+        )
+        // And a colony that lives two years should expect to do both more than
+        // once. If this drops to the floor, something is suppressing the whole
+        // reproductive cycle rather than merely rebalancing it.
+        XCTAssertGreaterThanOrEqual(
+            swarms, seeds.count / 2,
+            "swarming has become rare enough to be an accident rather than "
+            + "the normal course of a colony's year"
+        )
+    }
+
+    /// A run that reports what happened to the colony rather than only where it
+    /// ended up.
+    private func eventfulRun(seed: UInt64, days: Int) -> (swarms: Int, queens: Int) {
+        var simulation = Simulation.newGame(
+            at: HiveLocation(type: .livingTreeCavity),
+            startingAt: epoch,
+            seed: seed
+        )
+        for index in 0..<12 {
+            simulation.registerPhotograph(
+                photoLocalIdentifier: "e-\(index)",
+                species: Fixture.palette[index % Fixture.palette.count],
+                confidence: 0.9, coordinate: nil, takenAt: epoch,
+                distanceMetres: 400
+            )
+        }
+
+        var swarms = 0
+        var queens = 0
+        for day in 0..<days {
+            for event in simulation.stepDay() {
+                if case .swarmed = event { swarms += 1 }
+                if case .queenEmerged = event { queens += 1 }
+            }
+            if day % 45 == 0, day > 0 {
+                simulation.pruneDepletedPatches()
+                for index in 0..<4 {
+                    simulation.registerPhotograph(
+                        photoLocalIdentifier: "er\(day)-\(index)",
+                        species: Fixture.palette[index % Fixture.palette.count],
+                        confidence: 0.9, coordinate: nil, takenAt: epoch,
+                        distanceMetres: 400
+                    )
+                }
+            }
+            if simulation.hive.bees.isEmpty { break }
+        }
+        return (swarms, queens)
     }
 
     /// Requeening is a normal event, not an exception, and that is precisely

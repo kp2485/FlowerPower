@@ -48,6 +48,9 @@ struct TrialOutcome {
     var peakPopulation = 0
     var finalPopulation = 0
     var peakHoney = 0.0
+    /// Everything the colony ever brought in, so a change meant to cost
+    /// foraging can be seen to have cost foraging.
+    var totalNectar = 0.0
     var winterStoresAtAutumnEnd = 0.0
     var winterCluster = 0
     /// Day the colony first fell below a viable workforce — the moment it was
@@ -55,6 +58,12 @@ struct TrialOutcome {
     var dayOfCollapse: Int?
     var seasonOfCollapse: Season?
     var swarms = 0
+    /// Attacks the colony met, and how many it saw off. The rate between them
+    /// is what `defensibility`, the postures and alarm pheromone all actually
+    /// move — deaths do not, because deaths are dominated by how long the
+    /// colony lives.
+    var attacks = 0
+    var repelled = 0
     var combAdditions = 0
     var splits = 0
     var queenLosses = 0
@@ -151,6 +160,8 @@ enum Trials {
                         outcome.deaths[cause, default: 0] += 1
                         if kind == .queen { outcome.queenDeaths[cause, default: 0] += 1 }
                     case .swarmed: outcome.swarms += 1
+                    case .attacked: outcome.attacks += 1
+                    case .attackRepelled: outcome.repelled += 1
                     case .queenLost: outcome.queenLosses += 1
                     case .supersededQueen: outcome.supersedures += 1
                     case .matingFlightFailed: outcome.matingFailures += 1
@@ -165,6 +176,7 @@ enum Trials {
                     }
                 }
 
+                outcome.totalNectar += simulation.world.todayNectarIntake
                 outcome.peakPopulation = max(outcome.peakPopulation, simulation.hive.population)
                 outcome.peakHoney = max(outcome.peakHoney, simulation.hive.resources[.honey])
 
@@ -294,6 +306,12 @@ enum Trials {
         print(String(format: "Mean peak honey:      %.0f", mean(outcomes.map(\.peakHoney))))
         print(String(format: "Mean autumn stores:   %.0f", mean(outcomes.map(\.winterStoresAtAutumnEnd))))
         print("Median winter cluster: \(median(outcomes.map(\.winterCluster)))")
+        let attacks = outcomes.reduce(0) { $0 + $1.attacks }
+        let repelled = outcomes.reduce(0) { $0 + $1.repelled }
+        print(String(format: "Attacks / repelled:   %d / %d  (%.1f%%)",
+                     attacks, repelled,
+                     attacks > 0 ? Double(repelled) / Double(attacks) * 100 : 0))
+        print(String(format: "Mean nectar in:       %.1f", mean(outcomes.map(\.totalNectar))))
         print(String(format: "Mean swarms:          %.2f", mean(outcomes.map { Double($0.swarms) })))
         print(String(format: "Mean comb additions:  %.2f", mean(outcomes.map { Double($0.combAdditions) })))
         print(String(format: "Mean splits:          %.2f", mean(outcomes.map { Double($0.splits) })))

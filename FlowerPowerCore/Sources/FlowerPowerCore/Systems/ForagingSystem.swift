@@ -73,6 +73,11 @@ public struct ForagingSystem: SimulationSystem {
         // means fewer bees out; a narrowed entrance is slower to fly through.
         var foragerForce = world.hive.workforce(for: .foragingBee)
             * world.posture.forageMultiplier
+            // And an alarmed colony forages less whether or not the player
+            // said anything. The bees are at the entrance and in the air
+            // around it rather than in the field, for the few hours the signal
+            // lasts.
+            * (1 - world.hive.pheromones.alarm * context.config.alarmForageCost)
         // A narrowed entrance slows traffic a little. Late autumn foraging is
         // light anyway, which is why instinct waits until then to seal it.
         if world.entranceSealed { foragerForce *= 0.95 }

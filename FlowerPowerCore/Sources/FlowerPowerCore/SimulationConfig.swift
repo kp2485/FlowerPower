@@ -452,6 +452,53 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// How quickly perceived concentration tracks its target.
     public var pheromoneResponseRate: Double = 0.05
     public var alarmDecayPerTick: Double = 0.86
+
+    // MARK: - What alarm pheromone actually does
+    //
+    // It was tracked, raised on every attack and decayed on a careful
+    // schedule, and read by nothing. These three constants are what it now
+    // drives, and they are deliberately sized *below* the equivalent
+    // `HivePosture` multipliers.
+    //
+    // That relationship is the design, not an accident of tuning. Alarm is the
+    // colony's own instinctive version of holding the entrance: it costs
+    // foraging, it kills defenders, and it helps. A posture the player chooses
+    // has to be worth choosing, so it has to beat what the bees do on their
+    // own — and instinct has to be a real answer rather than an absence, or
+    // the player who never opens the app is being punished for it.
+
+    /// How much better an alarmed colony defends. At full alarm this is a
+    /// ×1.35, against ×1.6 for holding the entrance and ×1.4 for narrowing it.
+    ///
+    /// Isopentyl acetate from a stinging guard recruits other bees to the
+    /// spot, which is a real and much-measured effect: it is why one sting
+    /// draws more.
+    public var alarmDefenceBoost: Double = 0.35
+
+    /// What it costs in foraging. At full alarm a ×0.90, against ×0.8 for
+    /// narrowing the entrance and ×0.7 for holding it.
+    ///
+    /// An alarmed colony has bees at the entrance and in the air around it
+    /// rather than in the field, and it stays that way for a few hours — but
+    /// it does not stop flying, which is the difference between being alarmed
+    /// and being told to stay in.
+    ///
+    /// This was 0.20 first, which is exactly what narrowing the entrance
+    /// costs, and it broke the rule above: instinct came out as good as a
+    /// posture the player had to choose. It also cost more than the defence
+    /// boost gave back — 5% of a colony's whole two-year intake and four
+    /// points of survival, because a multi-day siege raises alarm again every
+    /// day and holds it up. At 0.10 the package changes what it should and
+    /// nothing else: repel rate 44.9% to 46.2%, nectar down 2.0%, survival
+    /// unmoved at 66%.
+    public var alarmForageCost: Double = 0.10
+
+    /// And what it costs in bees. At full alarm a ×1.25 on defender
+    /// casualties, against ×1.3 for holding the entrance.
+    ///
+    /// A bee that stings a mammal dies doing it, so a colony that stings more
+    /// readily loses more. This is what stops alarm being free.
+    public var alarmCasualtyRate: Double = 0.25
     public var nasonovDecayPerTick: Double = 0.9
 
     // MARK: - Propolis

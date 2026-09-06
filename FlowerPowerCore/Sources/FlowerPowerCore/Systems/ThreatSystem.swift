@@ -126,9 +126,13 @@ public struct ThreatSystem: DailySystem {
         if repelled {
             context.emit(.attackRepelled(predator))
             // Defending is not free. Bees that sting a mammal die doing it.
+            // Stinging costs the stinger. An alarmed colony stings more
+            // readily and loses more bees doing it, which is what keeps the
+            // defence boost above from being free.
+            let stinging = 1 + world.hive.pheromones.alarm * context.config.alarmCasualtyRate
             beesLost = Int(
                 (Double(defenderCasualties(predator, world, &context))
-                    * world.posture.casualtyMultiplier()).rounded()
+                    * world.posture.casualtyMultiplier() * stinging).rounded()
             )
             BroodMortality.cullAdults(&world, &context, count: beesLost, cause: .stungIntruder)
         } else {
@@ -178,7 +182,13 @@ public struct ThreatSystem: DailySystem {
         // Cold bees cannot fly to sting.
         let mobility = world.hive.temperatureCelsius > 14 ? 1.0 : 0.4
 
-        let defence = defenderStrength * alertness * mobility
+        // Alarm pheromone. Raised the moment the raider arrives, a few lines
+        // above this, which is the right order: the guards call and the colony
+        // answers. Below any posture the player could choose, on purpose —
+        // instinct is a real answer, and a decision has to beat it.
+        let alarm = 1 + world.hive.pheromones.alarm * context.config.alarmDefenceBoost
+
+        let defence = defenderStrength * alertness * mobility * alarm
             * (0.6 + world.hive.location.type.defensibility)
             * world.posture.defenceMultiplier(against: predator.attackStyle)
             // Even without a posture, a sealed winter entrance is easier to

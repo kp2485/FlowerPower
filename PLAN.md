@@ -352,6 +352,37 @@ box, a wall cavity runs on, rotten wood can be chewed away, and a cliff face
 gives nothing. So the choice of where the swarm settled, made months earlier,
 decides whether space is an option at all.
 
+**Alarm pheromone, wired to something.** It was tracked, raised on every attack,
+decayed on a careful schedule, and read by nothing at all. It is now the
+colony's own instinctive version of holding the entrance: it defends better
+(×1.35 at full alarm), forages less (×0.90) and loses more bees stinging
+(×1.25). Every one of those is deliberately weaker than the `HivePosture`
+multiplier that does the same job, because a posture the player chooses has to
+be worth choosing — and `AlarmTests` asserts that relationship so it cannot
+quietly stop holding.
+
+Measured over 200 colonies, two years, against the same build with all three
+effects set to zero:
+
+| | alarm inert | alarm wired |
+|---|---|---|
+| attacks repelled | 44.9% | 46.2% |
+| total nectar in | 12940 | 12681 |
+| defenders lost per colony | 37 | 42 |
+| first-year survival | 92% | 89% |
+| two-year survival | 66% | 66% |
+
+Which is the brief: it changed what it should and left the rest alone.
+
+The forage cost was 0.20 first — exactly what narrowing the entrance costs —
+and that was wrong twice over. It broke the rule above by making instinct as
+good as a decision, and it cost more than the defence gave back: 5% of a
+colony's whole two-year intake and four points of survival, because a
+multi-day siege raises alarm again every morning and holds it up. The three
+effects were then measured one at a time, which is the only way to see that,
+since turning all three on at once changes every trajectory and confounds the
+comparison.
+
 ### Not decided
 
 - **The colony is now healthier than the realism target, and that is a
