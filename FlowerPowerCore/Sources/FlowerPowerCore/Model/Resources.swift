@@ -135,10 +135,23 @@ public struct ResourcePool: Codable, Equatable, Sendable {
         return true
     }
 
+    /// Everything stored, in a fixed order.
+    ///
+    /// Same reason as `PathogenLoad.ordered`: a dictionary's iteration order
+    /// is randomised per process, and floating-point addition is not
+    /// associative, so summing in dictionary order gave `cellsOccupied` a
+    /// last-bit wobble that `rounded(.up)` turned into a whole cell of
+    /// difference between two runs of the same seed.
+    public var ordered: [(kind: ResourceKind, amount: Double)] {
+        ResourceKind.allCases.compactMap { kind in
+            amounts[kind].map { (kind, $0) }
+        }
+    }
+
     /// Comb cells currently occupied by stored resources.
     public var cellsOccupied: Int {
         var cells = 0.0
-        for (kind, amount) in amounts where kind.occupiesComb {
+        for (kind, amount) in ordered where kind.occupiesComb {
             cells += amount / kind.unitsPerCell
         }
         return Int(cells.rounded(.up))

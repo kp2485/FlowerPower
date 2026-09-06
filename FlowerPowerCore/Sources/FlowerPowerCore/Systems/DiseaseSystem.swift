@@ -64,7 +64,10 @@ public struct DiseaseSystem: DailySystem {
         let cappedBrood = Double(world.hive.cappedBroodCount)
         let adults = Double(max(1, world.hive.adultCount))
 
-        for (pathogen, level) in world.hive.pathogens.active {
+        // `ordered`, not `active`: see `PathogenLoad.ordered`. Every loop in
+        // this file either draws from the RNG or emits events, and a
+        // dictionary's order is randomised per process.
+        for (pathogen, level) in world.hive.pathogens.ordered {
             var growth = pathogen.baseGrowthRate
 
             switch pathogen {
@@ -146,7 +149,7 @@ public struct DiseaseSystem: DailySystem {
 
         let effort = min(1.0, cleaners / max(10, Double(world.hive.broodCount) * 0.3))
 
-        for (pathogen, level) in world.hive.pathogens.active
+        for (pathogen, level) in world.hive.pathogens.ordered
         where pathogen.respondsToHygiene {
             let removed = level * hygiene * effort
                 * context.config.hygienicRemovalRate
@@ -169,7 +172,7 @@ public struct DiseaseSystem: DailySystem {
     /// recovery path it simply ratcheted to total infection and stayed there,
     /// killing every colony in its second summer.
     private func applyNaturalRecovery(_ world: inout World, _ context: inout TickContext) {
-        for (pathogen, level) in world.hive.pathogens.active {
+        for (pathogen, level) in world.hive.pathogens.ordered {
             // Mites do not leave on their own, and foulbrood spores survive in
             // the comb for decades. Neither gets the baseline grooming
             // recovery — only hygienic behaviour touches them. Granting them a
@@ -218,7 +221,10 @@ public struct DiseaseSystem: DailySystem {
     private func applyMortality(_ world: inout World, _ context: inout TickContext) {
         let resistance = world.hive.genetics.diseaseResistance
 
-        for (pathogen, level) in world.hive.pathogens.active {
+        // The one that actually caused the divergence: `cull`, `cullAdults`
+        // and `rng.chance` all draw from the random stream, once per pathogen,
+        // so the order of this loop decided the colony's whole future.
+        for (pathogen, level) in world.hive.pathogens.ordered {
             let severity = level * (1 - 0.5 * resistance)
 
             // Brood damage. Pupae parasitised by varroa emerge with shrivelled
@@ -245,7 +251,7 @@ public struct DiseaseSystem: DailySystem {
     }
 
     private func reportThresholds(_ world: inout World, _ context: inout TickContext) {
-        for (pathogen, level) in world.hive.pathogens.active
+        for (pathogen, level) in world.hive.pathogens.ordered
         where level >= context.config.criticalInfectionLevel {
             context.emit(.infectionCritical(pathogen))
         }

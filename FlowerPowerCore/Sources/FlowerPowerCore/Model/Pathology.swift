@@ -137,16 +137,43 @@ public struct PathogenLoad: Codable, Equatable, Sendable {
     public var active: [Pathogen: Double] { levels }
     public var isHealthy: Bool { levels.isEmpty }
 
+    /// Every present infection, in a fixed order.
+    ///
+    /// **Never iterate `active` directly.** It is a `Dictionary`, and Swift
+    /// seeds its hasher randomly once per process, so the same dictionary
+    /// gives a different iteration order in every run of the program. That is
+    /// invisible right up until something inside the loop draws from the RNG —
+    /// which `DiseaseSystem.applyMortality` does, once per pathogen — and at
+    /// that point two runs of the same seed consume the random stream in a
+    /// different order and diverge completely.
+    ///
+    /// It is also invisible to floating-point sums, which are not associative:
+    /// `totalPressure` over the same three infections could land either side
+    /// of a threshold depending on the order they multiplied in.
+    ///
+    /// This was measured rather than reasoned about: two identical
+    /// `beesim --trials 60` runs gave 30% and 33% two-year survival, which is
+    /// three whole colonies of difference from nothing but the hash seed.
+    /// Declaration order costs nothing and removes the whole class.
+    public var ordered: [(pathogen: Pathogen, level: Double)] {
+        Pathogen.allCases.compactMap { pathogen in
+            levels[pathogen].map { (pathogen, $0) }
+        }
+    }
+
     /// The worst single infection, which is what the UI should surface.
+    ///
+    /// Over `ordered` rather than the dictionary, so that a tie between two
+    /// equally bad infections resolves the same way every run.
     public var dominant: (pathogen: Pathogen, level: Double)? {
-        levels.max { $0.value < $1.value }.map { ($0.key, $0.value) }
+        ordered.max { $0.level < $1.level }
     }
 
     /// Combined pressure, saturating rather than summing past 1 so a colony
     /// with three mild problems is not treated as worse than dead.
     public var totalPressure: Double {
         // Probabilistic union: 1 - product of survivals.
-        1 - levels.values.reduce(1.0) { $0 * (1 - $1) }
+        1 - ordered.reduce(1.0) { $0 * (1 - $1.level) }
     }
 
     /// Deformed wing virus rides on varroa. Above roughly a 3% mite load — 0.3
