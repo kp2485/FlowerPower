@@ -126,6 +126,39 @@ struct SwarmDecisionCard: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.healthy)
             } else {
+                // Space first. It is what a beekeeper actually does about
+                // congestion, and the only answer here that does not cost the
+                // colony bees.
+                if snapshot.nest.canAddComb {
+                    Button {
+                        store.addComb()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Open the Nest Up").font(.subheadline.weight(.semibold))
+                            Text("Room for about \(roomOnOffer) more cells. They still have to draw the comb, during a flow, out of honey — but the space is theirs for good.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.honey)
+                }
+
+                if snapshot.canSplit {
+                    Button {
+                        store.splitColony()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Divide Them Yourself").font(.subheadline.weight(.semibold))
+                            Text("Move the queen and the house bees out now. Fewer go than would leave in a swarm, the foragers stay with the nest, and one queen cell is kept so there is no second swarm behind the first.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Theme.honey)
+                }
+
                 Button {
                     store.discourageSwarm()
                 } label: {
@@ -163,6 +196,14 @@ struct SwarmDecisionCard: View {
                 isRelocating = false
             }
         }
+    }
+
+    /// Roughly what one extension gives, so the button says what it does
+    /// rather than asking the player to take it on trust.
+    private var roomOnOffer: Int {
+        let step = Int((Double(snapshot.nest.siteType.maximumCells)
+                        * SimulationConfig.standard.combExtensionStep).rounded())
+        return min(step, snapshot.nest.combExtensionRemaining)
     }
 }
 

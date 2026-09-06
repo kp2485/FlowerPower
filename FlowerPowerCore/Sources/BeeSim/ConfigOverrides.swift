@@ -36,6 +36,10 @@ extension SimulationConfig {
         case "patchFreshDays": patchFreshDays = Int(value)
         case "patchFadeDays": patchFadeDays = Int(value)
 
+        // Answers to congestion
+        case "combExtensionStep": combExtensionStep = value
+        case "splitDepartureShare": splitDepartureShare = value
+
         // Comb
         case "buildCongestionThreshold": buildCongestionThreshold = value
         case "buildHoneyReserve": buildHoneyReserve = value

@@ -476,6 +476,212 @@ public struct Simulation: Codable, Equatable, Sendable {
         adoptPosture(.makeRoom, forDays: max(1, pending.departsOnDay - clock.day + 1))
     }
 
+    // MARK: Answering congestion
+
+    /// Cells of room the nest could still be given, beyond what it has.
+    ///
+    /// Derived rather than stored: the natural cavity is a property of the
+    /// site, so how far the nest has already been extended is the difference
+    /// between the comb's capacity and that. Relocating resets it, correctly —
+    /// a colony that absconds takes nothing with it, least of all the hole it
+    /// was living in.
+    public var combExtensionRemaining: Int {
+        let natural = world.hive.location.type.maximumCells
+        let ceiling = natural + Int((Double(natural) * world.hive.location.type.extensionRoom).rounded())
+        return max(0, ceiling - world.hive.comb.capacity)
+    }
+
+    /// Whether the nest has anywhere to put more comb: either cavity it has
+    /// not drawn out yet, or room the site can still be given.
+    public var canAddComb: Bool {
+        world.hive.comb.freeCapacity > 0 || combExtensionRemaining > 0
+    }
+
+    /// The honey one cell of drawn worker comb costs, in wax the bees have to
+    /// secrete for it. Roughly seven to one, which is why a colony will not
+    /// build speculatively and why drawn comb is the most valuable thing a
+    /// beekeeper owns.
+    public var honeyPerDrawnCell: Double {
+        CellType.worker.waxCost * config.honeyPerWax
+    }
+
+    /// Opens the nest up: more cavity, and comb drawn into it there and then,
+    /// paid for in honey. Returns the cells actually drawn.
+    ///
+    /// **Why this draws the comb rather than only making room for it.** The
+    /// first version of this method did the obvious thing — raise
+    /// `Comb.capacity` and let `ConstructionSystem` fill it — and measurement
+    /// said it did nothing at all. Across 60 colonies over two years it never
+    /// fired once, and when the trigger was loosened so that it did, swarming
+    /// was unmoved.
+    ///
+    /// The reason is in `Hive.swarmPressure`, which is driven by
+    /// `combOccupancy` — cells *used* over cells *drawn*. Empty cavity is not
+    /// in that ratio. A congested colony is one that has filled the comb it
+    /// has, and it cannot draw more, because drawing comb needs a nectar flow
+    /// and spare honey and it has neither to spare. Giving it room it cannot
+    /// afford to use changes nothing.
+    ///
+    /// Which is exactly why beekeepers prize drawn comb over foundation. A
+    /// super of foundation on a colony that is about to swarm does not stop it
+    /// swarming; a super of drawn comb does, immediately, because the bees can
+    /// move into it the same afternoon. So that is what this gives them, and
+    /// the honey it costs is the honey the wax would have cost.
+    ///
+    /// The trade the player is actually offered: about a fifth of a good
+    /// year's stores, against half the colony. It is paid now and felt in
+    /// November.
+    ///
+    /// A swarm already gathering is discouraged by it, on the same odds as
+    /// `discourageSwarm` — but without that method's `makeRoom` posture, which
+    /// holds the foragers back. That is the point of paying in honey.
+    @discardableResult
+    public mutating func addComb() -> Int {
+        let step = max(1, Int((Double(world.hive.location.type.maximumCells)
+                               * config.combExtensionStep).rounded()))
+
+        // Never spend the colony into a corner. The same reserve
+        // `ConstructionSystem` refuses to build below.
+        let spendable = max(0, world.hive.resources[.honey] - config.buildHoneyReserve)
+        let affordable = Int(spendable / honeyPerDrawnCell)
+
+        // Cavity the colony already has but has not drawn out costs nothing to
+        // use. A tree does not need hollowing further to hold comb it has room
+        // for already — what was stopping the bees was the honey, and that is
+        // what is being paid. Only the shortfall comes out of the site's
+        // finite extension room.
+        let free = world.hive.comb.freeCapacity
+        let drawn = min(step, affordable, free + combExtensionRemaining)
+        guard drawn > 0 else { return 0 }
+
+        world.hive.comb.extend(by: max(0, drawn - free))
+        world.hive.resources.drain(Double(drawn) * honeyPerDrawnCell, of: .honey)
+        world.hive.comb.build(drawn, as: .worker)
+
+        if var pending = world.pendingSwarm {
+            pending.discouraged = true
+            world.pendingSwarm = pending
+        }
+
+        world.almanac.chronicle(
+            [.combAdded(cells: drawn)], day: clock.day,
+            honey: world.hive.resources[.honey], lineage: world.lineage
+        )
+        return drawn
+    }
+
+    /// Whether the colony could pay for an extension right now.
+    ///
+    /// Separate from `canAddComb`, which is about the site. This is about the
+    /// larder, and a player asked to open the nest up in a dearth deserves to
+    /// be told that the bees cannot afford the wax.
+    public var canAffordComb: Bool {
+        max(0, world.hive.resources[.honey] - config.buildHoneyReserve) >= honeyPerDrawnCell
+    }
+
+    /// Whether the colony could be divided on purpose right now.
+    ///
+    /// There has to be a laying queen to send — a division *is* the queen
+    /// leaving — and enough bees that both halves are still colonies
+    /// afterwards.
+    public var canSplit: Bool {
+        world.hive.hasLayingQueen
+            && world.hive.adultWorkerCount >= config.swarmMinimumPopulation
+    }
+
+    /// Divides the colony deliberately, before it divides itself.
+    ///
+    /// This is the artificial swarm a beekeeper makes, and it differs from a
+    /// swarm in three ways that all favour the colony that stays:
+    ///
+    /// - **Fewer bees go.** `splitDepartureShare` rather than
+    ///   `swarmDepartureShare`.
+    /// - **The right bees go.** A swarm takes the oldest workers, which is the
+    ///   entire flying workforce, and that is why a swarmed colony stops
+    ///   gathering almost completely. Moving the queen instead sends the house
+    ///   bees with her: the foragers know where the nest is and stay with it.
+    /// - **One cell is kept.** The rest come down, so there is no afterswarm —
+    ///   the second and third swarms led by virgin queens that finish what the
+    ///   first one started.
+    ///
+    /// What it does not do is remove the gamble. The colony that stays is
+    /// still queenless and still has to get a virgin mated. It simply faces
+    /// that with its foragers, its brood and its stores intact.
+    ///
+    /// The half that leaves becomes `world.lastSwarm`, exactly as a real swarm
+    /// does, so the player can follow it, give it to somebody, or let it go.
+    @discardableResult
+    public mutating func split() -> Bool {
+        guard canSplit else { return false }
+
+        let adults = world.hive.bees.indices.filter {
+            world.hive.bees[$0].kind == .worker && world.hive.bees[$0].isAdult
+        }
+        let wanted = max(1, Int(Double(adults.count) * config.splitDepartureShare))
+
+        // Youngest first — the house bees. This is the line that makes a split
+        // different from a swarm.
+        let leaving = Set(
+            adults
+                .sorted { world.hive.bees[$0].daysInStage < world.hive.bees[$1].daysInStage }
+                .prefix(wanted)
+        )
+        guard !leaving.isEmpty else { return false }
+
+        guard let queenIndex = world.hive.bees.firstIndex(where: {
+            $0.kind == .queen && $0.isAdult
+        }) else { return false }
+
+        let workers = world.hive.bees.enumerated()
+            .filter { leaving.contains($0.offset) }
+            .map(\.element)
+        let queen = world.hive.bees[queenIndex]
+
+        world.hive.bees = world.hive.bees.enumerated()
+            .filter { !leaving.contains($0.offset) && $0.offset != queenIndex }
+            .map(\.element)
+
+        // They go on full crops, like any swarm.
+        let carried = world.hive.resources.drain(
+            Double(workers.count) * config.honeyCarriedPerSwarmBee, of: .honey
+        )
+
+        // One cell, the best-developed, and the rest torn down. A swarm leaves
+        // them all standing, which is where afterswarms come from.
+        let keeper = world.hive.comb.queenCells
+            .filter { $0.purpose == .swarm }
+            .max { $0.daysDeveloped < $1.daysDeveloped }
+            ?? world.hive.comb.queenCells.max { $0.daysDeveloped < $1.daysDeveloped }
+        world.hive.comb.tearDownQueenCells(except: keeper?.id)
+
+        world.hive.queenIsMated = false
+        world.hive.pheromones.nasonov = 1.0
+        world.pendingSwarm = nil
+
+        // Read before ending her, so the swarm carries the number of the queen
+        // who actually left rather than whoever the search happens to find.
+        let departingNumber = world.lineage.reigning?.number
+
+        // Her reign ends here rather than being reconciled away as "lost" on
+        // the next tick. She did not disappear; she was moved.
+        world.lineage.end(onDay: clock.day, .leftWithSwarm)
+
+        world.lastSwarm = DepartedSwarm(
+            day: clock.day,
+            queen: queen,
+            workers: workers,
+            genetics: world.hive.genetics,
+            honeyCarried: carried,
+            queenNumber: departingNumber
+        )
+
+        world.almanac.chronicle(
+            [.colonyDivided(beesLeft: workers.count + 1)], day: clock.day,
+            honey: world.hive.resources[.honey], lineage: world.lineage
+        )
+        return true
+    }
+
     /// The autumn decision: seal the entrance for winter, or leave it open.
     /// Nil hands it back to instinct.
     public mutating func decideEntrance(sealed: Bool?) {

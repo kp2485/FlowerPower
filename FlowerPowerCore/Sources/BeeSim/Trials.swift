@@ -11,6 +11,37 @@
 import Foundation
 import FlowerPowerCore
 
+/// How the player answers congestion, so the effect of each answer can be
+/// measured against doing nothing.
+///
+/// The engine's own default is `instinct` and always will be — nobody is
+/// punished for being at work. These are the *other* rows of the table: what a
+/// player who does answer actually buys.
+enum SwarmPolicy: String, CaseIterable {
+
+    /// Nobody answers. What the engine does on its own, and the baseline every
+    /// other row is compared against.
+    case instinct
+
+    /// Talks the colony out of it. Costs foraging while it holds, and changes
+    /// the odds rather than the answer.
+    case makeRoom
+
+    /// Opens the nest up as soon as the comb fills the cavity — the moment the
+    /// "nest is full" news fires, which is a week or so before swarm cells.
+    case addComb
+
+    /// Divides the colony deliberately once swarm cells are started.
+    case split
+
+    /// Both: room first, and a division only if the colony insists anyway.
+    /// This is what a beekeeper actually does.
+    case roomThenSplit
+
+    var addsComb: Bool { self == .addComb || self == .roomThenSplit }
+    var splits: Bool { self == .split || self == .roomThenSplit }
+}
+
 struct TrialOutcome {
     var survived = false
     var daysSurvived = 0
@@ -24,6 +55,8 @@ struct TrialOutcome {
     var dayOfCollapse: Int?
     var seasonOfCollapse: Season?
     var swarms = 0
+    var combAdditions = 0
+    var splits = 0
     var queenLosses = 0
     var supersedures = 0
     var matingFailures = 0
@@ -36,9 +69,23 @@ struct TrialOutcome {
     /// Best single explanation for the colony's death, inferred from what
     /// killed the most bees plus the colony-level events.
     var causeOfDeath: String = "survived"
+
+    /// The seed this colony actually ran on, so a trial that dies
+    /// interestingly can be reproduced one colony at a time with
+    /// `beesim --seed <that> --every 8`.
+    var seed: UInt64 = 0
 }
 
 enum Trials {
+
+    /// The seed a given trial index runs on.
+    ///
+    /// Exposed so `--list` can print it and a single colony can then be traced
+    /// with `beesim --seed <it> --every 8`, which is how all three queen bugs
+    /// were found. An aggregate says a colony died; only a trace says why.
+    static func seed(forTrial trial: Int) -> UInt64 {
+        UInt64(1_000 + trial * 7_919)
+    }
 
     static func run(
         trials: Int,
@@ -50,15 +97,17 @@ enum Trials {
         site: HiveLocationType,
         palette: [FlowerSpecies],
         start: Date,
-        shared: Bool = false
+        shared: Bool = false,
+        policy: SwarmPolicy = .instinct
     ) -> [TrialOutcome] {
 
         (0..<trials).map { trial in
+            let seed = Self.seed(forTrial: trial)
             var simulation = Simulation.newGame(
                 at: HiveLocation(type: site),
                 startingAt: start,
                 config: config,
-                seed: UInt64(1_000 + trial * 7_919)
+                seed: seed
             )
 
             func stock(_ count: Int, tag: String) {
@@ -90,6 +139,7 @@ enum Trials {
             stock(patches, tag: "t\(trial)")
 
             var outcome = TrialOutcome()
+            outcome.seed = seed
             var layingWorkers = false
             var absconded = false
             var starvedRecently = false
@@ -127,6 +177,35 @@ enum Trials {
                 if restockEvery > 0, day % restockEvery == 0, day > 0 {
                     simulation.pruneDepletedPatches()
                     stock(max(1, patches / 3), tag: "t\(trial)d\(day)")
+                }
+
+                // The player's answer to congestion, applied the way somebody
+                // acting on the notifications would: room when the nest fills,
+                // a division when the cells are started.
+                //
+                // Deliberately after the day rather than before it, so every
+                // policy sees exactly the same simulated day and the only
+                // difference between rows is what was done about it.
+                // Congestion, not an exhausted cavity. The first version of
+                // this waited for `builtCells >= capacity` and never fired
+                // once in 60 colonies over two years: a colony runs out of
+                // *drawn comb* long before it runs out of cavity, because
+                // drawing comb costs honey it would rather keep.
+                if policy.addsComb,
+                   simulation.canAddComb,
+                   simulation.canAffordComb,
+                   simulation.hive.combOccupancy >= 0.9 {
+                    if simulation.addComb() > 0 { outcome.combAdditions += 1 }
+                }
+
+                if policy.splits, simulation.world.pendingSwarm != nil, simulation.canSplit {
+                    if simulation.split() { outcome.splits += 1 }
+                }
+
+                if policy == .makeRoom,
+                   let pending = simulation.world.pendingSwarm,
+                   !pending.discouraged {
+                    simulation.discourageSwarm()
                 }
 
                 outcome.daysSurvived = day
@@ -172,6 +251,22 @@ enum Trials {
         }
     }
 
+    /// One line per colony, for picking one to trace.
+    static func list(_ outcomes: [TrialOutcome]) {
+        print("")
+        print("  #   seed        outcome          collapsed  season")
+        print("  " + String(repeating: "-", count: 52))
+        for (index, outcome) in outcomes.enumerated() {
+            let day = outcome.dayOfCollapse.map { "\($0)" } ?? "-"
+            let season = outcome.seasonOfCollapse?.rawValue ?? "-"
+            print("  " + pad("\(index)", 4)
+                  + pad("\(outcome.seed)", 12)
+                  + pad(outcome.causeOfDeath, 17)
+                  + pad(day, 11)
+                  + season)
+        }
+    }
+
     static func report(_ outcomes: [TrialOutcome], days: Int) {
         let survived = outcomes.filter(\.survived)
         let rate = Double(survived.count) / Double(max(1, outcomes.count))
@@ -200,6 +295,8 @@ enum Trials {
         print(String(format: "Mean autumn stores:   %.0f", mean(outcomes.map(\.winterStoresAtAutumnEnd))))
         print("Median winter cluster: \(median(outcomes.map(\.winterCluster)))")
         print(String(format: "Mean swarms:          %.2f", mean(outcomes.map { Double($0.swarms) })))
+        print(String(format: "Mean comb additions:  %.2f", mean(outcomes.map { Double($0.combAdditions) })))
+        print(String(format: "Mean splits:          %.2f", mean(outcomes.map { Double($0.splits) })))
         print(String(format: "Mean queen losses:    %.2f", mean(outcomes.map { Double($0.queenLosses) })))
         print(String(format: "Mean supersedures:    %.2f", mean(outcomes.map { Double($0.supersedures) })))
         print(String(format: "Mean emergency cells: %.2f", mean(outcomes.map { Double($0.emergencyCells) })))
@@ -209,9 +306,15 @@ enum Trials {
 
         print("")
         print("Cause of death:")
+        // Ties broken by name. Two runs of the same seeds must print the same
+        // report, byte for byte, or the cheapest determinism check there is —
+        // run it twice and diff — stops working. `sorted(by:)` is not stable
+        // and the dictionary underneath it is in hash order, so "starvation
+        // 19" and "survived 19" swapped places between runs and looked, at a
+        // glance, exactly like a behaviour change.
         let causes = Dictionary(grouping: outcomes, by: \.causeOfDeath)
             .mapValues(\.count)
-            .sorted { $0.value > $1.value }
+            .sorted { ($0.value, $1.key) > ($1.value, $0.key) }
         for (cause, count) in causes {
             let bar = String(repeating: "#", count: count * 40 / max(1, outcomes.count))
             print("  " + pad(cause, 16) + padLeft("\(count)", 4) + "  " + bar)
@@ -221,9 +324,13 @@ enum Trials {
         print("Queen deaths by cause (mean per colony):")
         var queenTotals: [DeathCause: Int] = [:]
         for outcome in outcomes {
-            for (cause, count) in outcome.queenDeaths { queenTotals[cause, default: 0] += count }
+            for cause in DeathCause.allCases {
+                if let count = outcome.queenDeaths[cause] { queenTotals[cause, default: 0] += count }
+            }
         }
-        for (cause, total) in queenTotals.sorted(by: { $0.value > $1.value }) {
+        for (cause, total) in queenTotals.sorted(by: {
+            ($0.value, $1.key.rawValue) > ($1.value, $0.key.rawValue)
+        }) {
             let perColony = Double(total) / Double(max(1, outcomes.count))
             print("  " + pad(cause.displayName, 18) + padLeft(String(format: "%.2f", perColony), 6))
         }
@@ -232,7 +339,7 @@ enum Trials {
         print("Season of collapse:")
         let seasons = Dictionary(grouping: outcomes.compactMap(\.seasonOfCollapse), by: { $0 })
             .mapValues(\.count)
-            .sorted { $0.value > $1.value }
+            .sorted { ($0.value, $1.key.rawValue) > ($1.value, $0.key.rawValue) }
         for (season, count) in seasons {
             let bar = String(repeating: "#", count: count * 40 / max(1, outcomes.count))
             print("  " + pad(season.rawValue, 16) + padLeft("\(count)", 4) + "  " + bar)
@@ -242,9 +349,13 @@ enum Trials {
         print("Deaths by cause (mean per colony):")
         var totals: [DeathCause: Int] = [:]
         for outcome in outcomes {
-            for (cause, count) in outcome.deaths { totals[cause, default: 0] += count }
+            for cause in DeathCause.allCases {
+                if let count = outcome.deaths[cause] { totals[cause, default: 0] += count }
+            }
         }
-        for (cause, total) in totals.sorted(by: { $0.value > $1.value }) {
+        for (cause, total) in totals.sorted(by: {
+            ($0.value, $1.key.rawValue) > ($1.value, $0.key.rawValue)
+        }) {
             let perColony = Double(total) / Double(max(1, outcomes.count))
             print("  " + pad(cause.displayName, 18) + padLeft(String(format: "%.0f", perColony), 6))
         }

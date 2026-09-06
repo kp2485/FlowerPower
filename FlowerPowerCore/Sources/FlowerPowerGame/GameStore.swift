@@ -205,6 +205,25 @@ public final class GameStore {
         refresh()
     }
 
+    /// Gives the colony more room, where the site allows it. Returns the cells
+    /// added, so the interface can say what happened.
+    @discardableResult
+    public func addComb() -> Int {
+        let added = simulation.addComb()
+        if added > 0 { refresh() }
+        return added
+    }
+
+    /// Divides the colony on purpose. The half that leaves becomes the
+    /// departed swarm, so the same three answers apply to it as to a real one:
+    /// follow it, give it away, or let it go.
+    @discardableResult
+    public func splitColony() -> Bool {
+        let divided = simulation.split()
+        if divided { refresh() }
+        return divided
+    }
+
     public func discourageSwarm() {
         simulation.discourageSwarm()
         refresh()

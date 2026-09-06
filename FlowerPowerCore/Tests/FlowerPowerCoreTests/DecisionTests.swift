@@ -199,6 +199,358 @@ struct DecisionTests {
         #expect(simulation.world.posture == .makeRoom)
     }
 
+    // MARK: - Answering congestion with space
+
+    /// A colony big enough to be worth dividing, with its adults spread across
+    /// the whole age range so "youngest first" and "oldest first" mean
+    /// different things.
+    private func crowded(
+        seed: UInt64 = 21,
+        adults: Int = 200,
+        site: HiveLocationType = .livingTreeCavity
+    ) -> Simulation {
+        var simulation = Fixture.thrivingSimulation(
+            config: .standard, seed: seed, locationType: site
+        )
+        simulation.mutateWorld { world in
+            world.hive.bees.append(contentsOf: (0..<adults).map { index in
+                Bee(
+                    id: EntityID(rawValue: UInt64(70_000 + index)),
+                    kind: .worker, stage: .adult,
+                    daysInStage: index % 30
+                )
+            })
+        }
+        return simulation
+    }
+
+    /// A crowded colony that has also drawn every cell of its cavity, with
+    /// honey to pay for more. Everything below about the *site's* room needs
+    /// this: a colony with cavity still to draw takes the free cavity first,
+    /// which is correct and makes it a poor test of the extension.
+    private func fullyDrawn(
+        site: HiveLocationType = .livingTreeCavity,
+        honey: Double = 20_000
+    ) -> Simulation {
+        var simulation = crowded(site: site)
+        simulation.mutateWorld { world in
+            let capacity = world.hive.comb.capacity
+            world.hive.comb = Comb(workerCells: capacity, droneCells: 0, capacity: capacity)
+            world.hive.resources.add(honey, of: .honey)
+        }
+        return simulation
+    }
+
+    private func adultAges(_ simulation: Simulation) -> [Int] {
+        simulation.hive.bees
+            .filter { $0.kind == .worker && $0.isAdult }
+            .map(\.daysInStage)
+    }
+
+    // MARK: Adding comb
+
+    /// Where the room comes from is decided by where the bees settled, months
+    /// before anybody asks the question.
+    @Test("Only some sites have room to give")
+    func extensionRoomIsASiteProperty() {
+        #expect(HiveLocationType.cliff.extensionRoom == 0, "rock is rock")
+        #expect(HiveLocationType.nestbox.extensionRoom > 1, "a box takes another box")
+        #expect(HiveLocationType.livingTreeCavity.extensionRoom > 0)
+        #expect(HiveLocationType.livingTreeCavity.extensionRoom
+                < HiveLocationType.insideWalls.extensionRoom,
+                "heartwood rot spreads slower than a wall cavity runs")
+    }
+
+    @Test("With the cavity drawn out, adding comb enlarges it")
+    func addCombEnlarges() {
+        var simulation = fullyDrawn()
+        let before = simulation.hive.comb.capacity
+        #expect(simulation.hive.comb.freeCapacity == 0)
+
+        let added = simulation.addComb()
+
+        #expect(added > 0)
+        #expect(simulation.hive.comb.capacity == before + added)
+        #expect(simulation.hive.maximumCells == before + added)
+    }
+
+    /// A colony in a cliff face can still be given comb while it has cavity to
+    /// draw into. What it cannot be given is *more cavity* — that is rock.
+    @Test("A site with no room to give cannot be extended")
+    func addCombOnRock() {
+        var simulation = fullyDrawn(site: .cliff)
+
+        #expect(simulation.combExtensionRemaining == 0)
+        #expect(simulation.canAddComb == false, "no free cavity and no more rock to take")
+        let added = simulation.addComb()
+        #expect(added == 0)
+        #expect(simulation.hive.comb.capacity == HiveLocationType.cliff.maximumCells)
+    }
+
+    /// It runs out, which is what stops it being an answer to everything.
+    ///
+    /// A nestbox rather than a tree cavity, because a nestbox is the site with
+    /// real room to give — a beekeeper puts another box on it — so the
+    /// decision is one that can be taken several times before the site says no.
+    @Test("The room a site has is finite")
+    func addCombRunsOut() {
+        // Every cell drawn and honey to burn, so the only limit left is the
+        // site itself rather than the larder or the comb.
+        var simulation = fullyDrawn(site: .nestbox)
+
+        var additions = 0
+        while simulation.addComb() > 0 {
+            additions += 1
+            #expect(additions < 100, "addComb never stopped")
+        }
+
+        #expect(additions > 1, "worth taking more than once")
+        #expect(simulation.canAddComb == false)
+
+        let natural = Double(HiveLocationType.nestbox.maximumCells)
+        let ceiling = natural * (1 + HiveLocationType.nestbox.extensionRoom)
+        #expect(Double(simulation.hive.comb.capacity) <= ceiling + 0.5)
+    }
+
+    /// The measured heart of the mechanic.
+    ///
+    /// The first version of `addComb` gave the colony *room* and let
+    /// `ConstructionSystem` fill it, which measured at exactly nothing: over 60
+    /// colonies and two years it never fired, and when the trigger was loosened
+    /// until it did, swarming was unmoved. `swarmPressure` runs on
+    /// `combOccupancy` — cells used over cells *drawn* — and empty cavity is
+    /// not in that ratio. So it gives drawn comb, and charges the honey the wax
+    /// would have cost. Which is why beekeepers hoard drawn comb.
+    @Test("Adding comb gives drawn comb, and charges honey for it")
+    func addCombDrawsComb() {
+        var simulation = crowded()
+        simulation.mutateWorld { $0.hive.resources.add(400, of: .honey) }
+
+        let combBefore = simulation.hive.comb.builtCells
+        let honeyBefore = simulation.hive.resources[.honey]
+        let occupancyBefore = simulation.hive.combOccupancy
+
+        let drawn = simulation.addComb()
+
+        #expect(drawn > 0)
+        #expect(simulation.hive.comb.builtCells == combBefore + drawn)
+
+        let spent = honeyBefore - simulation.hive.resources[.honey]
+        #expect(abs(spent - Double(drawn) * simulation.honeyPerDrawnCell) < 0.001)
+
+        // And the thing it is all for: the nest is less crowded than it was.
+        #expect(simulation.hive.combOccupancy < occupancyBefore)
+    }
+
+    /// Wax is made from honey at seven to one, so a colony with nothing spare
+    /// cannot be given comb however much room the site has.
+    @Test("A colony with no honey to spare cannot be given comb")
+    func addCombNeedsHoney() {
+        var simulation = crowded()
+        simulation.mutateWorld { world in
+            world.hive.resources = ResourcePool()
+            world.hive.resources.add(SimulationConfig.standard.buildHoneyReserve, of: .honey)
+        }
+
+        #expect(simulation.canAddComb, "the site still has room")
+        #expect(simulation.canAffordComb == false, "but the bees cannot pay for the wax")
+        let drawn = simulation.addComb()
+        #expect(drawn == 0)
+    }
+
+    /// Cavity the colony has not drawn out yet is free. What was stopping the
+    /// bees using it was the honey, and that is what is being paid — so there
+    /// is no reason to spend the site's finite room on it as well.
+    @Test("Cavity the colony already has is used before the site's room")
+    func addCombUsesFreeCavityFirst() {
+        var simulation = crowded()
+        simulation.mutateWorld { $0.hive.resources.add(400, of: .honey) }
+
+        #expect(simulation.hive.comb.freeCapacity > 0)
+        let roomBefore = simulation.combExtensionRemaining
+
+        let drawn = simulation.addComb()
+
+        #expect(drawn > 0)
+        #expect(simulation.combExtensionRemaining == roomBefore,
+                "the tree was not hollowed further to hold comb it had room for")
+    }
+
+    /// The difference from `discourageSwarm`: both change the odds, but only
+    /// one of them holds the foragers back to do it.
+    @Test("Adding comb discourages a swarm without grounding the foragers")
+    func addCombDiscouragesWithoutPosture() {
+        var simulation = fullyDrawn()
+        simulation.mutateWorld {
+            $0.pendingSwarm = PendingSwarm(startedOnDay: 0, departsOnDay: 8)
+        }
+
+        simulation.addComb()
+
+        #expect(simulation.world.pendingSwarm?.discouraged == true)
+        #expect(simulation.world.posture == .instinct, "space costs stores, not a flow")
+    }
+
+    /// A colony that absconds takes nothing with it, least of all the hole it
+    /// was living in.
+    @Test("Moving house resets the room that was added")
+    func relocatingForgetsTheExtension() {
+        var simulation = fullyDrawn()
+        simulation.addComb()
+        #expect(simulation.hive.comb.capacity > HiveLocationType.livingTreeCavity.maximumCells)
+
+        simulation.relocate(to: HiveLocation(type: .livingTreeCavity))
+
+        #expect(simulation.hive.comb.capacity == HiveLocationType.livingTreeCavity.maximumCells)
+        #expect(simulation.canAddComb)
+    }
+
+    @Test("The almanac records the nest being opened up")
+    func addCombIsChronicled() {
+        var simulation = fullyDrawn()
+        simulation.addComb()
+        #expect(simulation.world.almanac.entries.contains { $0.text.contains("opened up") })
+    }
+
+    // MARK: Dividing on purpose
+
+    @Test("A division needs a laying queen and enough bees to make two colonies")
+    func canSplitRequirements() {
+        #expect(crowded().canSplit)
+
+        var small = Fixture.thrivingSimulation(config: .standard, seed: 21)
+        #expect(small.hive.adultWorkerCount < SimulationConfig.standard.swarmMinimumPopulation)
+        #expect(small.canSplit == false)
+        let refused = small.split()
+        #expect(refused == false)
+
+        var queenless = crowded()
+        queenless.mutateWorld { world in
+            world.hive.bees.removeAll { $0.kind == .queen }
+        }
+        #expect(queenless.canSplit == false)
+    }
+
+    @Test("A split sends the queen and a share of the bees")
+    func splitSendsTheQueen() throws {
+        var simulation = crowded()
+        let adultsBefore = simulation.hive.adultWorkerCount
+
+        let divided = simulation.split()
+        #expect(divided)
+
+        let swarm = try #require(simulation.world.lastSwarm)
+        let expected = Int(Double(adultsBefore) * SimulationConfig.standard.splitDepartureShare)
+        #expect(swarm.workers.count == expected)
+        #expect(swarm.queen.kind == .queen)
+        #expect(simulation.hive.isQueenright == false, "the queen went with them")
+        #expect(simulation.hive.adultWorkerCount == adultsBefore - expected)
+    }
+
+    /// The line that makes a split worth doing. A swarm takes the oldest
+    /// workers — the entire flying workforce — which is why a swarmed colony
+    /// stops gathering. Moving the queen sends the house bees instead.
+    @Test("A split takes the house bees and leaves the foragers")
+    func splitLeavesTheForagers() {
+        var simulation = crowded()
+        let before = adultAges(simulation)
+        let oldestBefore = before.max() ?? 0
+        let meanBefore = Double(before.reduce(0, +)) / Double(before.count)
+
+        let divided = simulation.split()
+        #expect(divided)
+
+        let after = adultAges(simulation)
+        let meanAfter = Double(after.reduce(0, +)) / Double(after.count)
+
+        #expect(after.max() == oldestBefore, "the oldest bees are still here")
+        #expect(meanAfter > meanBefore, "what left was younger than what stayed")
+        #expect(simulation.hive.count(performing: .foragingBee) > 0)
+    }
+
+    /// A swarm leaves every cell standing, which is where afterswarms come
+    /// from — the second and third swarms that finish what the first started.
+    @Test("A split keeps one queen cell and tears the rest down")
+    func splitKeepsOneCell() {
+        var simulation = crowded()
+        simulation.mutateWorld { world in
+            for index in 0..<4 {
+                var cell = QueenCell(
+                    id: EntityID(rawValue: UInt64(80_000 + index)), purpose: .swarm
+                )
+                for _ in 0..<index { cell.advanceOneDay() }
+                world.hive.comb.addQueenCell(cell)
+            }
+            world.pendingSwarm = PendingSwarm(startedOnDay: 0, departsOnDay: 8)
+        }
+
+        let divided = simulation.split()
+        #expect(divided)
+
+        #expect(simulation.hive.comb.queenCells.count == 1)
+        #expect(simulation.hive.comb.queenCells.first?.daysDeveloped == 3,
+                "the best-developed cell is the one kept")
+        #expect(simulation.world.pendingSwarm == nil, "the impulse is answered")
+    }
+
+    /// The half that leaves is a departed swarm like any other, so the same
+    /// three answers apply: follow it, give it away, or let it go.
+    @Test("The half that leaves can be followed")
+    func splitCanBeFollowed() throws {
+        var simulation = crowded()
+        let divided = simulation.split()
+        #expect(divided)
+
+        let followed = try #require(simulation.followingSwarm(
+            to: HiveLocation(type: .nestbox), startingAt: epoch, seed: 11
+        ))
+
+        #expect(followed.hive.isQueenright)
+        #expect(followed.hive.queenIsMated, "she is the old queen, already mated")
+        #expect(followed.hive.adultCount == simulation.world.lastSwarm!.workers.count + 1)
+        #expect(followed.patches.count == simulation.patches.count, "the garden comes too")
+    }
+
+    /// She did not disappear; she was moved. Without this the reconciliation
+    /// in `LineageSystem` would write her off as lost on the next tick.
+    @Test("The queen who leaves with a split is recorded as having left")
+    func splitRecordsTheQueen() throws {
+        var simulation = crowded()
+        let reigning = try #require(simulation.world.lineage.reigning)
+
+        let divided = simulation.split()
+        #expect(divided)
+
+        let record = try #require(
+            simulation.world.lineage.queens.first { $0.number == reigning.number }
+        )
+        #expect(record.ending == .leftWithSwarm)
+        #expect(record.isReigning == false)
+    }
+
+    @Test("A division is written into the almanac")
+    func splitIsChronicled() {
+        var simulation = crowded()
+        simulation.split()
+        #expect(simulation.world.almanac.entries.contains { $0.text.contains("divided on purpose") })
+    }
+
+    /// Instinct is the default and stays it. A player who never answers gets
+    /// exactly the colony they got before either of these existed.
+    @Test("Neither answer is taken on the colony's behalf")
+    func instinctIsUntouched() {
+        var simulation = crowded()
+        let capacity = simulation.hive.comb.capacity
+        let adults = simulation.hive.adultWorkerCount
+
+        for _ in 0..<20 { _ = simulation.stepDay() }
+
+        #expect(simulation.hive.comb.capacity == capacity, "nothing opened the nest up")
+        #expect(simulation.world.posture == .instinct)
+        #expect(simulation.hive.adultWorkerCount > 0)
+        #expect(adults > 0)
+    }
+
     @Test("Discouraging with no swarm pending does nothing")
     func discourageNothing() {
         var simulation = thriving()

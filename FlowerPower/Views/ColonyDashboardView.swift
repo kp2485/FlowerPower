@@ -507,9 +507,53 @@ private struct NestConditionSection: View {
                     .foregroundStyle(Theme.queen)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            // The room question, before it becomes the swarm question. Only
+            // shown once the comb has actually filled the cavity — offering
+            // space to a colony with empty frames still in it would be noise.
+            if nest.builtCells >= nest.capacity {
+                RoomRow(nest: nest)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+}
+
+/// What can be done about a nest that has filled its cavity.
+private struct RoomRow: View {
+
+    let nest: NestSummary
+    @Environment(GameStore.self) private var store
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+
+            if nest.canAddComb {
+                Text("The comb has filled the cavity. There is room for about \(nest.combExtensionRemaining) more cells in a \(nest.siteType.displayName.lowercased()) — give it to them and they will keep building; leave it and they will divide instead.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    store.addComb()
+                } label: {
+                    Label("Open the Nest Up", systemImage: "plus.rectangle.on.rectangle")
+                        .font(.subheadline.weight(.medium))
+                }
+                .buttonStyle(.bordered)
+                .tint(Theme.honey)
+            } else {
+                Label(
+                    "The cavity is full and there is no more of it. A \(nest.siteType.displayName.lowercased()) gives what it gives.",
+                    systemImage: "square.slash"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 

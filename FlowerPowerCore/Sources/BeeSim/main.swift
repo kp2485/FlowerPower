@@ -26,6 +26,7 @@ struct Options {
     var every = 15
     var restockEvery = 0
     var trials = 0
+    var policy = "instinct"
 
     /// Model a player who is fed by other people rather than going out
     /// themselves: every restock arrives as a shared flower.
@@ -53,8 +54,12 @@ struct Options {
             case "--every": options.every = Int(value ?? "") ?? options.every
             case "--restock": options.restockEvery = Int(value ?? "") ?? options.restockEvery
             case "--trials": options.trials = Int(value ?? "") ?? options.trials
+            case "--policy": options.policy = value ?? options.policy
             case "--shared":
                 options.sharedForage = true
+                index += 1
+                continue
+            case "--list":
                 index += 1
                 continue
             case "--set":
@@ -84,6 +89,18 @@ struct Options {
 
     var locationType: HiveLocationType {
         HiveLocationType(rawValue: site) ?? .livingTreeCavity
+    }
+
+    /// An unknown policy is a hard error for the same reason an unknown
+    /// `--set` key is: a sweep whose rows all secretly ran the same thing is
+    /// worse than no measurement.
+    var swarmPolicy: SwarmPolicy {
+        guard let parsed = SwarmPolicy(rawValue: policy) else {
+            let known = SwarmPolicy.allCases.map(\.rawValue).joined(separator: ", ")
+            print("unknown --policy '\(policy)'. Known: \(known)")
+            exit(2)
+        }
+        return parsed
     }
 }
 
@@ -181,8 +198,11 @@ if options.trials > 0 {
         site: options.locationType,
         palette: palette,
         start: start,
-        shared: options.sharedForage
+        shared: options.sharedForage,
+        policy: options.swarmPolicy
     )
+    print("policy: \(options.swarmPolicy.rawValue)")
+    if CommandLine.arguments.contains("--list") { Trials.list(outcomes) }
     Trials.report(outcomes, days: options.days)
     exit(0)
 }

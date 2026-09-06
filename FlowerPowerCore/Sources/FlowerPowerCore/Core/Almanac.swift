@@ -131,6 +131,11 @@ public struct Almanac: Codable, Equatable, Sendable {
                 write(.swarm, "Swarm cells are capped; the colony will divide in about \(max(1, departs - day)) days.", day: day)
             case .swarmAbandoned:
                 write(.swarm, "The swarm is called off. The bees tear down their queen cells.", day: day)
+            case .combAdded(let cells):
+                write(.colony, "The nest is opened up: room for \(cells) more cells.", day: day)
+            case .colonyDivided(let left):
+                write(.swarm, "The colony is divided on purpose. \(left) bees leave with \(queen); "
+                      + "the flying bees stay.", day: day)
             case .absconded(let lost):
                 write(.colony, "The colony absconds, \(lost) bees abandoning the nest.", day: day)
             case .layingWorkersAppeared:

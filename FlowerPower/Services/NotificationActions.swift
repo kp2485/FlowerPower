@@ -38,6 +38,7 @@ enum NotificationActions {
         case threatField = "threat.field"
         case threatComb = "threat.comb"
         case swarmPreparing = "swarm.preparing"
+        case nestFull = "nest.full"
         case swarmDeparted = "swarm.departed"
         case entrance = "entrance.autumn"
         case digest = "digest"
@@ -58,6 +59,8 @@ enum NotificationActions {
     enum Action {
         static let posturePrefix = "posture."
         static let discourageSwarm = "swarm.discourage"
+        static let addComb = "nest.addComb"
+        static let split = "swarm.split"
         static let letSwarmGo = "swarm.let"
         static let followSwarm = "swarm.follow"
         static let staySwarm = "swarm.stay"
@@ -88,11 +91,23 @@ enum NotificationActions {
             ))
         }
 
+        // Space first, because it is the real answer to congestion and the
+        // only one that does not cost the colony half its bees.
         categories.insert(UNNotificationCategory(
             identifier: Category.swarmPreparing.rawValue,
             actions: [
-                UNNotificationAction(identifier: Action.discourageSwarm, title: "Make Room", options: []),
+                UNNotificationAction(identifier: Action.addComb, title: "Open the Nest Up", options: []),
+                UNNotificationAction(identifier: Action.split, title: "Divide Them", options: []),
                 UNNotificationAction(identifier: Action.letSwarmGo, title: "Let Them Go", options: [])
+            ],
+            intentIdentifiers: [], options: []
+        ))
+
+        // The week before the cells, when space is still cheap.
+        categories.insert(UNNotificationCategory(
+            identifier: Category.nestFull.rawValue,
+            actions: [
+                UNNotificationAction(identifier: Action.addComb, title: "Open the Nest Up", options: [])
             ],
             intentIdentifiers: [], options: []
         ))
@@ -131,6 +146,11 @@ enum NotificationActions {
             return Category.forThreat(threat.style)
         }
         if news.identifier.hasPrefix("swarm-") { return .swarmPreparing }
+        if news.identifier.hasPrefix("nest-full-") {
+            // Nothing to offer where the site has no more room to give, and an
+            // action button that does nothing is worse than no button.
+            return snapshot.nest.canAddComb ? .nestFull : nil
+        }
         if news.identifier.hasPrefix("departed-") { return .swarmDeparted }
         if news.identifier.hasPrefix("entrance-") { return .entrance }
         return nil
@@ -162,6 +182,19 @@ enum NotificationActions {
         case Action.discourageSwarm:
             guard simulation.world.pendingSwarm != nil else { return false }
             simulation.discourageSwarm()
+
+        case Action.addComb:
+            // Stale in the useful direction: if the swarm has already gone,
+            // the room is still worth having, so this does not check for a
+            // pending one. It checks only that there is room to give.
+            guard simulation.addComb() > 0 else { return false }
+
+        case Action.split:
+            // This one is checked, and hard. A division taken after the colony
+            // has already swarmed would send away a second half of a colony
+            // that has just lost the first.
+            guard simulation.world.pendingSwarm != nil, simulation.canSplit else { return false }
+            guard simulation.split() else { return false }
 
         case Action.letSwarmGo:
             changed = false

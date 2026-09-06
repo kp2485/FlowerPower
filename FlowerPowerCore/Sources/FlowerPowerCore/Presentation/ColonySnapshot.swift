@@ -147,6 +147,13 @@ public struct NestSummary: Codable, Equatable, Sendable {
     public let humidity: Double
     public let propolisEnvelope: Double
     public let queenCells: [QueenCell.Purpose]
+
+    /// Cells of room the nest could still be given. Zero where the site has
+    /// none to give — a colony in a cliff face has nowhere to go.
+    public let combExtensionRemaining: Int
+
+    /// Whether adding comb is an option here at all.
+    public var canAddComb: Bool { combExtensionRemaining > 0 }
 }
 
 public struct HealthSummary: Codable, Equatable, Sendable {
@@ -301,6 +308,10 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     /// Whether the autumn entrance decision is open right now.
     public let entranceDecisionOpen: Bool
 
+    /// Whether the colony could be divided on purpose: a laying queen to send
+    /// and enough bees that both halves are still colonies afterwards.
+    public let canSplit: Bool
+
     // MARK: Record
 
     public let lineage: Lineage
@@ -361,6 +372,7 @@ extension Simulation {
             },
             entranceSealed: world.entranceSealed,
             entranceDecisionOpen: season == .autumn && !world.entranceSealed,
+            canSplit: canSplit,
             lineage: world.lineage,
             almanac: world.almanac,
             honeyTaken: world.honeyTaken,
@@ -421,7 +433,8 @@ extension Simulation {
             temperatureCelsius: hive.temperatureCelsius,
             humidity: hive.humidity,
             propolisEnvelope: hive.propolisEnvelope,
-            queenCells: hive.comb.queenCells.map(\.purpose)
+            queenCells: hive.comb.queenCells.map(\.purpose),
+            combExtensionRemaining: combExtensionRemaining
         )
     }
 
@@ -748,12 +761,28 @@ extension Simulation {
                 severity: .notable,
                 title: "Nest Is Full",
                 detail: "Almost every cell is occupied.",
-                suggestion: hive.comb.canExpand
-                    ? "The colony will draw more comb during a flow."
-                    : "The cavity is full. A larger site would let it grow."
+                suggestion: suggestionForFullNest()
             ))
         }
 
         return alerts.sorted { $0.severity > $1.severity }
+    }
+
+    /// What to say to a player whose nest is full.
+    ///
+    /// Three different situations, and only one of them is a dead end. There
+    /// is no point telling somebody a larger site would help when the site
+    /// they have can simply be opened up.
+    private func suggestionForFullNest() -> String {
+        if world.hive.comb.canExpand {
+            return "The colony will draw more comb during a flow."
+        }
+        if canAddComb {
+            return "The comb has filled the cavity. Open the nest up and they "
+                + "will draw more; leave it and they will divide instead."
+        }
+        return "The cavity is full and there is no more of it. A larger site "
+            + "would let them grow, or divide the colony before it divides "
+            + "itself."
     }
 }

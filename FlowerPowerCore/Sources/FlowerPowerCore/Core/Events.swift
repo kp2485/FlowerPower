@@ -88,6 +88,10 @@ public enum SimEvent: Equatable, Sendable {
     case postureAdopted(HivePosture)
     case entranceSealed(Bool)
     case honeyTaken(Double)
+    /// The nest was given more room to draw comb into.
+    case combAdded(cells: Int)
+    /// The colony was divided deliberately, rather than swarming.
+    case colonyDivided(beesLeft: Int)
 
     // Warnings the UI should surface promptly
     case starving
@@ -201,7 +205,8 @@ extension SimEvent {
              .infectionDetected, .infectionCleared, .infectionCritical,
              .attacked, .attackRepelled, .raidSucceeded, .winterStoresLow,
              .threatBegan, .threatEnded, .swarmPreparing, .swarmAbandoned,
-             .postureAdopted, .entranceSealed, .honeyTaken:
+             .postureAdopted, .entranceSealed, .honeyTaken,
+             .combAdded, .colonyDivided:
             return true
         }
     }
@@ -217,6 +222,10 @@ extension SimEvent {
              .attacked, .winterStoresLow, .dearth, .combLost,
              .threatBegan, .swarmPreparing:
             return .warning
+        case .colonyDivided:
+            // A division the player asked for is news, not a warning. They
+            // know: they did it.
+            return .notable
         case .queenEmerged, .queenMated, .supersededQueen, .nectarFlowBegan,
              .infectionCleared, .attackRepelled, .queenCellStarted:
             return .notable

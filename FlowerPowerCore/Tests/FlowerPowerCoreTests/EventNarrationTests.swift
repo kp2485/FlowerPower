@@ -63,6 +63,8 @@ struct EventNarrationTests {
         .entranceSealed(true),
         .entranceSealed(false),
         .honeyTaken(18),
+        .combAdded(cells: 175),
+        .colonyDivided(beesLeft: 60),
 
         .starving,
         .winterStoresLow(have: 40, need: 120)
@@ -86,6 +88,13 @@ struct EventNarrationTests {
         #expect(SimEvent.swarmPreparing(departsOnDay: 150).narration.contains("150"))
         #expect(!SimEvent.swarmAbandoned.narration.isEmpty)
         #expect(SimEvent.honeyTaken(18).narration.contains("18"))
+        #expect(SimEvent.combAdded(cells: 175).narration.contains("175"))
+
+        // A division the player asked for must not read like a swarm they
+        // failed to prevent.
+        let divided = SimEvent.colonyDivided(beesLeft: 60).narration
+        #expect(divided.contains("60"))
+        #expect(divided != SimEvent.swarmed(beesLost: 60).narration)
 
         // Sealing and leaving open must not read the same, which was the whole
         // point of asking.

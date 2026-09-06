@@ -370,6 +370,26 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     public var swarmDepartureShare: Double = 0.6
     public var honeyCarriedPerSwarmBee: Double = 0.12
 
+    // MARK: - The answers to congestion
+
+    /// How much room one `addComb` gives, as a fraction of the site's natural
+    /// cavity.
+    ///
+    /// A quarter, so the decision is worth taking more than once and no single
+    /// answer removes swarming from the game. What it buys is space, not comb:
+    /// `ConstructionSystem` still has to draw into it, during a flow, at seven
+    /// honey to one of wax.
+    public var combExtensionStep: Double = 0.25
+
+    /// The share of adults that goes with a deliberate split.
+    ///
+    /// Half what a swarm takes, and taken from the other end of the age range.
+    /// A swarm is the flying bees leaving of their own accord; a division the
+    /// player makes moves the queen and the house bees, and the foragers —
+    /// who know where the nest is — stay with it. That difference is the whole
+    /// reason to split rather than let them go.
+    public var splitDepartureShare: Double = 0.3
+
     // MARK: - Absconding
 
     /// Unrepelled attacks within three weeks before the colony considers

@@ -62,6 +62,44 @@ public enum HiveLocationType: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// How much more comb space the nest can be given, as a fraction of
+    /// `maximumCells`.
+    ///
+    /// The answer to congestion is room, and where the room can come from
+    /// depends entirely on what the colony is living in. A beekeeper stacks a
+    /// box on a hive; a colony in a wall works its way along the cavity; bees
+    /// in rotten wood chew the rot away. A colony in a cliff face has nowhere
+    /// to go at all, which is the honest answer for rock.
+    ///
+    /// This is what makes `addComb` a decision rather than a button. Where the
+    /// bees settled decides whether space is an option, months before the
+    /// question is asked.
+    public var extensionRoom: Double {
+        switch self {
+        // Built for bees, and the one site where more room is simply a matter
+        // of putting another box on top.
+        case .nestbox: return 1.2
+        // A wall cavity and a roof space both run on well past where the
+        // colony started.
+        case .insideWalls, .humanStructure: return 0.8
+        // Already the largest thing here, and there is always more cave.
+        case .cave: return 0.5
+        // Open comb hanging in the air: nothing limits its size except the
+        // weather, which will finish the colony long before the space does.
+        case .underTreeBranch: return 0.5
+        // Rotten wood the bees can chew away.
+        case .fallenTree: return 0.4
+        // Earth, and something else is still building the mound.
+        case .termiteMound: return 0.35
+        // Soil, which can be excavated, slowly.
+        case .animalBurrow: return 0.35
+        // Heartwood rot spreads, but not quickly. A little.
+        case .livingTreeCavity: return 0.25
+        // Rock. There is no more of it.
+        case .cliff: return 0
+        }
+    }
+
     /// How easily a raider gets in. An open branch nest is indefensible; a
     /// cavity with a small entrance can be held by a handful of guards.
     public var defensibility: Double {

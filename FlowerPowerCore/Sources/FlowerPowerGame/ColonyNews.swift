@@ -58,6 +58,14 @@ public struct ColonyNews: Equatable, Sendable {
         public var entranceDecisionOpen: Bool = false
         public var day: Int = 0
 
+        /// The comb has filled the cavity and the colony has nowhere left to
+        /// put anything. This is the state that produces swarm cells a week
+        /// later, and it is the last moment at which giving room is cheaper
+        /// than losing half the bees.
+        public var nestIsFull: Bool = false
+        /// Whether the site has any more room to give.
+        public var canAddComb: Bool = false
+
         public init(
             status: ColonyStatus,
             headline: String = "",
@@ -69,7 +77,9 @@ public struct ColonyNews: Equatable, Sendable {
             pendingSwarm: PendingSwarm? = nil,
             departedSwarmDay: Int? = nil,
             entranceDecisionOpen: Bool = false,
-            day: Int = 0
+            day: Int = 0,
+            nestIsFull: Bool = false,
+            canAddComb: Bool = false
         ) {
             self.status = status
             self.headline = headline
@@ -82,6 +92,8 @@ public struct ColonyNews: Equatable, Sendable {
             self.departedSwarmDay = departedSwarmDay
             self.entranceDecisionOpen = entranceDecisionOpen
             self.day = day
+            self.nestIsFull = nestIsFull
+            self.canAddComb = canAddComb
         }
     }
 
@@ -105,7 +117,31 @@ public struct ColonyNews: Equatable, Sendable {
                 identifier: "swarm-\(swarm.startedOnDay)",
                 title: "The colony is preparing to swarm",
                 body: "Swarm cells are started. They will divide in about "
-                    + "\(swarm.daysRemaining(on: after.day)) days unless discouraged."
+                    + "\(swarm.daysRemaining(on: after.day)) days. "
+                    + (after.canAddComb
+                       ? "Room is the answer to congestion; a deliberate split "
+                            + "is the other one."
+                       : "A deliberate split costs fewer bees than letting "
+                            + "them go.")
+            )
+        }
+        // Before the cells, not after them. A colony that has filled its
+        // cavity will raise swarm cells within the week, and by then the only
+        // answers left are arguing with it and losing half the bees. This is
+        // the one moment when space is still cheap, so it is worth saying
+        // once — and only once, which is what the before/after comparison is
+        // for.
+        if after.nestIsFull, !before.nestIsFull, after.pendingSwarm == nil {
+            return ColonyNews(
+                identifier: "nest-full-\(after.day)",
+                title: "The nest is full",
+                body: after.canAddComb
+                    ? "Every cell is drawn and the cavity is worked out. Open "
+                        + "the nest up and they will keep building; leave it "
+                        + "and they will divide instead."
+                    : "Every cell is drawn and there is no more cavity. They "
+                        + "will divide before long unless you divide them "
+                        + "first."
             )
         }
         if let departed = after.departedSwarmDay, before.departedSwarmDay != departed {
@@ -193,7 +229,13 @@ public extension ColonySnapshot {
             pendingSwarm: pendingSwarm,
             departedSwarmDay: departedSwarm?.day,
             entranceDecisionOpen: entranceDecisionOpen,
-            day: day
+            day: day,
+            // "Full" means the comb fills the cavity *and* the cells in it are
+            // occupied. Either alone is ordinary: a colony always has more
+            // cavity than comb early on, and a colony always fills the comb it
+            // has during a flow.
+            nestIsFull: nest.combOccupancy >= 0.9 && nest.builtCells >= nest.capacity,
+            canAddComb: nest.canAddComb
         )
     }
 }

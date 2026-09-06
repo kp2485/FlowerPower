@@ -94,7 +94,10 @@ public struct Comb: Codable, Equatable, Sendable {
     public var queenCells: [QueenCell]
 
     /// Hard ceiling imposed by the cavity.
-    public let capacity: Int
+    /// The cavity, in cells. Not fixed for the life of the nest: `extend`
+    /// raises it when the colony is given more room. See
+    /// `HiveLocationType.extensionRoom` for where that room comes from.
+    public private(set) var capacity: Int
 
     public init(
         workerCells: Int = 60,
@@ -115,6 +118,20 @@ public struct Comb: Codable, Equatable, Sendable {
     }
 
     public var freeCapacity: Int { max(0, capacity - builtCells) }
+
+    /// Gives the nest more room to draw into. Returns the cells actually
+    /// added, which is zero for a non-positive request.
+    ///
+    /// Only the space changes. Comb still has to be drawn into it, at seven
+    /// units of honey to one of wax and only during a flow — so this is an
+    /// opportunity, not an endowment.
+    @discardableResult
+    public mutating func extend(by cells: Int) -> Int {
+        guard cells > 0 else { return 0 }
+        capacity += cells
+        return cells
+    }
+
     public var canExpand: Bool { builtCells < capacity }
 
     /// Drone comb should be roughly a tenth to a sixth of the nest. Colonies
