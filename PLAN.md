@@ -19,15 +19,101 @@ needs a Mac.
 
 ### Not verified, and cannot be here
 
-Everything in `FlowerPower/Views`, `FlowerPower/Services`, `FlowerPowerWatch/`,
-and the app entry point. Roughly 4,500 lines of SwiftUI, MapKit, PhotosUI,
-Vision, WidgetKit, WatchConnectivity and BackgroundTasks. Engine calls were
-checked against the package's public surface; framework calls have never been
-compiled.
+Everything in `FlowerPower/`, `FlowerPowerWatch/` and `FlowerPowerWidgets/` —
+roughly 7,000 lines of SwiftUI, MapKit, PhotosUI, Vision, FoundationModels,
+ActivityKit, WidgetKit, WatchConnectivity and BackgroundTasks. **Nothing in
+those three folders has ever been through a compiler**, and nothing said about
+them below should be read as though it had.
 
 `project.yml` has also never been run through XcodeGen. Its keys were checked
 against XcodeGen's own parser source rather than from memory, but XcodeGen does
 not build on Windows, so the generated project is unseen.
+
+#### The desk-check of 2026-09-06
+
+Every file in those three folders was read against the package's actual public
+surface: each type, initialiser, property and enum case the interface names was
+grepped for in the package and its signature compared. Where a Swift 6
+concurrency question could be reduced to plain Swift with no Apple frameworks
+in it, it was written as a small file and run through `swiftc -swift-version 6
+-typecheck` on this machine rather than guessed at. That is how the fixes
+below were chosen: each one was checked to be *necessary* by reproducing the
+error on a minimal case, and *sufficient* by compiling the replacement.
+
+What that found and fixed:
+
+- **A build failure that had been there for a while.** `SimEvent.narration`,
+  the sentence shown for each event in the catch-up report, was a switch in
+  `CatchUpReportView` — in a target nothing on this machine compiles. The
+  engine gained seven cases with the decision events (`threatBegan`,
+  `threatEnded`, `swarmPreparing`, `swarmAbandoned`, `postureAdopted`,
+  `entranceSealed`, `honeyTaken`) and the switch was never extended, so it had
+  been non-exhaustive since. It now lives in the package as
+  `Presentation/EventNarration.swift`, with `EventNarrationTests` — which is
+  the general lesson: **anything that switches over an engine type belongs in
+  the package**, because that is where the compiler can see it.
+- **Three cards drawn in the navigation bar.** `ColonyDashboardView` had
+  `HoneyDecisionCard`, `RecordLinks` and `BloomPromptCard` inside a single
+  `ToolbarItem`. It compiles — a `ToolbarItem` takes a `ViewBuilder` and will
+  accept four views — and would have tried to lay three cards out in the
+  navigation bar. They are back in the scroll view; the toolbar keeps the
+  photograph button.
+- **Five Swift 6 strict-concurrency errors**, each reproduced on a minimal
+  case first:
+  - `HiveHum` is `@MainActor`, and its `AVAudioSourceNode` render callback read
+    seven main-actor properties from the audio thread. The oscillator state
+    moved into a nonisolated `Tone` box the callback captures instead.
+  - `WatchLink` was captured in `@Sendable` closures without being `Sendable`,
+    and its three throttle counters were plain `var`s touched from the main
+    actor, the background task and WatchConnectivity's own queue — a real data
+    race, not only a compiler complaint. They are behind an `NSLock` now.
+  - `BackgroundRefresh.handle` sent a non-`Sendable` `BGAppRefreshTask` into a
+    `Task` and an expiration handler.
+  - `NotificationDelegate` captured itself in `MainActor.run`'s `@Sendable`
+    closure.
+  - `FlowerClassifier` is a `Sendable`-conforming struct with a
+    `VNCoreMLModel?` stored property.
+  - `PhotoLibrary` mutated captured `var`s from inside two Photos callbacks
+    (the resume-once flag and the new asset's identifier). Both are locked
+    boxes now, which compiles whether or not those SDK blocks turn out to be
+    `@Sendable`.
+- Two defensive tidies: `Section("title") { } footer: { }` in
+  `JobAssignmentView` rewritten to the `header:`/`footer:` form that certainly
+  exists, and a duplicated `@Environment(\.scenePhase)` in `ContentView`
+  removed.
+
+#### Still not verified, and why
+
+The desk-check can only compare against things this machine can see. These
+were read and reasoned about but not proved:
+
+- **Foundation Models.** `@Generable`, `@Guide`, `LanguageModelSession`,
+  `Attachment(image)` and `SystemLanguageModel.availability` in
+  `TaxonomicClassifier`. Written for iOS 27's image-attachment support; the
+  spelling of every one of them is from documentation, not from a compiler.
+- **The new Vision Swift API.** `GenerateImageFeaturePrintRequest`,
+  `ClassifyImageRequest`, `FeaturePrintObservation.elementType` and
+  `.revision2` in `FeaturePrints`.
+- **The old Vision API in the same app.** `FlowerClassifier.classifySpecies`
+  still uses `VNCoreMLModel`, `VNCoreMLRequest` and `VNImageRequestHandler`,
+  which were deprecated in favour of the Swift API. Deprecated is not removed,
+  and the path is dead code until a model is bundled, but if iOS 27 has
+  obsoleted them this is where it will show.
+- `CLLocationUpdate.liveUpdates(.default)` and `update.authorizationDenied` in
+  `CaptureView`'s `LocationProvider`.
+- `WCSession.transferCurrentComplicationUserInfo`, which is the budgeted
+  channel for keeping a complication current and may or may not have survived
+  ClockKit's deprecation.
+- Whether the SDK blocks in `PhotoLibrary`, `BGTaskScheduler.register` and
+  `PHPhotoLibrary.performChanges` are `@Sendable`. The fixes above are correct
+  either way, so this only decides whether they were needed.
+- `BGTaskScheduler.register`'s return value: if it is not
+  `@discardableResult`, the call in `BackgroundRefresh.register` warns.
+- Every SF Symbol name, of which there are well over a hundred. A wrong one is
+  a blank square, not a build failure.
+- Whether `HiveActivityAttributes`, compiled into both the app and the widget
+  extension as two copies of an internal type, matches at runtime the way
+  ActivityKit expects.
 
 ---
 

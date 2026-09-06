@@ -33,7 +33,6 @@ struct ContentView: View {
     @State private var incomingFailure: String?
 
     @Environment(\.requestedAction) private var requestedAction
-    @Environment(\.scenePhase) private var phase
     @AppStorage("hiveHum") private var humEnabled = false
 
     enum Tab: Hashable {
@@ -84,7 +83,11 @@ struct ContentView: View {
             if action == NotificationActions.Action.followSwarm { selection = .colony }
         }
         .onChange(of: humEnabled, initial: true) { _, enabled in
-            if enabled, phase == .active { HiveHum.shared.start() } else { HiveHum.shared.stop() }
+            if enabled, scenePhase == .active {
+                HiveHum.shared.start()
+            } else {
+                HiveHum.shared.stop()
+            }
         }
         .alert(
             "That flower could not be opened",

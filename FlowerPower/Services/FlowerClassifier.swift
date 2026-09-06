@@ -127,7 +127,12 @@ public struct FlowerClassifier: FlowerIdentifying {
     /// Minimum confidence before a placement is claimed at all.
     public static let placementThreshold: Double = 0.25
 
-    private let model: VNCoreMLModel?
+    /// `VNCoreMLModel` is a class the SDK does not declare `Sendable`, and
+    /// `FlowerIdentifying` requires this type to be. Unsafe by declaration
+    /// rather than by omission: the model is loaded once, never mutated, and
+    /// Vision is documented as safe to hand one request handler at a time,
+    /// which is all `classifySpecies` does.
+    nonisolated(unsafe) private let model: VNCoreMLModel?
     private let library: FeaturePrintLibrary?
     private let onDevice: TaxonomicClassifier?
     private let logger = Logger(subsystem: "com.kylepeterson.flowerpower", category: "classifier")

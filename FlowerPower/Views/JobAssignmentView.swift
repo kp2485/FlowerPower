@@ -61,7 +61,7 @@ struct JobAssignmentView: View {
                     }
                 }
 
-                Section("The age ladder") {
+                Section {
                     ForEach(WorkerJob.allCases, id: \.self) { job in
                         HStack {
                             Image(systemName: Theme.symbol(for: job))
@@ -75,6 +75,8 @@ struct JobAssignmentView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                } header: {
+                    Text("The age ladder")
                 } footer: {
                     Text("Winter bees are the exception: they never wore themselves out, so they can turn a hand to anything the colony needs in spring.")
                 }

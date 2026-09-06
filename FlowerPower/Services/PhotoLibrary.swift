@@ -48,23 +48,38 @@ enum PhotoLibrary {
         options.deliveryMode = .opportunistic
         options.resizeMode = .fast
 
-        return await withCheckedContinuation { continuation in
-            var hasResumed = false
+        // Opportunistic delivery calls back more than once, and the callbacks
+        // are a concurrent context, so the "have we resumed yet" flag cannot
+        // be a captured `var`. It is a locked box instead: resuming a
+        // continuation twice is a crash, and the crash would be a race.
+        let once = Once()
 
+        return await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
                 for: asset,
                 targetSize: size,
                 contentMode: .aspectFill,
                 options: options
             ) { image, info in
-                // Opportunistic delivery calls back more than once, first with a
-                // degraded image. Resume on the first usable result and ignore
-                // the rest — resuming a continuation twice is a crash.
+                // The first callback is usually a degraded placeholder. Take
+                // the first usable result and ignore the rest.
                 let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
-                guard !hasResumed, image != nil || !isDegraded else { return }
-                hasResumed = true
+                guard image != nil || !isDegraded, once.claim() else { return }
                 continuation.resume(returning: image)
             }
+        }
+    }
+
+    /// Lets exactly one caller through, whichever gets there first.
+    private final class Once: @unchecked Sendable {
+        private let lock = NSLock()
+        private var claimed = false
+        func claim() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            if claimed { return false }
+            claimed = true
+            return true
         }
     }
 
@@ -102,23 +117,35 @@ enum PhotoLibrary {
         location: CLLocation?
     ) async throws -> PhotoMetadata {
 
-        var placeholderIdentifier: String?
+        // The change block runs on Photos' own queue, so what it learns comes
+        // back in a box rather than by writing to a local.
+        let placeholder = Placeholder()
 
         try await PHPhotoLibrary.shared().performChanges {
             let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
             request.location = location
             request.creationDate = Date()
-            placeholderIdentifier = request.placeholderForCreatedAsset?.localIdentifier
+            placeholder.identifier = request.placeholderForCreatedAsset?.localIdentifier
         }
 
         guard
-            let placeholderIdentifier,
+            let placeholderIdentifier = placeholder.identifier,
             let saved = metadata(for: placeholderIdentifier)
         else {
             throw PhotoLibraryError.couldNotSave
         }
 
         return saved
+    }
+
+    /// Carries the new asset's identifier out of the change block.
+    private final class Placeholder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: String?
+        var identifier: String? {
+            get { lock.lock(); defer { lock.unlock() }; return stored }
+            set { lock.lock(); defer { lock.unlock() }; stored = newValue }
+        }
     }
 }
 

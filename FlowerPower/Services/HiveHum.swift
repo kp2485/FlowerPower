@@ -30,18 +30,36 @@ final class HiveHum {
     private var source: AVAudioSourceNode?
     private var isRunning = false
 
-    // Parameters the render thread reads. Plain values, updated from the
-    // main actor, read from the audio thread; small drift is inaudible and
-    // preferable to a lock in the render callback.
-    private var targetFrequency: Double = 180
-    private var targetGain: Double = 0.05
-    private var frequency: Double = 180
-    private var gain: Double = 0
-    private var phase1: Double = 0
-    private var phase2: Double = 0
-    private var tremoloPhase: Double = 0
+    /// Everything the render callback touches, in one box that does not belong
+    /// to the main actor.
+    ///
+    /// It cannot: the audio render thread is real-time and calls in from
+    /// nowhere, so a `@MainActor` property is unreachable from there and the
+    /// compiler says so under the Swift 6 language mode. The box is
+    /// deliberately lock-free — a lock in a render callback is a dropout
+    /// waiting to happen — and everything in it is a `Double` written from one
+    /// place and read from one place, where a torn or stale read means a
+    /// fraction of a cycle of drift that nobody can hear.
+    private let tone = Tone()
 
     private init() {}
+
+    /// The oscillator's state, shared with the render thread.
+    ///
+    /// `@unchecked Sendable` on purpose, and honestly: the unchecked part is
+    /// the deliberate absence of synchronisation described above, not an
+    /// oversight.
+    private final class Tone: @unchecked Sendable {
+        // Written from the main actor, read from the audio thread.
+        var targetFrequency: Double = 180
+        var targetGain: Double = 0.05
+        // Only ever touched by the audio thread.
+        var frequency: Double = 180
+        var gain: Double = 0
+        var phase1: Double = 0
+        var phase2: Double = 0
+        var tremoloPhase: Double = 0
+    }
 
     // MARK: - State
 
@@ -49,21 +67,21 @@ final class HiveHum {
     func update(for snapshot: ColonySnapshot) {
         switch snapshot.status {
         case .collapsed:
-            targetGain = 0
+            tone.targetGain = 0
         case .critical where snapshot.activeThreat != nil:
             // Alarm pheromone. The pitch rises and the volume with it.
-            targetFrequency = 260
-            targetGain = 0.09
+            tone.targetFrequency = 260
+            tone.targetGain = 0.09
         default:
             if snapshot.season == .winter {
-                targetFrequency = 120
-                targetGain = 0.03
+                tone.targetFrequency = 120
+                tone.targetGain = 0.03
             } else if snapshot.isForaging {
-                targetFrequency = 190
-                targetGain = 0.06
+                tone.targetFrequency = 190
+                tone.targetGain = 0.06
             } else {
-                targetFrequency = 160
-                targetGain = 0.045
+                tone.targetFrequency = 160
+                tone.targetGain = 0.045
             }
         }
     }
@@ -76,25 +94,28 @@ final class HiveHum {
         let format = engine.outputNode.inputFormat(forBus: 0)
         let sampleRate = format.sampleRate
 
-        let node = AVAudioSourceNode { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
-            guard let self else { return noErr }
+        // The box rather than `self`: the render block is not main-actor
+        // isolated and cannot capture something that is.
+        let tone = self.tone
+
+        let node = AVAudioSourceNode { _, _, frameCount, audioBufferList -> OSStatus in
             let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
 
             for frame in 0..<Int(frameCount) {
                 // Ease toward the target so a change of state is a swell,
                 // not a click.
-                self.frequency += (self.targetFrequency - self.frequency) * 0.0005
-                self.gain += (self.targetGain - self.gain) * 0.0005
+                tone.frequency += (tone.targetFrequency - tone.frequency) * 0.0005
+                tone.gain += (tone.targetGain - tone.gain) * 0.0005
 
                 // Two oscillators a few hertz apart beat against each other,
                 // which is most of what makes a hum sound like many wings.
-                self.phase1 += 2 * .pi * self.frequency / sampleRate
-                self.phase2 += 2 * .pi * (self.frequency * 1.013) / sampleRate
-                self.tremoloPhase += 2 * .pi * 5.5 / sampleRate
+                tone.phase1 += 2 * .pi * tone.frequency / sampleRate
+                tone.phase2 += 2 * .pi * (tone.frequency * 1.013) / sampleRate
+                tone.tremoloPhase += 2 * .pi * 5.5 / sampleRate
 
-                let tremolo = 0.85 + 0.15 * sin(self.tremoloPhase)
-                let sample = Float((sin(self.phase1) * 0.6 + sin(self.phase2) * 0.4)
-                                   * self.gain * tremolo)
+                let tremolo = 0.85 + 0.15 * sin(tone.tremoloPhase)
+                let sample = Float((sin(tone.phase1) * 0.6 + sin(tone.phase2) * 0.4)
+                                   * tone.gain * tremolo)
 
                 for buffer in buffers {
                     guard let data = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
@@ -125,6 +146,6 @@ final class HiveHum {
         if let source { engine.detach(source) }
         source = nil
         isRunning = false
-        gain = 0
+        tone.gain = 0
     }
 }

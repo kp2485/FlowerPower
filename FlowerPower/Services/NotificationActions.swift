@@ -193,11 +193,18 @@ enum NotificationActions {
 // MARK: - Delegate
 
 /// Receives tapped actions. Held by the app for its lifetime.
-final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+///
+/// Notification callbacks arrive from the system on no particular queue, so
+/// this cannot be a `@MainActor` class; but the one thing it holds is a
+/// closure that runs on the main actor, and the delegate itself has to be
+/// shared with the notification centre. So: the whole object is declared
+/// `Sendable` and its only mutable state is pinned to the main actor, which
+/// is both what the compiler needs and what is actually true.
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
 
     /// Called when an action needs the interface — following a swarm needs a
     /// site chosen.
-    var onOpenApp: (@MainActor @Sendable (String) -> Void)?
+    @MainActor var onOpenApp: (@MainActor @Sendable (String) -> Void)?
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -206,9 +213,11 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         let action = response.actionIdentifier
         if action == NotificationActions.Action.followSwarm
             || action == UNNotificationDefaultActionIdentifier {
-            await MainActor.run { onOpenApp?(action) }
+            await MainActor.run { self.onOpenApp?(action) }
             return
         }
+        // Deliberately not on the main actor: this reads and writes the save
+        // file, and there may be no interface running at all.
         _ = NotificationActions.handle(actionIdentifier: action)
     }
 

@@ -78,6 +78,15 @@ enum BackgroundRefresh {
         // through, there is still another booked.
         schedule()
 
+        // `BGAppRefreshTask` is a class the SDK does not declare `Sendable`,
+        // and both closures below are concurrent contexts, so the compiler
+        // will not let it cross into them. Marked unsafe explicitly rather
+        // than worked around, because the two calls made on it — completing
+        // and completing with failure — are exactly the ones the system
+        // expects from whatever queue the work finished on, and this is how
+        // the code already behaved.
+        nonisolated(unsafe) let task = task
+
         let work = Task {
             await refresh(watchLink: watchLink)
             task.setTaskCompleted(success: true)

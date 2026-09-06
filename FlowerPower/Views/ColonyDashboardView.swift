@@ -51,6 +51,29 @@ struct ColonyDashboardView: View {
                     if !snapshot.health.infections.isEmpty {
                         HealthSection(health: snapshot.health)
                     }
+
+                    // The colony's surplus, the record it keeps of itself, and
+                    // what is out this month that the garden has none of.
+                    //
+                    // These are cards, and they belong in the scroll view with
+                    // the other cards. They were inside the `ToolbarItem`
+                    // below, which is a legal thing to write — a ToolbarItem
+                    // takes a ViewBuilder and will accept four views — and
+                    // would have tried to draw three cards and a button in the
+                    // navigation bar.
+                    if snapshot.season == .autumn || snapshot.harvestableHoney >= 20 {
+                        HoneyDecisionCard(snapshot: snapshot)
+                    }
+
+                    RecordLinks()
+
+                    // The gentlest possible way of getting someone outside.
+                    if snapshot.season != .winter {
+                        BloomPromptCard(prompt: BloomPrompt(
+                            hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern,
+                            patches: snapshot.patches
+                        ))
+                    }
                 }
                 .padding()
             }
@@ -58,21 +81,6 @@ struct ColonyDashboardView: View {
             .navigationTitle("Colony")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    if snapshot.season == .autumn || snapshot.harvestableHoney >= 20 {
-                        HoneyDecisionCard(snapshot: snapshot)
-                    }
-
-                    RecordLinks()
-
-                    // What is out this month that the garden has none of. The
-                    // gentlest possible way of getting someone outside.
-                    if snapshot.season != .winter {
-                        BloomPromptCard(prompt: BloomPrompt(
-                            hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern,
-                            patches: snapshot.patches
-                        ))
-                    }
-
                     Button(action: onPhotograph) {
                         Label("Photograph a Flower", systemImage: "camera.fill")
                     }

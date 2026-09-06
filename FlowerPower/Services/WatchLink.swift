@@ -37,23 +37,95 @@ import FlowerPowerCore
 import FlowerPowerGame
 import os
 
-final class WatchLink: NSObject, WCSessionDelegate {
+/// `@unchecked Sendable` because it genuinely is used from several places at
+/// once, and the state that made that unsafe is now behind a lock.
+///
+/// It is handed to the background task, which runs off the main actor; it is
+/// called from the app's `onChange`, which is on it; and WatchConnectivity
+/// delivers its own callbacks on a queue of its own choosing. The throttle
+/// counters were plain `var`s across all three — a data race the compiler
+/// cannot see through an Objective-C delegate, and one it would not have
+/// flagged. Everything mutable now lives in `Throttle`.
+final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.kylepeterson.flowerpower", category: "watch")
     private let encoder = JSONEncoder()
 
-    /// Throttles summaries: the colony ticks hourly in simulated time, but the
-    /// complication budget is small and there is no point spending it on a
-    /// change of two bees.
-    private var lastSent: Date?
-    private var lastSentSummary: WatchSummary?
     private static let minimumInterval: TimeInterval = 15 * 60
-
-    /// Throttles the save file, which is orders of magnitude bigger than a
-    /// summary and only needs to be fresh enough for the watch to catch up
-    /// from when it is out of touch.
-    private var lastFileSent: Date?
     private static let minimumFileInterval: TimeInterval = 4 * 3600
+
+    /// When each channel last carried something, and what it carried.
+    ///
+    /// A lock rather than an actor: every caller here is synchronous — a
+    /// `WCSessionDelegate` callback cannot await — and the critical sections
+    /// are three field comparisons.
+    private final class Throttle: @unchecked Sendable {
+
+        private let lock = NSLock()
+
+        /// Throttles summaries: the colony ticks hourly in simulated time, but
+        /// the complication budget is small and there is no point spending it
+        /// on a change of two bees.
+        private var lastSent: Date?
+        private var lastSentSummary: WatchSummary?
+
+        /// Throttles the save file, which is orders of magnitude bigger than a
+        /// summary and only needs to be fresh enough for the watch to catch up
+        /// from when it is out of touch.
+        private var lastFileSent: Date?
+
+        /// Whether something a glance would notice has changed, or enough time
+        /// has passed to be worth refreshing anyway. Records the send in the
+        /// same breath, so two threads cannot both decide to.
+        func claimSummary(
+            _ summary: WatchSummary,
+            force: Bool,
+            minimumInterval: TimeInterval,
+            now: Date = Date()
+        ) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+
+            let worthSending: Bool
+            if force {
+                worthSending = true
+            } else if let lastSentSummary, let lastSent {
+                worthSending = summary.status != lastSentSummary.status
+                    || summary.topAlert?.kind != lastSentSummary.topAlert?.kind
+                    || summary.season != lastSentSummary.season
+                    || summary.shortHeadline != lastSentSummary.shortHeadline
+                    || now.timeIntervalSince(lastSent) >= minimumInterval
+            } else {
+                worthSending = true
+            }
+
+            guard worthSending else { return false }
+            lastSent = now
+            lastSentSummary = summary
+            return true
+        }
+
+        func claimFile(force: Bool, minimumInterval: TimeInterval, now: Date = Date()) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+
+            if !force, let lastFileSent,
+               now.timeIntervalSince(lastFileSent) < minimumInterval {
+                return false
+            }
+            lastFileSent = now
+            return true
+        }
+
+        /// Lets the next one through rather than waiting out the throttle.
+        func forgetLastFile() {
+            lock.lock()
+            defer { lock.unlock() }
+            lastFileSent = nil
+        }
+    }
+
+    private let throttle = Throttle()
 
     override init() {
         super.init()
@@ -74,7 +146,9 @@ final class WatchLink: NSObject, WCSessionDelegate {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
-        guard force || shouldSend(summary) else { return }
+        guard throttle.claimSummary(
+            summary, force: force, minimumInterval: Self.minimumInterval
+        ) else { return }
 
         do {
             let payload = ["summary": try encoder.encode(summary)]
@@ -86,15 +160,11 @@ final class WatchLink: NSObject, WCSessionDelegate {
                     session.sendMessage(payload, replyHandler: nil) { [weak self] error in
                         self?.logger.error("watch message failed: \(error.localizedDescription)")
                     }
-                    lastSent = Date()
-                    lastSentSummary = summary
                     return
                 }
             }
 
             session.transferCurrentComplicationUserInfo(payload)
-            lastSent = Date()
-            lastSentSummary = summary
 
         } catch {
             logger.error("could not encode watch summary: \(error.localizedDescription)")
@@ -113,10 +183,9 @@ final class WatchLink: NSObject, WCSessionDelegate {
         guard session.activationState == .activated, session.isPaired,
               session.isWatchAppInstalled else { return }
 
-        if !force, let lastFileSent,
-           Date().timeIntervalSince(lastFileSent) < Self.minimumFileInterval {
-            return
-        }
+        guard throttle.claimFile(
+            force: force, minimumInterval: Self.minimumFileInterval
+        ) else { return }
 
         do {
             let data = try GamePersistence.encodeForTransfer(simulation)
@@ -125,24 +194,13 @@ final class WatchLink: NSObject, WCSessionDelegate {
             try data.write(to: url, options: .atomic)
 
             session.transferFile(url, metadata: ["kind": "save"])
-            lastFileSent = Date()
 
         } catch {
+            // The claim is already taken; give it back, so the next change is
+            // not throttled out on the strength of a transfer that never went.
+            throttle.forgetLastFile()
             logger.error("could not send save to watch: \(error.localizedDescription)")
         }
-    }
-
-    /// Send when something a glance would notice has changed, or when enough
-    /// time has passed to be worth refreshing anyway.
-    private func shouldSend(_ summary: WatchSummary) -> Bool {
-        guard let lastSentSummary, let lastSent else { return true }
-
-        if summary.status != lastSentSummary.status { return true }
-        if summary.topAlert?.kind != lastSentSummary.topAlert?.kind { return true }
-        if summary.season != lastSentSummary.season { return true }
-        if summary.shortHeadline != lastSentSummary.shortHeadline { return true }
-
-        return Date().timeIntervalSince(lastSent) >= Self.minimumInterval
     }
 
     // MARK: - WCSessionDelegate
@@ -191,8 +249,7 @@ final class WatchLink: NSObject, WCSessionDelegate {
     func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
         if let error {
             logger.error("save transfer failed: \(error.localizedDescription)")
-            // Let the next one through rather than waiting out the throttle.
-            lastFileSent = nil
+            throttle.forgetLastFile()
         }
     }
 
