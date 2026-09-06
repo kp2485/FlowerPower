@@ -121,19 +121,27 @@ struct SwarmDecisionCard: View {
                 // Space first. It is what a beekeeper actually does about
                 // congestion, and the only answer here that does not cost the
                 // colony bees.
-                if snapshot.nest.canAddComb {
+                if snapshot.canAddComb, snapshot.canAffordComb {
                     Button {
                         store.addComb()
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Open the Nest Up").font(.subheadline.weight(.semibold))
-                            Text("Room for about \(roomOnOffer) more cells. They still have to draw the comb, during a flow, out of honey — but the space is theirs for good.")
+                            Text("\(snapshot.combOnOffer) cells of drawn comb, paid for in the honey it takes to make the wax. Room they can use today rather than room they cannot afford to fill.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.honey)
+                } else if snapshot.canAddComb {
+                    Label(
+                        "There is room to open the nest up, but not the honey to draw comb into it — wax costs about seven times its weight in stores.",
+                        systemImage: "drop.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if snapshot.canSplit {
@@ -203,13 +211,6 @@ struct SwarmDecisionCard: View {
         }
     }
 
-    /// Roughly what one extension gives, so the button says what it does
-    /// rather than asking the player to take it on trust.
-    private var roomOnOffer: Int {
-        let step = Int((Double(snapshot.nest.siteType.maximumCells)
-                        * SimulationConfig.standard.combExtensionStep).rounded())
-        return min(step, snapshot.nest.combExtensionRemaining)
-    }
 }
 
 // MARK: - A swarm has left

@@ -543,8 +543,8 @@ private struct RoomRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
 
-            if nest.canAddComb {
-                Text("The comb has filled the cavity. There is room for about \(nest.combExtensionRemaining) more cells in a \(nest.siteType.displayName.lowercased()) — give it to them and they will keep building; leave it and they will divide instead.")
+            if nest.siteCanBeExtended {
+                Text("The comb has filled the cavity. A \(nest.siteType.displayName.lowercased()) has room for about \(nest.combExtensionRemaining) more cells — give it to them and they will keep building; leave it and they will divide instead.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

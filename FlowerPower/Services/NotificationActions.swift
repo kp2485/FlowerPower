@@ -149,7 +149,7 @@ enum NotificationActions {
         if news.identifier.hasPrefix("nest-full-") {
             // Nothing to offer where the site has no more room to give, and an
             // action button that does nothing is worse than no button.
-            return snapshot.nest.canAddComb ? .nestFull : nil
+            return snapshot.canAddComb ? .nestFull : nil
         }
         if news.identifier.hasPrefix("departed-") { return .swarmDeparted }
         if news.identifier.hasPrefix("entrance-") { return .entrance }

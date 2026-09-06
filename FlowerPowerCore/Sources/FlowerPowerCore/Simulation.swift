@@ -570,6 +570,22 @@ public struct Simulation: Codable, Equatable, Sendable {
         return drawn
     }
 
+    /// How many cells the next `addComb` would actually draw.
+    ///
+    /// The interface used to work this out for itself — a `min` of the step
+    /// size and the site's remaining room, written out in the decision card —
+    /// which was both wrong (it ignored what the colony could afford, and the
+    /// undrawn cavity it would use first) and the same duplicated-logic trap
+    /// that put `SimEvent.narration` in a view. The engine knows; it should be
+    /// the one asked.
+    public var combOnOffer: Int {
+        let step = max(1, Int((Double(world.hive.location.type.maximumCells)
+                               * config.combExtensionStep).rounded()))
+        let spendable = max(0, world.hive.resources[.honey] - config.buildHoneyReserve)
+        let affordable = Int(spendable / honeyPerDrawnCell)
+        return max(0, min(step, affordable, world.hive.comb.freeCapacity + combExtensionRemaining))
+    }
+
     /// Whether the colony could pay for an extension right now.
     ///
     /// Separate from `canAddComb`, which is about the site. This is about the

@@ -123,6 +123,14 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
             defer { lock.unlock() }
             lastFileSent = nil
         }
+
+        /// The same, for a summary that was claimed and then never sent.
+        func forgetLastSummary() {
+            lock.lock()
+            defer { lock.unlock() }
+            lastSent = nil
+            lastSentSummary = nil
+        }
     }
 
     private let throttle = Throttle()
@@ -167,6 +175,10 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
             session.transferCurrentComplicationUserInfo(payload)
 
         } catch {
+            // The claim was taken before the encode, so give it back. Without
+            // this a summary that failed to encode would count as sent, and
+            // the next real change would be throttled out behind it.
+            throttle.forgetLastSummary()
             logger.error("could not encode watch summary: \(error.localizedDescription)")
         }
     }

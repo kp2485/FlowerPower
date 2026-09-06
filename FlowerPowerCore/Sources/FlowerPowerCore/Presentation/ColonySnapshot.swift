@@ -148,12 +148,18 @@ public struct NestSummary: Codable, Equatable, Sendable {
     public let propolisEnvelope: Double
     public let queenCells: [QueenCell.Purpose]
 
-    /// Cells of room the nest could still be given. Zero where the site has
-    /// none to give — a colony in a cliff face has nowhere to go.
+    /// Cells of room the *site* could still be given. Zero where it has none
+    /// to give — a colony in a cliff face has nowhere to go.
     public let combExtensionRemaining: Int
 
-    /// Whether adding comb is an option here at all.
-    public var canAddComb: Bool { combExtensionRemaining > 0 }
+    /// Whether the site itself can be opened up any further.
+    ///
+    /// Deliberately not called `canAddComb`: `Simulation.canAddComb` is a
+    /// different and broader question — whether comb can be added *at all*,
+    /// which is also true of a colony that simply has cavity it has not drawn
+    /// out yet. Two different meanings under one name is how an interface ends
+    /// up quietly right in one place and quietly wrong in another.
+    public var siteCanBeExtended: Bool { combExtensionRemaining > 0 }
 }
 
 public struct HealthSummary: Codable, Equatable, Sendable {
@@ -315,6 +321,18 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     /// also the number that tells a player how long the quiet part lasts.
     public let daysUntilSpring: Int
 
+    /// Whether the colony has anywhere at all to put more comb — undrawn
+    /// cavity, or room the site can still be given.
+    public let canAddComb: Bool
+
+    /// Whether it could pay for it. Wax is made from honey at seven to one, so
+    /// a colony in a dearth cannot be given comb however much room there is.
+    public let canAffordComb: Bool
+
+    /// How many cells the next "open the nest up" would actually draw, so the
+    /// interface can say what it is offering instead of estimating.
+    public let combOnOffer: Int
+
     /// Whether the colony could be divided on purpose: a laying queen to send,
     /// enough bees that both halves are still colonies afterwards, and a queen
     /// cell far enough along to leave behind.
@@ -388,6 +406,9 @@ extension Simulation {
             entranceSealed: world.entranceSealed,
             entranceDecisionOpen: season == .autumn && !world.entranceSealed,
             daysUntilSpring: Season.daysUntilSpring(from: clock.day),
+            canAddComb: canAddComb,
+            canAffordComb: canAffordComb,
+            combOnOffer: combOnOffer,
             canSplit: canSplit,
             daysUntilSplitPossible: daysUntilSplitPossible,
             lineage: world.lineage,

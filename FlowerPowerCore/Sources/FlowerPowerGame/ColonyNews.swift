@@ -235,7 +235,7 @@ public extension ColonySnapshot {
             // cavity than comb early on, and a colony always fills the comb it
             // has during a flow.
             nestIsFull: nest.combOccupancy >= 0.9 && nest.builtCells >= nest.capacity,
-            canAddComb: nest.canAddComb
+            canAddComb: canAddComb
         )
     }
 }
