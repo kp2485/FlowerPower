@@ -418,6 +418,37 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// reason to split rather than let them go.
     public var splitDepartureShare: Double = 0.3
 
+    /// How far a queen cell must have developed before the colony can be
+    /// divided on purpose.
+    ///
+    /// A beekeeper performs an artificial swarm on a *charged* cell, not on a
+    /// cup with an egg in it, and the reason is arithmetic. The colony that
+    /// stays is queenless from the moment the queen leaves until the kept cell
+    /// emerges. A swarm goes at `swarmDepartureDay`, four days short of
+    /// emergence; a split taken the day cells were started leaves the colony
+    /// without a laying queen for the whole twelve, through the best of the
+    /// build-up.
+    ///
+    /// That was measured before it was fixed: splitting on sight took two-year
+    /// survival to 30% against instinct's 66%, and the difference was almost
+    /// entirely those extra queenless days.
+    public var splitEarliestCellDay: Int = 6
+
+    /// How many queen cells a deliberate split leaves the parent colony.
+    /// Zero means all of them.
+    ///
+    /// A beekeeper knocks the rest down to stop an afterswarm following the
+    /// artificial swarm out, and that is why this started at one. It is now
+    /// redundant: afterswarms are prevented properly, because a mated queen
+    /// retires the leftover cells and a colony headed by a drone layer cannot
+    /// swarm at all.
+    ///
+    /// What tearing them down does still do is throw away the insurance
+    /// `emergeQueens` deliberately keeps — developing cells are left standing
+    /// against the new virgin failing her mating flight — so a split that kept
+    /// one had staked the colony on a single queen getting back.
+    public var splitQueenCellsKept: Int = 0
+
     // MARK: - Absconding
 
     /// Unrepelled attacks within three weeks before the colony considers

@@ -241,6 +241,31 @@ struct DecisionTests {
         return simulation
     }
 
+    /// A crowded colony with queen cells far enough along to divide on.
+    ///
+    /// `canSplit` needs one: a colony is divided *onto* a cell, and one that
+    /// has only just started cups has nothing to leave behind. See
+    /// `SimulationConfig.splitEarliestCellDay`.
+    private func readyToDivide(
+        seed: UInt64 = 21,
+        cells: Int = 4,
+        cellAge: Int = SimulationConfig.standard.splitEarliestCellDay
+    ) -> Simulation {
+        var simulation = crowded(seed: seed)
+        simulation.mutateWorld { world in
+            for index in 0..<cells {
+                var cell = QueenCell(
+                    id: EntityID(rawValue: UInt64(80_000 + index)), purpose: .swarm
+                )
+                // A spread of ages, so "the best-developed" means something.
+                for _ in 0..<(cellAge + index) { cell.advanceOneDay() }
+                world.hive.comb.addQueenCell(cell)
+            }
+            world.pendingSwarm = PendingSwarm(startedOnDay: 0, departsOnDay: 8)
+        }
+        return simulation
+    }
+
     private func adultAges(_ simulation: Simulation) -> [Int] {
         simulation.hive.bees
             .filter { $0.kind == .worker && $0.isAdult }
@@ -414,9 +439,29 @@ struct DecisionTests {
 
     // MARK: Dividing on purpose
 
-    @Test("A division needs a laying queen and enough bees to make two colonies")
+    @Test("A division needs a laying queen, enough bees, and a cell to leave")
     func canSplitRequirements() {
-        #expect(crowded().canSplit)
+        #expect(readyToDivide().canSplit)
+
+        // No cell at all: nothing to requeen onto.
+        #expect(crowded().canSplit == false)
+
+        // A cell, but only just started. This is the case that made the
+        // mechanic a trap: taken on sight it left the colony queenless for the
+        // whole twelve days of the cell's development, through the best of the
+        // build-up, and measured at 30% two-year survival against instinct's
+        // 66%.
+        var green = readyToDivide(cellAge: 0)
+        #expect(green.canSplit == false)
+        // And the interface can say how long, rather than greying a button out
+        // and leaving the player to guess why.
+        let readiest = green.readiestQueenCell?.daysDeveloped ?? 0
+        #expect(
+            green.daysUntilSplitPossible
+                == SimulationConfig.standard.splitEarliestCellDay - readiest
+        )
+        let tooEarly = green.split()
+        #expect(tooEarly == false)
 
         var small = Fixture.thrivingSimulation(config: .standard, seed: 21)
         #expect(small.hive.adultWorkerCount < SimulationConfig.standard.swarmMinimumPopulation)
@@ -433,7 +478,7 @@ struct DecisionTests {
 
     @Test("A split sends the queen and a share of the bees")
     func splitSendsTheQueen() throws {
-        var simulation = crowded()
+        var simulation = readyToDivide()
         let adultsBefore = simulation.hive.adultWorkerCount
 
         let divided = simulation.split()
@@ -452,7 +497,7 @@ struct DecisionTests {
     /// stops gathering. Moving the queen sends the house bees instead.
     @Test("A split takes the house bees and leaves the foragers")
     func splitLeavesTheForagers() {
-        var simulation = crowded()
+        var simulation = readyToDivide()
         let before = adultAges(simulation)
         let oldestBefore = before.max() ?? 0
         let meanBefore = Double(before.reduce(0, +)) / Double(before.count)
@@ -468,36 +513,56 @@ struct DecisionTests {
         #expect(simulation.hive.count(performing: .foragingBee) > 0)
     }
 
-    /// A swarm leaves every cell standing, which is where afterswarms come
-    /// from — the second and third swarms that finish what the first started.
-    @Test("A split keeps one queen cell and tears the rest down")
-    func splitKeepsOneCell() {
-        var simulation = crowded()
-        simulation.mutateWorld { world in
-            for index in 0..<4 {
-                var cell = QueenCell(
-                    id: EntityID(rawValue: UInt64(80_000 + index)), purpose: .swarm
-                )
-                for _ in 0..<index { cell.advanceOneDay() }
-                world.hive.comb.addQueenCell(cell)
-            }
-            world.pendingSwarm = PendingSwarm(startedOnDay: 0, departsOnDay: 8)
-        }
+    /// This test used to assert the opposite, and measurement changed its
+    /// mind.
+    ///
+    /// Knocking the spare cells down is what a beekeeper does, and the reason
+    /// is to stop an afterswarm following the artificial swarm out. In this
+    /// model that reason no longer holds — afterswarms are prevented properly,
+    /// because a mated queen retires the leftovers and a colony headed by a
+    /// drone layer cannot swarm at all — and all it was still doing was
+    /// throwing away the insurance `emergeQueens` keeps against a failed
+    /// mating flight. A split that kept one cell staked the colony on a single
+    /// queen getting home: 46% two-year survival against 56% keeping them all.
+    @Test("A split leaves the queen cells standing, as a swarm does")
+    func splitKeepsTheCells() {
+        var simulation = readyToDivide(cells: 4)
+        let cellsBefore = simulation.hive.comb.queenCells.count
 
         let divided = simulation.split()
         #expect(divided)
 
-        #expect(simulation.hive.comb.queenCells.count == 1)
-        #expect(simulation.hive.comb.queenCells.first?.daysDeveloped == 3,
-                "the best-developed cell is the one kept")
+        #expect(simulation.hive.comb.queenCells.count == cellsBefore,
+                "the colony's insurance against a failed mating was thrown away")
         #expect(simulation.world.pendingSwarm == nil, "the impulse is answered")
+    }
+
+    /// And the option is still there for a colony that wants only one.
+    @Test("Keeping a fixed number of cells keeps the best-developed ones")
+    func splitCanKeepFewerCells() {
+        var config = SimulationConfig.standard
+        config.splitQueenCellsKept = 2
+
+        var simulation = readyToDivide(cells: 4)
+        simulation.config = config
+
+        let ages = simulation.hive.comb.queenCells.map(\.daysDeveloped).sorted(by: >)
+        let divided = simulation.split()
+        #expect(divided)
+
+        #expect(simulation.hive.comb.queenCells.count == 2)
+        #expect(
+            simulation.hive.comb.queenCells.map(\.daysDeveloped).sorted(by: >)
+                == Array(ages.prefix(2)),
+            "the two best-developed cells should be the ones kept"
+        )
     }
 
     /// The half that leaves is a departed swarm like any other, so the same
     /// three answers apply: follow it, give it away, or let it go.
     @Test("The half that leaves can be followed")
     func splitCanBeFollowed() throws {
-        var simulation = crowded()
+        var simulation = readyToDivide()
         let divided = simulation.split()
         #expect(divided)
 
@@ -515,7 +580,7 @@ struct DecisionTests {
     /// in `LineageSystem` would write her off as lost on the next tick.
     @Test("The queen who leaves with a split is recorded as having left")
     func splitRecordsTheQueen() throws {
-        var simulation = crowded()
+        var simulation = readyToDivide()
         let reigning = try #require(simulation.world.lineage.reigning)
 
         let divided = simulation.split()
@@ -530,7 +595,7 @@ struct DecisionTests {
 
     @Test("A division is written into the almanac")
     func splitIsChronicled() {
-        var simulation = crowded()
+        var simulation = readyToDivide()
         simulation.split()
         #expect(simulation.world.almanac.entries.contains { $0.text.contains("divided on purpose") })
     }

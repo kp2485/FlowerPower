@@ -39,6 +39,8 @@ extension SimulationConfig {
         // Answers to congestion
         case "combExtensionStep": combExtensionStep = value
         case "splitDepartureShare": splitDepartureShare = value
+        case "splitEarliestCellDay": splitEarliestCellDay = Int(value)
+        case "splitQueenCellsKept": splitQueenCellsKept = Int(value)
 
         // Alarm
         case "alarmDefenceBoost": alarmDefenceBoost = value

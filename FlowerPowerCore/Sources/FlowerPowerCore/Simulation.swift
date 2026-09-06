@@ -579,14 +579,39 @@ public struct Simulation: Codable, Equatable, Sendable {
         max(0, world.hive.resources[.honey] - config.buildHoneyReserve) >= honeyPerDrawnCell
     }
 
+    /// The best-developed queen cell the colony is holding, of any purpose.
+    public var readiestQueenCell: QueenCell? {
+        world.hive.comb.queenCells.max { $0.daysDeveloped < $1.daysDeveloped }
+    }
+
     /// Whether the colony could be divided on purpose right now.
     ///
-    /// There has to be a laying queen to send — a division *is* the queen
-    /// leaving — and enough bees that both halves are still colonies
-    /// afterwards.
+    /// Three things have to be true. There has to be a laying queen to send —
+    /// a division *is* the queen leaving. There have to be enough bees that
+    /// both halves are still colonies afterwards. And there has to be a queen
+    /// cell far enough along to leave behind.
+    ///
+    /// The last of those is the one that makes the difference between a
+    /// mechanic and a trap. See `splitEarliestCellDay`.
     public var canSplit: Bool {
-        world.hive.hasLayingQueen
-            && world.hive.adultWorkerCount >= config.swarmMinimumPopulation
+        guard world.hive.hasLayingQueen else { return false }
+        guard world.hive.adultWorkerCount >= config.swarmMinimumPopulation else { return false }
+        guard let cell = readiestQueenCell else { return false }
+        return cell.daysDeveloped >= config.splitEarliestCellDay
+    }
+
+    /// Days until the colony could be divided, or nil if it could be now or
+    /// could not be at all.
+    ///
+    /// So the interface can say "in two days" rather than greying a button out
+    /// and leaving the player to guess why.
+    public var daysUntilSplitPossible: Int? {
+        guard world.hive.hasLayingQueen,
+              world.hive.adultWorkerCount >= config.swarmMinimumPopulation,
+              let cell = readiestQueenCell,
+              cell.daysDeveloped < config.splitEarliestCellDay
+        else { return nil }
+        return config.splitEarliestCellDay - cell.daysDeveloped
     }
 
     /// Divides the colony deliberately, before it divides itself.
@@ -646,13 +671,19 @@ public struct Simulation: Codable, Equatable, Sendable {
             Double(workers.count) * config.honeyCarriedPerSwarmBee, of: .honey
         )
 
-        // One cell, the best-developed, and the rest torn down. A swarm leaves
-        // them all standing, which is where afterswarms come from.
-        let keeper = world.hive.comb.queenCells
-            .filter { $0.purpose == .swarm }
-            .max { $0.daysDeveloped < $1.daysDeveloped }
-            ?? world.hive.comb.queenCells.max { $0.daysDeveloped < $1.daysDeveloped }
-        world.hive.comb.tearDownQueenCells(except: keeper?.id)
+        // The cells are left standing by default, exactly as a swarm leaves
+        // them. See `splitQueenCellsKept` for why knocking them down turned
+        // out to be the wrong instinct here, even though it is what a
+        // beekeeper does.
+        if config.splitQueenCellsKept > 0 {
+            let keepers = Set(
+                world.hive.comb.queenCells
+                    .sorted { $0.daysDeveloped > $1.daysDeveloped }
+                    .prefix(config.splitQueenCellsKept)
+                    .map(\.id)
+            )
+            world.hive.comb.keepQueenCells(withIDs: keepers)
+        }
 
         world.hive.queenIsMated = false
         world.hive.pheromones.nasonov = 1.0

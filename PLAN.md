@@ -307,13 +307,13 @@ is no afterswarm behind the first.
 Measured over 200 colonies across two years, each policy played by a notional
 player who acts on the notifications (`beesim --policy`, new):
 
-| policy | survival | peak pop | swarms | comb added | splits | autumn stores | winter cluster |
-|---|---|---|---|---|---|---|---|
-| instinct (nobody answers) | 66% | 730 | 2.53 | — | — | 608 | 293 |
-| make room (the old answer) | 67% | 780 | 1.66 | — | — | 735 | 378 |
-| add comb | 62% | 720 | 2.54 | 2.02 | — | 626 | 319 |
-| split | 30% | 671 | 0.00 | — | 2.09 | 343 | 69 |
-| add comb, then split | 26% | 665 | 0.00 | 2.15 | 2.06 | 345 | 114 |
+| policy | survival | swarms | comb added | splits | autumn stores | winter cluster |
+|---|---|---|---|---|---|---|
+| instinct (nobody answers) | 66% | 2.49 | — | — | 612 | 313 |
+| make room (the old answer) | 76% | 1.75 | — | — | 756 | 366 |
+| add comb | 62% | 2.23 | 1.87 | — | 580 | 279 |
+| split | 56% | 0.06 | — | 2.59 | 517 | 203 |
+| add comb, then split | 61% | 0.08 | 2.04 | 2.48 | 528 | 253 |
 
 **Read that table against the one this section used to contain, because the
 difference is the point.** These mechanics were built and measured *before* the
@@ -336,13 +336,37 @@ reason to go and check the model rather than to ship the mechanic.
 - **The mechanics do what they say.** A split takes swarms to exactly zero, in
   every colony, every time. Adding comb reliably gives the colony room it can
   use. Both are real levers.
-- **Neither improves survival any more, and splitting badly hurts it.** 30%
-  against instinct's 66%. The reason is in "Not decided" below and is a
-  modelling weakness rather than a balance one: a split can be taken the moment
-  swarm cells are *started*, and it keeps the best cell of a bad lot, so the
-  colony ends up queenless about a fortnight longer than a swarm would have left
-  it. A beekeeper performs an artificial swarm on a charged cell, not on a cup
-  with an egg in it. Fixing that is the obvious next move on this mechanic.
+- **Splitting was a trap, and both halves of why were modelling errors.** It
+  first measured at 30% against instinct's 66%, and the two causes were:
+
+  1. **It could be taken the moment swarm cells were started.** A swarm departs
+     at `swarmDepartureDay`, four days short of the cell emerging; a split taken
+     on sight left the colony without a laying queen for the whole twelve days
+     of the cell's development, through the best of the build-up. A beekeeper
+     performs an artificial swarm on a charged cell, not on a cup with an egg in
+     it. `splitEarliestCellDay` now requires one, and the interface says how
+     many days are left rather than showing a dead button.
+  2. **It kept one queen cell and tore the rest down.** That is what a beekeeper
+     does, and the reason is to stop an afterswarm following the artificial
+     swarm out — a reason that no longer holds here, since afterswarms are
+     prevented properly by item 4 above. All it was still doing was throwing
+     away the insurance `emergeQueens` deliberately keeps against a failed
+     mating flight, staking the colony on one queen getting home.
+
+  Swept together over 200 colonies, both mattered and both pointed the same way:
+
+  | cells kept | earliest cell day | survival | queens mated |
+  |---|---|---|---|
+  | 1 | 4 | 38% | 2.10 |
+  | 1 | 6 | 46% | 2.42 |
+  | 2 | 6 | 57% | 2.83 |
+  | all | 6 | 56% | 2.91 |
+
+  Keeping them all is now the default, because it needs no justification beyond
+  "a swarm leaves them standing" and measures the same as keeping two. The
+  mechanic lands at 56% against instinct's 66%: still a price, but a price
+  rather than a trap — near-total certainty about swarming, and a swarm to give
+  away, for ten points.
 - **Adding comb still had to give drawn comb, not room.** The first
   implementation raised `Comb.capacity` and let `ConstructionSystem` fill it,
   and measured at exactly nothing: it never fired once in 60 colonies over two
@@ -428,15 +452,6 @@ about them matters most.
   should sit for an idle game.
 - Whether the catch-up ceiling of 180 simulated days — a fortnight of real
   absence — is generous enough. Beyond it, time is skipped rather than lived.
-- Whether a deliberate split should keep more than one queen cell. It keeps the
-  best-developed one and tears the rest down, which is what a beekeeper does and
-  is why there is no afterswarm — but it also means one failed mating ends the
-  colony, where a swarm leaves several cells as insurance. Keeping two is the
-  obvious lever if the split ought to beat parity rather than match it.
-- Whether the split should require a nearly ripe queen cell. It can currently be
-  taken the moment cells are started, which leaves the colony queenless about a
-  week longer than a swarm would have, and mated queens per colony fall from
-  2.35 to 1.50 because of it.
 
 ---
 

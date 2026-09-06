@@ -175,6 +175,11 @@ public struct Comb: Codable, Equatable, Sendable {
     }
 
     /// The colony tears down rival queen cells once one has won.
+    /// Keeps only the given cells, dropping the rest.
+    public mutating func keepQueenCells(withIDs ids: Set<EntityID>) {
+        queenCells.removeAll { !ids.contains($0.id) }
+    }
+
     public mutating func tearDownQueenCells(except survivor: EntityID? = nil) {
         queenCells.removeAll { $0.id != survivor }
     }

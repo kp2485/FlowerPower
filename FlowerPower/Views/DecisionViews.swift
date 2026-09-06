@@ -150,13 +150,26 @@ struct SwarmDecisionCard: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Divide Them Yourself").font(.subheadline.weight(.semibold))
-                            Text("Move the queen and the house bees out now. Fewer go than would leave in a swarm, the foragers stay with the nest, and one queen cell is kept so there is no second swarm behind the first.")
+                            Text("Move the queen and the house bees out now. Fewer go than would leave in a swarm, and the foragers stay with the nest because they know where it is.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bordered)
                     .tint(Theme.honey)
+                } else if let days = snapshot.daysUntilSplitPossible {
+                    // Said rather than shown as a dead button. A colony is
+                    // divided onto a queen cell, and one that has only just
+                    // started cups has nothing to leave behind.
+                    Label(
+                        days == 1
+                            ? "You could divide them yourself tomorrow, once a queen cell is far enough along to leave behind."
+                            : "You could divide them yourself in \(days) days, once a queen cell is far enough along to leave behind.",
+                        systemImage: "clock"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Button {

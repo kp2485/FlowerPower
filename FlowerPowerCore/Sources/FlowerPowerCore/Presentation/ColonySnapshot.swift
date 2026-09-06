@@ -315,9 +315,17 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     /// also the number that tells a player how long the quiet part lasts.
     public let daysUntilSpring: Int
 
-    /// Whether the colony could be divided on purpose: a laying queen to send
-    /// and enough bees that both halves are still colonies afterwards.
+    /// Whether the colony could be divided on purpose: a laying queen to send,
+    /// enough bees that both halves are still colonies afterwards, and a queen
+    /// cell far enough along to leave behind.
     public let canSplit: Bool
+
+    /// How many days until a division becomes possible, when it is only the
+    /// queen cells that are not ready yet.
+    ///
+    /// So the interface can say "in two days" rather than showing nothing and
+    /// leaving the player to work out why the option comes and goes.
+    public let daysUntilSplitPossible: Int?
 
     // MARK: Record
 
@@ -381,6 +389,7 @@ extension Simulation {
             entranceDecisionOpen: season == .autumn && !world.entranceSealed,
             daysUntilSpring: Season.daysUntilSpring(from: clock.day),
             canSplit: canSplit,
+            daysUntilSplitPossible: daysUntilSplitPossible,
             lineage: world.lineage,
             almanac: world.almanac,
             honeyTaken: world.honeyTaken,
