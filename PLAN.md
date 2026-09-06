@@ -12,10 +12,10 @@ needs a Mac.
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 96 Swift Testing, 0 failures |
+| `FlowerPowerCore` engine | 248 XCTest + 118 Swift Testing, 0 failures |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
-| Balance, standard preset | 92% first year, 66% second, 2.53 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06) |
+| Balance, standard preset | 89% first year, 66% second, 2.49 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06) |
 | `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale` |
 
 #### The balance baseline, and why the numbers moved
@@ -437,6 +437,16 @@ winter flower means. Hiding the prompt removed the one season where knowing
 about them matters most.
 
 ### Not decided
+
+- **Adding comb measures slightly worse than doing nothing** — 62% against
+  instinct's 66%, with lower autumn stores (580 against 612). That is arguably
+  honest: drawn comb costs seven honey to one of wax, and a colony that was not
+  actually comb-limited has bought room it did not need with stores it did. But
+  it means the mechanic is a mild trap unless the player is reading the nest
+  card and only spending when the comb has genuinely filled the cavity, which is
+  a subtler judgement than the notification implies. Worth deciding whether the
+  cue should be narrower, or the price lower, or whether being able to make a
+  wrong call is the point.
 
 - **The colony is now healthier than the realism target, and that is a
   calibration call rather than a bug.** Fixing the two modelling errors above
