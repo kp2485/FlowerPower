@@ -29,7 +29,12 @@ struct ContentView: View {
     /// imported on arrival: content from outside the app gets shown to the
     /// player before it changes their game.
     @State private var incoming: FlowerShare?
+    @State private var incomingSwarm: SwarmShare?
     @State private var incomingFailure: String?
+
+    @Environment(\.requestedAction) private var requestedAction
+    @Environment(\.scenePhase) private var phase
+    @AppStorage("hiveHum") private var humEnabled = false
 
     enum Tab: Hashable {
         case colony, nest, map, garden
@@ -60,8 +65,26 @@ struct ContentView: View {
             open(url)
         }
         .sheet(item: $incoming) { share in
-            ReceiveFlowerView(share: share)
+            if share.isRequest {
+                ReceiveRequestView(request: share)
+                    .environment(store)
+            } else {
+                ReceiveFlowerView(share: share)
+                    .environment(store)
+            }
+        }
+        .sheet(item: $incomingSwarm) { share in
+            ReceiveSwarmView(share: share)
                 .environment(store)
+        }
+        .onChange(of: requestedAction) { _, action in
+            // Following a swarm needs a site chosen, so the notification
+            // opened the app; the departed-swarm card on the dashboard is
+            // where that choice lives.
+            if action == NotificationActions.Action.followSwarm { selection = .colony }
+        }
+        .onChange(of: humEnabled, initial: true) { _, enabled in
+            if enabled, phase == .active { HiveHum.shared.start() } else { HiveHum.shared.stop() }
         }
         .alert(
             "That flower could not be opened",
@@ -80,8 +103,10 @@ struct ContentView: View {
             case .active:
                 store.catchUp()
                 store.startLiveUpdates()
+                if humEnabled { HiveHum.shared.start() }
             case .inactive, .background:
                 store.stopLiveUpdates()
+                HiveHum.shared.stop()
                 // Ask to be woken while the app is closed, so the colony the
                 // watch and the complication show is not the one the player
                 // last happened to look at.
@@ -146,8 +171,12 @@ struct ContentView: View {
         defer { if needsPermission { url.stopAccessingSecurityScopedResource() } }
 
         do {
-            let share = try FlowerShare.decoded(from: Data(contentsOf: url))
-            incoming = share
+            let data = try Data(contentsOf: url)
+            if url.pathExtension.lowercased() == SwarmShare.fileExtension {
+                incomingSwarm = try SwarmShare.decoded(from: data)
+            } else {
+                incoming = try FlowerShare.decoded(from: data)
+            }
         } catch {
             incomingFailure = error.localizedDescription
         }

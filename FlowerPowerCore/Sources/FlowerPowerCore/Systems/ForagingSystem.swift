@@ -69,7 +69,13 @@ public struct ForagingSystem: SimulationSystem {
         weatherFactor: Double
     ) {
         let season = context.season
-        let foragerForce = world.hive.workforce(for: .foragingBee)
+        // The colony's posture is paid for in foraging. Holding the entrance
+        // means fewer bees out; a narrowed entrance is slower to fly through.
+        var foragerForce = world.hive.workforce(for: .foragingBee)
+            * world.posture.forageMultiplier
+        // A narrowed entrance slows traffic a little. Late autumn foraging is
+        // light anyway, which is why instinct waits until then to seal it.
+        if world.entranceSealed { foragerForce *= 0.95 }
         guard foragerForce > 0 else { return }
 
         // Only patches in bloom, in range, and not stripped are worth dancing for.

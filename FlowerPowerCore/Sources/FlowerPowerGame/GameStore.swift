@@ -192,6 +192,118 @@ public final class GameStore {
         refresh()
     }
 
+    // MARK: - Decisions
+
+    /// Answers a siege with a posture. Ignored if the siege is over.
+    public func respond(to threat: ActiveThreat, with posture: HivePosture) {
+        simulation.respond(to: threat, with: posture)
+        refresh()
+    }
+
+    public func adoptPosture(_ posture: HivePosture, forDays days: Int = 3) {
+        simulation.adoptPosture(posture, forDays: days)
+        refresh()
+    }
+
+    public func discourageSwarm() {
+        simulation.discourageSwarm()
+        refresh()
+    }
+
+    /// The autumn decision. Nil hands it back to instinct.
+    public func decideEntrance(sealed: Bool?) {
+        simulation.decideEntrance(sealed: sealed)
+        refresh()
+    }
+
+    @discardableResult
+    public func takeHoney(_ units: Double) -> Double {
+        let taken = simulation.takeHoney(units)
+        refresh()
+        return taken
+    }
+
+    public func nameQueen(_ number: Int, _ name: String?) {
+        simulation.nameQueen(number, name)
+        refresh()
+    }
+
+    /// Goes with the swarm that just left: a new colony from the old queen
+    /// and the bees who followed her, at a site of the player's choosing. The
+    /// garden comes too. The parent colony is left to its virgin queen.
+    public func followSwarm(to site: HiveLocation) {
+        guard let followed = simulation.followingSwarm(
+            to: site, startingAt: clock(), seed: UInt64.random(in: 1...UInt64.max)
+        ) else { return }
+        simulation = followed
+        pendingReport = nil
+        startLiveUpdates()
+        refresh()
+    }
+
+    /// Stays with the parent colony. The swarm is gone.
+    public func letSwarmGo() {
+        simulation.forgetLastSwarm()
+        refresh()
+    }
+
+    /// Winter clock speed. See `SimClock.winterSpeed`.
+    public var winterSpeed: Double {
+        get { simulation.winterSpeed }
+        set {
+            simulation.winterSpeed = newValue
+            refresh()
+        }
+    }
+
+    // MARK: - Sharing swarms
+
+    /// Packages the swarm that just left, to give to somebody.
+    public func shareSwarm(from senderName: String?, note: String? = nil) -> SwarmShare? {
+        guard let swarm = simulation.world.lastSwarm else { return nil }
+        return SwarmShare(
+            swarm, lineage: simulation.world.lineage,
+            sharedBy: senderName, note: note
+        ).validated()
+    }
+
+    /// Founds a colony from a swarm somebody sent, at a site of the player's
+    /// choosing. Replaces the current colony, so the interface confirms first
+    /// unless the current one is already gone. The garden stays.
+    public func adoptSwarm(_ share: SwarmShare, at site: HiveLocation) {
+        let share = share.validated()
+        simulation = Simulation.newGame(
+            fromSwarm: share.departedSwarm(),
+            at: site,
+            startingAt: clock(),
+            config: simulation.config,
+            seed: UInt64.random(in: 1...UInt64.max),
+            inheriting: simulation.patches,
+            generation: simulation.world.lineage.generation + 1
+        )
+        pendingReport = nil
+        startLiveUpdates()
+        refresh()
+    }
+
+    // MARK: - Asking for a flower
+
+    /// What the colony is short of right now, for a request to a friend:
+    /// families flowering this season that the garden has nothing workable
+    /// in.
+    public func forageRequest(from senderName: String?, note: String? = nil) -> FlowerShare {
+        let season = snapshot.season
+        let workable = Set(snapshot.patches.filter(\.isInBloom).compactMap(\.family))
+        let wanted = Set(FlowerCatalogue.inBloom(during: season).map(\.family))
+            .subtracting(workable)
+            .sorted { $0.scientificName < $1.scientificName }
+
+        return FlowerShare.request(
+            wanted: wanted, season: season,
+            sharedBy: senderName, note: note
+        ).validated()
+    }
+
     // MARK: - Sharing flowers
 
     /// Packages one of the player's flowers to send to somebody.

@@ -50,9 +50,9 @@ final class CatchUpPerformanceTests: XCTestCase {
         var simulation = colony()
         simulation.catchUpCeilingDays = max(days, simulation.catchUpCeilingDays)
 
-        let target = epoch.addingTimeInterval(
-            Double(days) * 24 * SimClock.defaultRealSecondsPerTick
-        )
+        // Asked of the clock rather than multiplied out, because winter
+        // ticks are shorter than the rest under the seasonal rate.
+        let target = simulation.date(afterSimulatedDays: days)
 
         let started = Date()
         let report = simulation.advance(to: target)

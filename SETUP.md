@@ -30,15 +30,19 @@ open FlowerPower.xcodeproj
 
 That is the whole setup. `project.yml` already declares:
 
-- three targets — the iOS app, the watch app, and the watch widget extension
-  that carries the complication;
+- four targets — the iOS app, its widget extension carrying the Home Screen
+  widget and the Live Activities, the watch app, and the watch widget
+  extension that carries the complication;
 - the local `FlowerPowerCore` package, and which of its two libraries each
   target uses;
 - the App Group `group.com.kylepeterson.flowerpower` on all three;
 - the camera, photo library and location usage strings;
 - background refresh, and the task identifier it registers;
-- the `.flower` document type, which is how one player's flower reaches
-  another and what makes tapping one in a message open the app.
+- the `.flower` and `.swarm` document types, which are how one player's
+  flower or swarm reaches another and what makes tapping one in a message
+  open the app;
+- Live Activities, and the notification categories whose action buttons let a
+  player answer a siege from the lock screen.
 
 Re-run `xcodegen generate` after adding a file. Nothing needs ticking by hand:
 target membership is a directory now, not a list of UUIDs. The generated

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UserNotifications
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -25,6 +26,14 @@ struct FlowerPowerApp: App {
     /// the delegate slot from the one actually being used.
     @State private var watchLink: WatchLink
 
+    /// Receives tapped notification actions. Held for the app's lifetime,
+    /// because the notification centre keeps only a weak reference.
+    private let notifications = NotificationDelegate()
+
+    /// An action that needs the interface — following a swarm needs a site
+    /// chosen — arrives here and is handed to the content view.
+    @State private var requestedAction: String?
+
     init() {
         // Background task handlers must be registered before launch finishes,
         // so this cannot wait for a view to appear. The link is built here for
@@ -33,23 +42,52 @@ struct FlowerPowerApp: App {
         let link = WatchLink()
         _watchLink = State(initialValue: link)
         BackgroundRefresh.register(watchLink: link)
+
+        // Decisions arrive as notifications with action buttons. The
+        // categories those buttons live in have to exist before one is
+        // delivered.
+        NotificationActions.register()
+        UNUserNotificationCenter.current().delegate = notifications
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(store)
-                .onChange(of: store.snapshot) { _, _ in
+                .onChange(of: store.snapshot) { _, snapshot in
                     watchLink.send(
                         store.simulationForTransfer,
                         summary: store.watchSummary()
                     )
+                    LiveActivities.reconcile(with: snapshot)
+                    HiveHum.shared.update(for: snapshot)
                 }
+                .onAppear {
+                    notifications.onOpenApp = { action in
+                        requestedAction = action
+                    }
+                }
+                .environment(\.requestedAction, requestedAction)
                 .task {
                     // Asked for on first run rather than at launch, so the
                     // prompt lands after the player has seen what the app is.
                     await BackgroundRefresh.requestNotificationPermission()
                 }
         }
+    }
+}
+
+// MARK: - An action waiting on the interface
+
+private struct RequestedActionKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+extension EnvironmentValues {
+    /// A notification action that could not be completed from the lock
+    /// screen because it needs something chosen — a site for a swarm.
+    var requestedAction: String? {
+        get { self[RequestedActionKey.self] }
+        set { self[RequestedActionKey.self] = newValue }
     }
 }

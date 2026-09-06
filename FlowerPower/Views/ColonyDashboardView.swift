@@ -14,6 +14,7 @@ struct ColonyDashboardView: View {
 
     @Environment(GameStore.self) private var store
     var onPhotograph: () -> Void
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
 
     private var snapshot: ColonySnapshot { store.snapshot }
 
@@ -22,6 +23,21 @@ struct ColonyDashboardView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     StatusHeader(snapshot: snapshot)
+
+                    // Decisions first. Each waits here with its reasons; the
+                    // notification did the interrupting.
+                    if let threat = snapshot.activeThreat {
+                        ThreatDecisionCard(threat: threat, snapshot: snapshot)
+                    }
+                    if let swarm = snapshot.pendingSwarm {
+                        SwarmDecisionCard(swarm: swarm, snapshot: snapshot)
+                    }
+                    if let departed = snapshot.departedSwarm {
+                        DepartedSwarmCard(swarm: departed)
+                    }
+                    if snapshot.entranceDecisionOpen {
+                        EntranceDecisionCard(snapshot: snapshot)
+                    }
 
                     if !snapshot.alerts.isEmpty {
                         AlertsSection(alerts: snapshot.alerts)
@@ -42,6 +58,21 @@ struct ColonyDashboardView: View {
             .navigationTitle("Colony")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
+                    if snapshot.season == .autumn || snapshot.harvestableHoney >= 20 {
+                        HoneyDecisionCard(snapshot: snapshot)
+                    }
+
+                    RecordLinks()
+
+                    // What is out this month that the garden has none of. The
+                    // gentlest possible way of getting someone outside.
+                    if snapshot.season != .winter {
+                        BloomPromptCard(prompt: BloomPrompt(
+                            hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern,
+                            patches: snapshot.patches
+                        ))
+                    }
+
                     Button(action: onPhotograph) {
                         Label("Photograph a Flower", systemImage: "camera.fill")
                     }
@@ -561,4 +592,28 @@ struct SectionTitle: View {
 #Preview {
     ColonyDashboardView(onPhotograph: {})
         .environment(GameStore.preview())
+}
+
+// MARK: - The record
+
+/// Lineage, almanac and collection — what a colony leaves behind, and what
+/// winter is for reading.
+private struct RecordLinks: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            NavigationLink { LineageView() } label: {
+                Label("Lineage", systemImage: "crown.fill")
+            }
+            NavigationLink { AlmanacView() } label: {
+                Label("Almanac", systemImage: "book.fill")
+            }
+            NavigationLink { CollectionView() } label: {
+                Label("Collection", systemImage: "leaf.fill")
+            }
+        }
+        .font(.subheadline.weight(.medium))
+        .buttonStyle(.bordered)
+        .tint(Theme.honey)
+        .frame(maxWidth: .infinity)
+    }
 }

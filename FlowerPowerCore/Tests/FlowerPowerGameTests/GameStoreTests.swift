@@ -20,7 +20,9 @@ final class GameStoreTests: XCTestCase {
         init(now: Date) { self.now = now }
 
         /// 5 real minutes per simulated hour, so a simulated day costs two
-        /// real hours. Tests move real time and let the engine decide.
+        /// real hours. Tests move real time and let the engine decide. Winter
+        /// ticks are shorter under the seasonal clock, so tests that advance
+        /// across a winter compare days rather than assuming the constant.
         func advance(simulatedDays days: Double) {
             now = now.addingTimeInterval(days * 24 * 300)
         }
@@ -235,19 +237,22 @@ final class GameStoreTests: XCTestCase {
         XCTAssertEqual(store.snapshot.nest.siteType, .cave)
     }
 
-    func testRelocatingKeepsTheColonyButChangesTheSite() async {
+    /// Relocation is absconding. The adults go; the comb, the stores and the
+    /// brood stay in the old cavity, because no colony on earth can carry
+    /// them. It used to move everything, which made a hard decision free.
+    func testRelocatingIsAbscondingAndCostsTheBroodAndStores() async {
         let (store, clock) = makeStore()
         clock.advance(simulatedDays: 20)
         store.catchUp()
-        let population = store.snapshot.population.total
+        let adults = store.snapshot.population.adults
+        XCTAssertGreaterThan(store.snapshot.population.brood, 0, "needs brood to lose")
 
         store.relocateHive(to: HiveLocation(type: .cave))
 
         XCTAssertEqual(store.snapshot.nest.siteType, .cave)
-        XCTAssertEqual(
-            store.snapshot.population.total, population,
-            "moving house does not kill anyone"
-        )
+        XCTAssertEqual(store.snapshot.population.adults, adults, "the adults all go")
+        XCTAssertEqual(store.snapshot.population.brood, 0, "the brood is left behind")
+        XCTAssertEqual(store.snapshot.nest.builtCells, 0, "and so is the comb")
     }
 
     // MARK: - Failure handling
@@ -275,10 +280,14 @@ final class GameStoreTests: XCTestCase {
         let (store, clock) = makeStore(persistence: persistence)
 
         // Advanced in bites rather than one jump, because a single catch-up is
-        // capped at the ceiling. Bounded so a colony that somehow survives
-        // fails the test rather than hanging it.
-        for _ in 0..<8 where !store.isCollapsed {
-            clock.advance(simulatedDays: 120)
+        // capped at the ceiling — and the bites are small, because under the
+        // seasonal clock a stretch of real time covers twice as many simulated
+        // days in winter. A bite that crosses the ceiling is *skipped*, and
+        // skipped days are days nobody aged in, which once made this colony
+        // immortal. Bounded so a colony that somehow survives fails the test
+        // rather than hanging it.
+        for _ in 0..<20 where !store.isCollapsed {
+            clock.advance(simulatedDays: 60)
             store.catchUp()
         }
         return (store, clock)

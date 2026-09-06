@@ -277,6 +277,23 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// evicted, and robbing begins.
     public var dearthThresholdPerBee: Double = 0.04
 
+    // MARK: - Decisions
+
+    /// Propolis it takes to narrow the entrance for winter.
+    public var entranceSealPropolis: Double = 6
+
+    /// A sealed entrance keeps mice out: their encounter chance is multiplied
+    /// by this. It also keeps damp in, which is `sealedEntranceDiseaseFactor`.
+    public var sealedEntranceMouseFactor: Double = 0.15
+    public var sealedEntranceDiseaseFactor: Double = 1.08
+    /// And it keeps warmth in, which is the reason to do it.
+    public var sealedEntranceHeatRetention: Double = 0.9
+
+    /// How far discouraging a swarm lowers its chance of going, 0...1. A
+    /// beekeeper giving room does not stop a colony that has decided; it
+    /// changes the odds.
+    public var swarmDiscouragementEffect: Double = 0.5
+
     /// How much of a normal patch a *shared* flower is worth. One. A flower
     /// somebody sends you is worth exactly what a flower is worth.
     ///

@@ -208,9 +208,45 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
     /// knows to photograph a replacement.
     public let vigour: Double
 
+    /// Where the plant sits botanically, to whatever rank was reached.
+    public let taxon: Taxon?
+    public var family: PlantFamily? { taxon?.family }
+    public var rank: TaxonomicRank? { taxon?.rank }
+    public var scientificName: String? { taxon?.scientificName }
+
+    /// Whether a honey bee can reach this flower's nectar at all.
+    public let nectarIsOutOfReach: Bool
+
     /// Where it came from, and who sent it.
     public let origin: PatchOrigin
     public let sharedBy: String?
+
+    public init(
+        id: EntityID, photoLocalIdentifier: String, speciesName: String,
+        isIdentified: Bool, rarity: FlowerRarity, coordinate: GeoPoint?,
+        distanceMetres: Double, isInBloom: Bool, isWithinRange: Bool,
+        remainingFraction: Double, foragersWorkingIt: Int, discoveredAt: Date,
+        vigour: Double, origin: PatchOrigin, sharedBy: String?,
+        taxon: Taxon?, nectarIsOutOfReach: Bool
+    ) {
+        self.id = id
+        self.photoLocalIdentifier = photoLocalIdentifier
+        self.speciesName = speciesName
+        self.isIdentified = isIdentified
+        self.rarity = rarity
+        self.coordinate = coordinate
+        self.distanceMetres = distanceMetres
+        self.isInBloom = isInBloom
+        self.isWithinRange = isWithinRange
+        self.remainingFraction = remainingFraction
+        self.foragersWorkingIt = foragersWorkingIt
+        self.discoveredAt = discoveredAt
+        self.vigour = vigour
+        self.origin = origin
+        self.sharedBy = sharedBy
+        self.taxon = taxon
+        self.nectarIsOutOfReach = nectarIsOutOfReach
+    }
 
     public var isShared: Bool { origin == .shared }
 
@@ -252,6 +288,33 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     /// simulation always knows which of a handful of things happened, and
     /// "Critical, 0 bees" is not an answer to the only question they have.
     public let epitaph: String?
+
+    // MARK: Decisions in front of the player
+
+    public let posture: HivePosture
+    public let postureDaysRemaining: Int?
+    public let activeThreat: ActiveThreat?
+    public let pendingSwarm: PendingSwarm?
+    /// A swarm has left and the player has not yet chosen whether to follow.
+    public let departedSwarm: DepartedSwarmSummary?
+    public let entranceSealed: Bool
+    /// Whether the autumn entrance decision is open right now.
+    public let entranceDecisionOpen: Bool
+
+    // MARK: Record
+
+    public let lineage: Lineage
+    public let almanac: Almanac
+    public let honeyTaken: Double
+    public let harvestableHoney: Double
+}
+
+/// What left, without the bees themselves.
+public struct DepartedSwarmSummary: Codable, Equatable, Sendable {
+    public let day: Int
+    public let beeCount: Int
+    public let honeyCarried: Double
+    public let queenTitle: String
 }
 
 // MARK: - Building
@@ -281,7 +344,27 @@ extension Simulation {
                 && world.weather.isFlyingWeather
                 && hive.count(performing: .foragingBee) > 0,
             dailyNectarIntake: world.recentNectarIntake.last ?? world.todayNectarIntake,
-            epitaph: epitaph()
+            epitaph: epitaph(),
+            posture: world.posture,
+            postureDaysRemaining: world.postureUntilDay.map { max(0, $0 - clock.day) },
+            activeThreat: world.activeThreat,
+            pendingSwarm: world.pendingSwarm,
+            departedSwarm: world.lastSwarm.map { swarm in
+                DepartedSwarmSummary(
+                    day: swarm.day,
+                    beeCount: swarm.beeCount,
+                    honeyCarried: swarm.honeyCarried,
+                    queenTitle: swarm.queenNumber
+                        .flatMap { number in world.lineage.queens.first { $0.number == number }?.title }
+                        ?? "the old queen"
+                )
+            },
+            entranceSealed: world.entranceSealed,
+            entranceDecisionOpen: season == .autumn && !world.entranceSealed,
+            lineage: world.lineage,
+            almanac: world.almanac,
+            honeyTaken: world.honeyTaken,
+            harvestableHoney: harvestableHoney
         )
     }
 
@@ -407,7 +490,9 @@ extension Simulation {
                 discoveredAt: patch.discoveredAt,
                 vigour: vigour,
                 origin: patch.origin,
-                sharedBy: patch.sharedBy
+                sharedBy: patch.sharedBy,
+                taxon: patch.species?.taxon,
+                nectarIsOutOfReach: patch.resolvedSpecies.nectarIsOutOfReach
             )
         }
         // Best forage first: that is the order a player wants to scan.

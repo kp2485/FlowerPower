@@ -90,7 +90,7 @@ struct NewColonyView: View {
 
     private var actionTitle: String {
         reason == .relocating
-            ? "Move Here"
+            ? "Abscond to Here"
             : "Settle Here"
     }
 
@@ -118,9 +118,9 @@ struct NewColonyView: View {
                     .foregroundStyle(.secondary)
 
             case .relocating:
-                Text("Moving the colony to a new site.")
+                Text("Abandoning the nest for a new site.")
                     .font(.title3.weight(.semibold))
-                Text("The bees come with you. Distances to every flower you have photographed are worked out again from the new position, so a move can put good forage out of reach.")
+                Text("No colony can carry its comb. The adults go, with what honey they can hold in their crops; the stores, the comb and every larva stay behind. They arrive as a swarm does and start again. Distances to your flowers are worked out from the new position.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

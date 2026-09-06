@@ -80,6 +80,7 @@ public struct Simulation: Codable, Equatable, Sendable {
             seed: seed,
             ids: ids
         )
+        simulation.world.lineage.found(onDay: 0, patrilines: hive.genetics.patrilines)
 
         for patch in patches {
             simulation.registerPhotograph(
@@ -109,6 +110,7 @@ public struct Simulation: Codable, Equatable, Sendable {
     /// a cold snap during a dearth genuinely dangerous. Status last, so it
     /// observes the finished state.
     private static let pipeline: [any SimulationSystem] = [
+        PostureSystem(),
         WeatherSystem(),
         PatchSystem(),
         ForagingSystem(),
@@ -125,7 +127,8 @@ public struct Simulation: Codable, Equatable, Sendable {
         SwarmSystem(),
         ThreatSystem(),
         PropolisSystem(),
-        ColonyStatusSystem()
+        ColonyStatusSystem(),
+        LineageSystem()
     ]
 
     public static var systemNames: [String] { pipeline.map(\.name) }
@@ -184,6 +187,14 @@ public struct Simulation: Codable, Equatable, Sendable {
         // Deterministic state lives on the simulation, never inside a system.
         rng = context.rng
         ids = context.ids
+
+        // The almanac is written from what happened, after everything has.
+        world.almanac.chronicle(
+            context.events,
+            day: clock.day,
+            honey: world.hive.resources[.honey],
+            lineage: world.lineage
+        )
 
         clock.commitTick()
         return context.events
@@ -396,9 +407,34 @@ public struct Simulation: Codable, Equatable, Sendable {
         }
     }
 
-    /// Moves the colony to a new site, as when the player relocates the hive.
+    /// Moves the colony to a new site.
+    ///
+    /// A wild colony cannot move house; it can only abscond, and this is
+    /// that. The adults go, and nothing else: the comb, the stores and every
+    /// larva stay in the old cavity. The bees arrive as a swarm does, with
+    /// what honey they could carry in their crops. Relocation used to move
+    /// everything, which no colony on earth can do, and it made a hard
+    /// decision free.
     public mutating func relocate(to location: HiveLocation) {
+        let adults = world.hive.bees.filter(\.isAdult)
+        let carried = min(
+            world.hive.resources[.honey],
+            Double(adults.count) * config.honeyCarriedPerSwarmBee
+        )
+
+        let lost = world.hive.bees.count - adults.count
+        world.hive.bees = adults
+        world.hive.resources = ResourcePool()
+        world.hive.resources.add(carried, of: .honey)
+        world.hive.comb = Comb(workerCells: 0, droneCells: 0, capacity: location.type.maximumCells)
+        world.hive.propolisEnvelope = 0
         world.hive.location = location
+        world.activeThreat = nil
+        world.pendingSwarm = nil
+        world.entranceSealed = false
+        world.posture = .instinct
+        world.postureUntilDay = nil
+
         // Distances to every known patch change with the hive.
         for index in world.patches.indices {
             if let patchCoordinate = world.patches[index].coordinate,
@@ -406,6 +442,188 @@ public struct Simulation: Codable, Equatable, Sendable {
                 world.patches[index].distanceMetres = patchCoordinate.distance(to: hiveCoordinate)
             }
         }
+
+        world.almanac.chronicle(
+            [.absconded(beesLost: lost)], day: clock.day,
+            honey: carried, lineage: world.lineage
+        )
+    }
+
+    // MARK: - Decisions
+
+    /// Adopts a stance for a number of days. Instinct clears it.
+    public mutating func adoptPosture(_ posture: HivePosture, forDays days: Int = 3) {
+        world.posture = posture
+        world.postureUntilDay = posture == .instinct ? nil : clock.day + max(1, days)
+        world.almanac.chronicle(
+            [.postureAdopted(posture)], day: clock.day,
+            honey: world.hive.resources[.honey], lineage: world.lineage
+        )
+    }
+
+    /// Answers a siege. The posture holds until the threat resolves.
+    public mutating func respond(to threat: ActiveThreat, with posture: HivePosture) {
+        guard world.activeThreat == threat else { return }
+        adoptPosture(posture, forDays: max(1, threat.resolvesOnDay - clock.day + 1))
+    }
+
+    /// Tries to talk the colony out of swarming. Reduces the chance; does
+    /// not remove it.
+    public mutating func discourageSwarm() {
+        guard var pending = world.pendingSwarm else { return }
+        pending.discouraged = true
+        world.pendingSwarm = pending
+        adoptPosture(.makeRoom, forDays: max(1, pending.departsOnDay - clock.day + 1))
+    }
+
+    /// The autumn decision: seal the entrance for winter, or leave it open.
+    /// Nil hands it back to instinct.
+    public mutating func decideEntrance(sealed: Bool?) {
+        world.entranceDecision = sealed
+        guard let sealed, season == .autumn else { return }
+        if sealed, !world.entranceSealed,
+           world.hive.resources[.propolis] >= config.entranceSealPropolis {
+            world.hive.resources.drain(config.entranceSealPropolis, of: .propolis)
+            world.entranceSealed = true
+        } else if !sealed, world.entranceSealed {
+            world.entranceSealed = false
+        }
+        world.almanac.chronicle(
+            [.entranceSealed(world.entranceSealed)], day: clock.day,
+            honey: world.hive.resources[.honey], lineage: world.lineage
+        )
+    }
+
+    /// Honey the player could take without touching what the colony needs.
+    ///
+    /// In autumn that is what exceeds the winter requirement; the rest of the
+    /// year it is what exceeds the working reserve. Never negative.
+    public var harvestableHoney: Double {
+        let honey = world.hive.resources[.honey]
+        let keep: Double
+        switch season {
+        case .autumn, .winter:
+            keep = world.hive.winterStoresRequired * config.winterProvisioningMargin
+        case .spring, .summer:
+            keep = max(
+                config.layingEnergyThreshold,
+                Double(world.hive.adultCount) * config.layingReservePerBee
+            ) * 2
+        }
+        return max(0, honey - keep)
+    }
+
+    /// Takes honey. Returns what was actually taken, which is capped at what
+    /// the colony can spare — the player is trusted with the decision, not
+    /// with the colony's winter.
+    @discardableResult
+    public mutating func takeHoney(_ units: Double) -> Double {
+        let taken = world.hive.resources.drain(min(units, harvestableHoney), of: .honey)
+        guard taken > 0 else { return 0 }
+        world.honeyTaken += taken
+        world.almanac.chronicle(
+            [.honeyTaken(taken)], day: clock.day,
+            honey: world.hive.resources[.honey], lineage: world.lineage
+        )
+        return taken
+    }
+
+    public mutating func nameQueen(_ number: Int, _ name: String?) {
+        world.lineage.name(number, name)
+    }
+
+    /// A new colony made from the swarm that just left this one.
+    ///
+    /// The old queen, the bees who went with her, and the honey in their
+    /// crops, at a site of the player's choosing. Nothing else: no comb, no
+    /// stores, no brood. The garden comes too. This is what following the
+    /// swarm means, and it is the same starting position every real swarm has.
+    public func followingSwarm(
+        to location: HiveLocation,
+        startingAt date: Date,
+        seed: UInt64
+    ) -> Simulation? {
+        guard let swarm = world.lastSwarm else { return nil }
+        return Simulation.newGame(
+            fromSwarm: swarm,
+            at: location,
+            startingAt: date,
+            config: config,
+            seed: seed,
+            inheriting: world.patches,
+            generation: world.lineage.generation + 1
+        )
+    }
+
+    /// Builds a colony from a swarm — one that left this player's colony, or
+    /// one somebody sent them.
+    public static func newGame(
+        fromSwarm swarm: DepartedSwarm,
+        at location: HiveLocation,
+        startingAt date: Date,
+        config: SimulationConfig = .standard,
+        seed: UInt64,
+        inheriting patches: [FlowerPatch] = [],
+        generation: Int = 1
+    ) -> Simulation {
+        var simulation = newGame(
+            at: location, startingAt: date, config: config,
+            seed: seed, inheriting: patches
+        )
+
+        // The swarm's bees take fresh identifiers from this simulation.
+        var bees: [Bee] = []
+        var queen = swarm.queen
+        queen = Bee(
+            id: simulation.ids.next(), kind: .queen, stage: .adult,
+            daysInStage: queen.daysInStage, patriline: queen.patriline,
+            vitality: queen.vitality, wear: queen.wear
+        )
+        bees.append(queen)
+        for worker in swarm.workers {
+            bees.append(Bee(
+                id: simulation.ids.next(), kind: .worker, stage: .adult,
+                daysInStage: worker.daysInStage, patriline: worker.patriline,
+                vitality: worker.vitality, wear: worker.wear,
+                physiology: worker.physiology
+            ))
+        }
+
+        simulation.world.hive.bees = bees
+        simulation.world.hive.genetics = swarm.genetics
+        simulation.world.hive.queenIsMated = true
+        simulation.world.hive.resources = ResourcePool()
+        simulation.world.hive.resources.add(swarm.honeyCarried, of: .honey)
+        simulation.world.hive.comb = Comb(
+            workerCells: 0, droneCells: 0, capacity: location.type.maximumCells
+        )
+
+        // Her number comes with her.
+        let carried = swarm.queenNumber.map { number in
+            QueenRecord(
+                number: number, motherNumber: nil, emergedOnDay: 0,
+                matedOnDay: 0, patrilines: swarm.genetics.patrilines
+            )
+        }
+        simulation.world.lineage = Lineage.continuing(from: carried, generation: generation)
+        return simulation
+    }
+
+    /// Clears the record of the last swarm once the player has decided.
+    public mutating func forgetLastSwarm() {
+        world.lastSwarm = nil
+    }
+
+    /// The real instant a number of simulated days from now begins, under
+    /// the seasonal clock.
+    public func date(afterSimulatedDays days: Int) -> Date {
+        clock.date(atTick: clock.tick + days * SimClock.ticksPerDay)
+    }
+
+    /// Seasonal clock speed. See `SimClock.winterSpeed`.
+    public var winterSpeed: Double {
+        get { clock.winterSpeed }
+        set { clock.winterSpeed = max(0.25, newValue) }
     }
 
     /// Drops patches the bees have stripped and that will not regrow, and

@@ -339,6 +339,12 @@ public struct Hive: Codable, Equatable, Sendable {
     /// Collapse is the state with nothing left to decide.
     public var isCollapsed: Bool {
         if adultCount == 0 { return true }
+        // A queen alone. Queens are fed by their workers and cannot rear an
+        // egg themselves, so a queen with nobody left is not a colony that
+        // might recover; she is the last bee in one that has ended. Without
+        // this a starved colony sat at "critical" for as long as its queen
+        // lived, which is two years.
+        if adultWorkerCount == 0 { return true }
         return !canRearWorkers && !couldStillGetAQueen
     }
 

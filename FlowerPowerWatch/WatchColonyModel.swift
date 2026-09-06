@@ -23,6 +23,7 @@
 
 import Foundation
 import Observation
+import WatchKit
 import WatchConnectivity
 import FlowerPowerCore
 import FlowerPowerGame
@@ -69,6 +70,16 @@ final class WatchColonyModel: NSObject {
 
         do {
             let decoded = try decoder.decode(WatchSummary.self, from: data)
+            // A distinct tap for a decision arriving, a different one for
+            // trouble. The watch's whole job is to be glanced at; haptics are
+            // how it earns the glance.
+            if decoded.topAlert?.kind != summary?.topAlert?.kind {
+                if decoded.topAlert?.severity == .critical {
+                    WKInterfaceDevice.current().play(.failure)
+                } else if decoded.topAlert != nil {
+                    WKInterfaceDevice.current().play(.notification)
+                }
+            }
             summary = decoded
             lastUpdated = Date()
             isStale = false

@@ -249,8 +249,13 @@ private struct FlowerDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isSharing = false
 
+    /// The catalogue entry when the plant was placed to a species, and the
+    /// family's or genus's typical forage when it was placed less precisely —
+    /// which is still a real description, and still worth explaining.
     private var species: FlowerSpecies? {
-        FlowerCatalogue.all.first { $0.commonName == patch.speciesName }
+        guard let taxon = patch.taxon else { return nil }
+        return FlowerCatalogue.all.first { $0.taxon == taxon }
+            ?? FlowerSpecies.generic(for: taxon)
     }
 
     var body: some View {
@@ -288,6 +293,7 @@ private struct FlowerDetailView: View {
 
                     if let species {
                         FlowerFactsCard(species: species, patch: patch)
+                        FloralTraitsView(species: species)
                     }
 
                     if !patch.isIdentified {

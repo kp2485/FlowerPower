@@ -17,6 +17,8 @@ FlowerPowerWatch/Info.plist
 FlowerPowerWatch/WidgetInfo.plist
 FlowerPowerWatch/FlowerPowerWatch.entitlements
 FlowerPowerWatch/FlowerPowerWatchWidget.entitlements
+FlowerPowerWidgets/Info.plist
+FlowerPowerWidgets/FlowerPowerWidgets.entitlements
 
 # Xcode
 xcuserdata/

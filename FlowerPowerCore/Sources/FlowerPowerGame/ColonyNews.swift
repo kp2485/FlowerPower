@@ -51,13 +51,25 @@ public struct ColonyNews: Equatable, Sendable {
         public let patchCount: Int
         public let patchesInBloom: Int
 
+        // Decisions in front of the player.
+        public var threat: ActiveThreat? = nil
+        public var pendingSwarm: PendingSwarm? = nil
+        public var departedSwarmDay: Int? = nil
+        public var entranceDecisionOpen: Bool = false
+        public var day: Int = 0
+
         public init(
             status: ColonyStatus,
             headline: String = "",
             epitaph: String? = nil,
             criticalAlert: ColonyAlert? = nil,
             patchCount: Int = 0,
-            patchesInBloom: Int = 0
+            patchesInBloom: Int = 0,
+            threat: ActiveThreat? = nil,
+            pendingSwarm: PendingSwarm? = nil,
+            departedSwarmDay: Int? = nil,
+            entranceDecisionOpen: Bool = false,
+            day: Int = 0
         ) {
             self.status = status
             self.headline = headline
@@ -65,12 +77,51 @@ public struct ColonyNews: Equatable, Sendable {
             self.criticalAlert = criticalAlert
             self.patchCount = patchCount
             self.patchesInBloom = patchesInBloom
+            self.threat = threat
+            self.pendingSwarm = pendingSwarm
+            self.departedSwarmDay = departedSwarmDay
+            self.entranceDecisionOpen = entranceDecisionOpen
+            self.day = day
         }
     }
 
     // MARK: - The decision
 
     public static func between(before: Facts, after: Facts) -> ColonyNews? {
+
+        // A decision arriving is always worth an interruption, because it
+        // has a window, and a window the player never heard about is a
+        // decision made for them by silence.
+        if let threat = after.threat, before.threat != threat {
+            return ColonyNews(
+                identifier: "threat-\(threat.predator.rawValue)-\(threat.beganOnDay)",
+                title: "\(threat.predator.displayName) at the nest",
+                body: "\(threat.style.displayName). The colony holds by instinct unless you say otherwise. "
+                    + "\(threat.daysRemaining(on: after.day)) days to decide."
+            )
+        }
+        if let swarm = after.pendingSwarm, before.pendingSwarm != swarm, !swarm.discouraged {
+            return ColonyNews(
+                identifier: "swarm-\(swarm.startedOnDay)",
+                title: "The colony is preparing to swarm",
+                body: "Swarm cells are started. They will divide in about "
+                    + "\(swarm.daysRemaining(on: after.day)) days unless discouraged."
+            )
+        }
+        if let departed = after.departedSwarmDay, before.departedSwarmDay != departed {
+            return ColonyNews(
+                identifier: "departed-\(departed)",
+                title: "A swarm has left",
+                body: "The old queen has gone with most of the bees. Stay with the colony, or follow the swarm."
+            )
+        }
+        if after.entranceDecisionOpen, !before.entranceDecisionOpen {
+            return ColonyNews(
+                identifier: "entrance-\(after.day / Season.daysPerYear)",
+                title: "Autumn at the hive",
+                body: "The bees will seal the entrance for winter unless you keep it open."
+            )
+        }
 
         // The end. Worth saying once, whatever else is true, and said even
         // though nothing can be done about it — a player who is never told
@@ -137,7 +188,12 @@ public extension ColonySnapshot {
             epitaph: epitaph,
             criticalAlert: alerts.first { $0.severity == .critical },
             patchCount: patches.count,
-            patchesInBloom: patches.filter(\.isInBloom).count
+            patchesInBloom: patches.filter(\.isInBloom).count,
+            threat: activeThreat,
+            pendingSwarm: pendingSwarm,
+            departedSwarmDay: departedSwarm?.day,
+            entranceDecisionOpen: entranceDecisionOpen,
+            day: day
         )
     }
 }

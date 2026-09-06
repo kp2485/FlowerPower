@@ -103,7 +103,7 @@ enum BackgroundRefresh {
         guard var simulation = try? persistence.load() else { return }
 
         let before = simulation.snapshot()
-        simulation.advance(to: now)
+        let report = simulation.advance(to: now)
         let after = simulation.snapshot()
 
         do {
@@ -114,7 +114,45 @@ enum BackgroundRefresh {
         }
 
         watchLink.send(simulation, summary: simulation.watchSummary(now: now))
+        await MainActor.run { LiveActivities.reconcile(with: after) }
         await notifyIfNeeded(before: before, after: after)
+        await digestIfDue(report: report, snapshot: after, now: now)
+    }
+
+    // MARK: - The morning report
+
+    private static let lastDigestKey = "lastDigestDay"
+
+    /// One digest a day, at the hour the player chose, and only if there is
+    /// something in it.
+    private static func digestIfDue(report: CatchUpReport, snapshot: ColonySnapshot, now: Date) async {
+        let hour = UserDefaults.standard.object(forKey: "digestHour") as? Int ?? 8
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let lastSent = UserDefaults.standard.object(forKey: lastDigestKey) as? Date
+
+        guard calendar.component(.hour, from: now) >= hour,
+              lastSent.map({ calendar.startOfDay(for: $0) < today }) ?? true
+        else { return }
+
+        // `DailyDigest` decides whether the interval was worth a word. A quiet
+        // day in a steady colony is not, and is recorded as sent so it is not
+        // asked again until tomorrow.
+        guard let digest = DailyDigest.make(from: report, snapshot: snapshot) else {
+            UserDefaults.standard.set(now, forKey: lastDigestKey)
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = digest.title
+        content.body = digest.body
+        content.categoryIdentifier = NotificationActions.Category.digest.rawValue
+        content.interruptionLevel = .passive
+
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: "digest", content: content, trigger: nil)
+        )
+        UserDefaults.standard.set(now, forKey: lastDigestKey)
     }
 
     // MARK: - Notifications
@@ -138,6 +176,13 @@ enum BackgroundRefresh {
         content.title = news.title
         content.body = news.body
         content.sound = .default
+
+        // A decision gets its action buttons, and the interruption level
+        // that lets it through; routine news stays quiet.
+        if let category = NotificationActions.category(for: news, snapshot: after) {
+            content.categoryIdentifier = category.rawValue
+            content.interruptionLevel = .timeSensitive
+        }
 
         let request = UNNotificationRequest(
             identifier: news.identifier,

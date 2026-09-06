@@ -103,6 +103,11 @@ public struct DiseaseSystem: DailySystem {
             // different amounts — see `Pathogen.geneticSuppression`.
             growth *= (1 - pathogen.geneticSuppression * world.hive.genetics.diseaseResistance)
 
+            // A sealed entrance keeps the warmth in and the damp with it.
+            if world.entranceSealed {
+                growth *= context.config.sealedEntranceDiseaseFactor
+            }
+
             // Density-dependent saturation.
             let capacity = 1.0
             let newLevel = level + growth * level * (1 - level / capacity)

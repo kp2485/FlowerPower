@@ -37,20 +37,43 @@ public struct SwarmSystem: DailySystem {
         // The swarm will not leave in weather it cannot fly in.
         guard world.weather.isFlyingWeather else { return }
 
+        // A discouraged swarm may think better of it. Making room does what a
+        // beekeeper does by adding a box: it changes the odds, not the answer.
+        if world.pendingSwarm?.discouraged == true,
+           context.rng.chance(context.config.swarmDiscouragementEffect) {
+            world.hive.comb.removeQueenCells(ofPurpose: .swarm)
+            world.pendingSwarm = nil
+            context.emit(.swarmAbandoned)
+            return
+        }
+
         let departing = departingWorkers(world, context)
         guard departing > 0 else { return }
 
         // The old queen leaves. The colony keeps its queen cells.
-        removeQueenForSwarm(&world, &context)
-        let lost = removeSwarmWorkers(&world, &context, count: departing)
+        let queen = removeQueenForSwarm(&world, &context)
+        let (lost, gone) = removeSwarmWorkers(&world, &context, count: departing)
 
         // Swarms fill up on honey before they go — a swarm carries several
         // days of stores in the bees' own crops.
         let provisions = Double(lost) * context.config.honeyCarriedPerSwarmBee
-        world.hive.resources.drain(provisions, of: .honey)
+        let carried = world.hive.resources.drain(provisions, of: .honey)
 
         world.hive.queenIsMated = false
         world.hive.pheromones.nasonov = 1.0
+        world.pendingSwarm = nil
+
+        // Kept, so the player may go with them.
+        if let queen {
+            world.lastSwarm = DepartedSwarm(
+                day: context.day,
+                queen: queen,
+                workers: gone,
+                genetics: world.hive.genetics,
+                honeyCarried: carried,
+                queenNumber: world.lineage.reigning?.number
+            )
+        }
 
         context.emit(.swarmed(beesLost: lost))
     }
@@ -66,11 +89,12 @@ public struct SwarmSystem: DailySystem {
         return Int(Double(adults) * min(0.8, share))
     }
 
-    private func removeQueenForSwarm(_ world: inout World, _ context: inout TickContext) {
+    @discardableResult
+    private func removeQueenForSwarm(_ world: inout World, _ context: inout TickContext) -> Bee? {
         guard let index = world.hive.bees.firstIndex(where: {
             $0.kind == .queen && $0.isAdult
-        }) else { return }
-        world.hive.bees.remove(at: index)
+        }) else { return nil }
+        return world.hive.bees.remove(at: index)
     }
 
     /// Foragers go with the swarm; house bees and nurses stay to hold the nest.
@@ -78,7 +102,7 @@ public struct SwarmSystem: DailySystem {
         _ world: inout World,
         _ context: inout TickContext,
         count: Int
-    ) -> Int {
+    ) -> (count: Int, bees: [Bee]) {
         let candidates = world.hive.bees.indices
             .filter { world.hive.bees[$0].kind == .worker && world.hive.bees[$0].isAdult }
             // Oldest — that is, the flying bees — leave first.
@@ -86,17 +110,21 @@ public struct SwarmSystem: DailySystem {
             .prefix(count)
 
         let leaving = Set(candidates)
-        guard !leaving.isEmpty else { return 0 }
+        guard !leaving.isEmpty else { return (0, []) }
 
         for _ in leaving {
             context.emit(.died(.worker, .swarmed))
         }
 
+        let gone = world.hive.bees.enumerated()
+            .filter { leaving.contains($0.offset) }
+            .map(\.element)
+
         world.hive.bees = world.hive.bees.enumerated()
             .filter { !leaving.contains($0.offset) }
             .map(\.element)
 
-        return leaving.count
+        return (leaving.count, gone)
     }
 
     // MARK: - Absconding

@@ -78,6 +78,16 @@ public enum SimEvent: Equatable, Sendable {
     case attacked(Predator)
     case attackRepelled(Predator)
     case raidSucceeded(Predator, storesLost: Double)
+    /// A siege has begun and the player has until `resolvesOnDay` to answer.
+    case threatBegan(Predator, resolvesOnDay: Int)
+    case threatEnded(Predator)
+
+    // Decisions and their consequences
+    case swarmPreparing(departsOnDay: Int)
+    case swarmAbandoned
+    case postureAdopted(HivePosture)
+    case entranceSealed(Bool)
+    case honeyTaken(Double)
 
     // Warnings the UI should surface promptly
     case starving
@@ -189,7 +199,9 @@ extension SimEvent {
              .layingWorkersAppeared, .colonyCollapsed, .combLost,
              .patchOutOfBloom, .nectarFlowBegan, .dearth, .weatherChanged,
              .infectionDetected, .infectionCleared, .infectionCritical,
-             .attacked, .attackRepelled, .raidSucceeded, .winterStoresLow:
+             .attacked, .attackRepelled, .raidSucceeded, .winterStoresLow,
+             .threatBegan, .threatEnded, .swarmPreparing, .swarmAbandoned,
+             .postureAdopted, .entranceSealed, .honeyTaken:
             return true
         }
     }
@@ -202,7 +214,8 @@ extension SimEvent {
              .infectionCritical, .raidSucceeded:
             return .critical
         case .swarmed, .queenFailing, .matingFlightFailed, .infectionDetected,
-             .attacked, .winterStoresLow, .dearth, .combLost:
+             .attacked, .winterStoresLow, .dearth, .combLost,
+             .threatBegan, .swarmPreparing:
             return .warning
         case .queenEmerged, .queenMated, .supersededQueen, .nectarFlowBegan,
              .infectionCleared, .attackRepelled, .queenCellStarted:

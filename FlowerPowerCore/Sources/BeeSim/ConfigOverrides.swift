@@ -45,6 +45,10 @@ extension SimulationConfig {
 
         // Swarming and pheromones
         case "swarmProvisionMultiple": swarmProvisionMultiple = value
+        case "swarmDiscouragementEffect": swarmDiscouragementEffect = value
+        case "entranceSealPropolis": entranceSealPropolis = value
+        case "sealedEntranceMouseFactor": sealedEntranceMouseFactor = value
+        case "sealedEntranceDiseaseFactor": sealedEntranceDiseaseFactor = value
         case "swarmSeasonStart": swarmSeasonStart = value
         case "swarmSeasonEnd": swarmSeasonEnd = value
         case "swarmCongestionThreshold": swarmCongestionThreshold = value

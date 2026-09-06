@@ -33,6 +33,33 @@ public struct World: Codable, Equatable, Sendable {
     /// stays in the thread for ever and can be tapped any number of times.
     public var importedShares: Set<String> = []
 
+    // MARK: Decisions
+
+    /// The colony's stance, and how long it holds. See `HivePosture`.
+    public var posture: HivePosture = .instinct
+    public var postureUntilDay: Int?
+
+    /// A siege in progress, during which the player may answer.
+    public var activeThreat: ActiveThreat?
+
+    /// A swarm on its way, during which the player may answer.
+    public var pendingSwarm: PendingSwarm?
+
+    /// The last swarm to leave, kept so the player may go with it.
+    public var lastSwarm: DepartedSwarm?
+
+    /// Whether the entrance is propolised down for winter.
+    public var entranceSealed = false
+    /// The player's word on it for this autumn, or nil for instinct.
+    public var entranceDecision: Bool?
+
+    // MARK: Record
+
+    public var lineage = Lineage()
+    public var almanac = Almanac()
+    /// Honey the player has taken, over the life of the colony.
+    public var honeyTaken: Double = 0
+
     public init(
         hive: Hive,
         patches: [FlowerPatch] = [],
@@ -67,6 +94,19 @@ public struct World: Codable, Equatable, Sendable {
         importedShares = try container.decodeIfPresent(
             Set<String>.self, forKey: .importedShares
         ) ?? []
+
+        // Everything below arrived with the decision and record features, and
+        // every save from before then must still open.
+        posture = try container.decodeIfPresent(HivePosture.self, forKey: .posture) ?? .instinct
+        postureUntilDay = try container.decodeIfPresent(Int.self, forKey: .postureUntilDay)
+        activeThreat = try container.decodeIfPresent(ActiveThreat.self, forKey: .activeThreat)
+        pendingSwarm = try container.decodeIfPresent(PendingSwarm.self, forKey: .pendingSwarm)
+        lastSwarm = try container.decodeIfPresent(DepartedSwarm.self, forKey: .lastSwarm)
+        entranceSealed = try container.decodeIfPresent(Bool.self, forKey: .entranceSealed) ?? false
+        entranceDecision = try container.decodeIfPresent(Bool.self, forKey: .entranceDecision)
+        lineage = try container.decodeIfPresent(Lineage.self, forKey: .lineage) ?? Lineage()
+        almanac = try container.decodeIfPresent(Almanac.self, forKey: .almanac) ?? Almanac()
+        honeyTaken = try container.decodeIfPresent(Double.self, forKey: .honeyTaken) ?? 0
     }
 
     public static let attackHistoryLimit = 40

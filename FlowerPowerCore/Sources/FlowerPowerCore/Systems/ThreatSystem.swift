@@ -16,11 +16,36 @@ public struct ThreatSystem: DailySystem {
     public init() {}
 
     public func updateDaily(_ world: inout World, _ context: inout TickContext) {
-        for predator in Predator.allCases {
-            guard predator.activeSeasons.contains(context.season) else { continue }
-            guard context.rng.chance(encounterChance(predator, world, context)) else { continue }
+        // A siege that has run its course resolves with whatever posture the
+        // colony holds today. Until then, nothing else comes to the door —
+        // one crisis at a time is plenty, and it keeps the decision clear.
+        if let threat = world.activeThreat {
+            if context.day >= threat.resolvesOnDay {
+                world.activeThreat = nil
+                resolveAttack(threat.predator, &world, &context)
+                context.emit(.threatEnded(threat.predator))
+            }
+        } else {
+            for predator in Predator.allCases {
+                guard predator.activeSeasons.contains(context.season) else { continue }
+                guard context.rng.chance(encounterChance(predator, world, context)) else { continue }
 
-            resolveAttack(predator, &world, &context)
+                if predator.hasDecisionWindow {
+                    // The window opens. The player has until it closes.
+                    let threat = ActiveThreat(
+                        predator: predator,
+                        beganOnDay: context.day,
+                        resolvesOnDay: context.day + predator.siegeDays
+                    )
+                    world.activeThreat = threat
+                    world.hive.pheromones.alarm = min(1.0, world.hive.pheromones.alarm + 0.3)
+                    context.emit(.threatBegan(predator, resolvesOnDay: threat.resolvesOnDay))
+                    break
+                } else {
+                    // A bear is over in a night and there is nothing to decide.
+                    resolveAttack(predator, &world, &context)
+                }
+            }
         }
 
         // Alarm pheromone fades over the following days.
@@ -62,6 +87,23 @@ public struct ThreatSystem: DailySystem {
             chance *= 0.6 + min(1.5, world.hive.resources[.honey] / 200.0)
         }
 
+        // A narrowed entrance is what keeps a mouse out of a winter cluster,
+        // and it turns away most of what would otherwise walk in.
+        let narrowed = world.entranceSealed || world.posture == .narrowEntrance
+        if narrowed {
+            switch predator {
+            case .mouse: chance *= context.config.sealedEntranceMouseFactor
+            case .wasp, .hornet, .robberBee, .ant: chance *= 0.5
+            default: break
+            }
+        }
+
+        // Woodpeckers open a nest up in hard frost, when the cluster cannot
+        // come out to meet them, and not otherwise.
+        if predator == .woodpecker, world.weather.temperatureCelsius > 2 {
+            return 0
+        }
+
         return min(0.9, chance)
     }
 
@@ -84,7 +126,10 @@ public struct ThreatSystem: DailySystem {
         if repelled {
             context.emit(.attackRepelled(predator))
             // Defending is not free. Bees that sting a mammal die doing it.
-            beesLost = defenderCasualties(predator, world, &context)
+            beesLost = Int(
+                (Double(defenderCasualties(predator, world, &context))
+                    * world.posture.casualtyMultiplier()).rounded()
+            )
             BroodMortality.cullAdults(&world, &context, count: beesLost, cause: .stungIntruder)
         } else {
             beesLost = applyBeeLosses(predator, &world, &context)
@@ -135,6 +180,10 @@ public struct ThreatSystem: DailySystem {
 
         let defence = defenderStrength * alertness * mobility
             * (0.6 + world.hive.location.type.defensibility)
+            * world.posture.defenceMultiplier(against: predator.attackStyle)
+            // Even without a posture, a sealed winter entrance is easier to
+            // hold than an open one.
+            * (world.entranceSealed && predator.attackStyle == .entrance ? 1.2 : 1.0)
 
         let attack = predator.threatLevel * context.config.predatorStrength
 
@@ -166,7 +215,10 @@ public struct ThreatSystem: DailySystem {
         _ world: inout World,
         _ context: inout TickContext
     ) -> Int {
-        let fraction = context.sample(predator.beeLossFraction)
+        var fraction = context.sample(predator.beeLossFraction)
+        if predator.attackStyle == .field {
+            fraction *= world.posture.fieldLossMultiplier()
+        }
         guard fraction > 0 else { return 0 }
 
         let toll = Int((Double(world.hive.adultCount) * fraction).rounded())
@@ -204,6 +256,7 @@ public struct ThreatSystem: DailySystem {
         _ context: inout TickContext
     ) -> Int {
         let fraction = context.sample(predator.combLossFraction)
+            * world.posture.combLossMultiplier()
         guard fraction > 0 else { return 0 }
 
         let workerLoss = Int(Double(world.hive.comb[.worker]) * fraction)

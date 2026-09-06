@@ -63,16 +63,64 @@ public struct SimClock: Codable, Equatable, Sendable {
     /// machine the figure was taken on.
     public static let defaultMaxCatchUpDays = 180
 
+    /// How much faster the clock runs in winter, as a multiple of the base
+    /// rate. 1 is uniform.
+    ///
+    /// Winter is a quarter of the year with nothing to photograph and little
+    /// to watch. At 2 it lasts under four real days rather than seven. The
+    /// mapping from real time to ticks stays a pure function of dates, so
+    /// catch-up is exactly as deterministic as before and the watch's own
+    /// replay lands on the same tick — the rate is part of the save.
+    public var winterSpeed: Double
+
+    public static let defaultWinterSpeed: Double = 2
+
+    /// Real seconds already accounted for by the ticks processed so far.
+    /// Kept rather than recomputed, so a catch-up walks only the pending ticks.
+    public private(set) var realSecondsAtTick: Double
+
     public init(
         epoch: Date,
         tick: Int = 0,
         realSecondsPerTick: Double = SimClock.defaultRealSecondsPerTick,
-        maxCatchUpDays: Int = SimClock.defaultMaxCatchUpDays
+        maxCatchUpDays: Int = SimClock.defaultMaxCatchUpDays,
+        winterSpeed: Double = SimClock.defaultWinterSpeed
     ) {
         self.epoch = epoch
         self.tick = tick
         self.realSecondsPerTick = realSecondsPerTick
         self.maxCatchUpDays = maxCatchUpDays
+        self.winterSpeed = max(0.25, winterSpeed)
+        self.realSecondsAtTick = 0
+        for index in 0..<tick {
+            realSecondsAtTick += Self.seconds(forTick: index, base: realSecondsPerTick, winterSpeed: self.winterSpeed)
+        }
+    }
+
+    /// Saves from before the seasonal clock carry neither field.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        epoch = try container.decode(Date.self, forKey: .epoch)
+        tick = try container.decode(Int.self, forKey: .tick)
+        realSecondsPerTick = try container.decode(Double.self, forKey: .realSecondsPerTick)
+        maxCatchUpDays = try container.decode(Int.self, forKey: .maxCatchUpDays)
+        // An old save ran at a uniform rate. Keeping it uniform means the
+        // date-to-tick mapping it was written under still holds.
+        winterSpeed = try container.decodeIfPresent(Double.self, forKey: .winterSpeed) ?? 1
+        if let stored = try container.decodeIfPresent(Double.self, forKey: .realSecondsAtTick) {
+            realSecondsAtTick = stored
+        } else {
+            realSecondsAtTick = Double(tick) * realSecondsPerTick
+        }
+    }
+
+    /// Real seconds a particular tick lasts.
+    static func seconds(forTick tick: Int, base: Double, winterSpeed: Double) -> Double {
+        Season(day: tick / ticksPerDay) == .winter ? base / winterSpeed : base
+    }
+
+    public func seconds(forTick tick: Int) -> Double {
+        Self.seconds(forTick: tick, base: realSecondsPerTick, winterSpeed: winterSpeed)
     }
 
     public var day: Int { tick / Self.ticksPerDay }
@@ -82,17 +130,43 @@ public struct SimClock: Codable, Equatable, Sendable {
     public var isDaylight: Bool { (6..<20).contains(hourOfDay) }
 
     /// Ticks that *should* have elapsed by `date`, clamped to `maxCatchUpDays`.
+    ///
+    /// Walks forward from the current tick summing each tick's real length,
+    /// because winter ticks are shorter than the rest. Bounded by the ceiling,
+    /// so the walk is at most a few thousand additions.
     public func pendingTicks(at date: Date) -> Int {
         let elapsed = date.timeIntervalSince(epoch)
         guard elapsed > 0, realSecondsPerTick > 0 else { return 0 }
-        let target = Int(elapsed / realSecondsPerTick)
-        let outstanding = max(0, target - tick)
-        return min(outstanding, maxCatchUpDays * Self.ticksPerDay)
+
+        let ceiling = maxCatchUpDays * Self.ticksPerDay
+        var accounted = realSecondsAtTick
+        var pending = 0
+
+        while pending < ceiling {
+            let next = accounted + seconds(forTick: tick + pending)
+            guard next <= elapsed else { break }
+            accounted = next
+            pending += 1
+        }
+        return pending
+    }
+
+    /// The real instant a future tick begins, walking the seasonal rate.
+    /// Tests use this rather than multiplying by a constant, because winter
+    /// ticks are shorter than the rest.
+    public func date(atTick target: Int) -> Date {
+        guard target >= tick else { return epoch.addingTimeInterval(realSecondsAtTick) }
+        var elapsed = realSecondsAtTick
+        for index in tick..<target {
+            elapsed += seconds(forTick: index)
+        }
+        return epoch.addingTimeInterval(elapsed)
     }
 
     /// Advances the processed-tick counter. Called by the simulation once a
     /// tick has actually been simulated.
     public mutating func commitTick() {
+        realSecondsAtTick += seconds(forTick: tick)
         tick += 1
     }
 
@@ -101,6 +175,10 @@ public struct SimClock: Codable, Equatable, Sendable {
     public mutating func resynchronize(to date: Date) {
         let elapsed = date.timeIntervalSince(epoch)
         guard elapsed > 0, realSecondsPerTick > 0 else { return }
-        tick = max(tick, Int(elapsed / realSecondsPerTick))
+
+        while realSecondsAtTick + seconds(forTick: tick) <= elapsed {
+            realSecondsAtTick += seconds(forTick: tick)
+            tick += 1
+        }
     }
 }

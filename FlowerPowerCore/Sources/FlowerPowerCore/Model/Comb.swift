@@ -148,6 +148,11 @@ public struct Comb: Codable, Equatable, Sendable {
         return actual
     }
 
+    /// The bees tear down cells of one purpose — a swarm called off.
+    public mutating func removeQueenCells(ofPurpose purpose: QueenCell.Purpose) {
+        queenCells.removeAll { $0.purpose == purpose }
+    }
+
     public mutating func addQueenCell(_ cell: QueenCell) {
         queenCells.append(cell)
     }

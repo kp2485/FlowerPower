@@ -431,6 +431,15 @@ public struct QueenSystem: DailySystem {
 
             guard started > 0 else { return }
             context.emit(.queenCellStarted(purpose))
+
+            // The first swarm cell opens the window. Departure is
+            // `swarmDepartureDay` away, which at two real hours per simulated
+            // day is most of a real day for the player to answer.
+            if purpose == .swarm, world.pendingSwarm == nil {
+                let departs = context.day + context.config.swarmDepartureDay
+                world.pendingSwarm = PendingSwarm(startedOnDay: context.day, departsOnDay: departs)
+                context.emit(.swarmPreparing(departsOnDay: departs))
+            }
         }
     }
 
@@ -566,7 +575,9 @@ public struct QueenSystem: DailySystem {
         let worthLeaving = provisioned && !world.isInDearth(context.config)
 
         if isSwarmSeason, crowded, signalWeak, strongEnough, haveAQueenToSend, worthLeaving {
-            let urge = context.config.swarmCellChance * (0.5 + world.hive.genetics.swarminess)
+            var urge = context.config.swarmCellChance * (0.5 + world.hive.genetics.swarminess)
+            // Room being made lowers the urge to start cells at all.
+            if world.posture == .makeRoom { urge *= 0.5 }
             if context.rng.chance(urge) {
                 return .swarm
             }

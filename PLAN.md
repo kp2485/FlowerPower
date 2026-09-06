@@ -14,7 +14,7 @@ needs a Mac.
 |---|---|
 | `FlowerPowerCore` engine | 248 XCTest + 19 Swift Testing, 0 failures |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
-| Balance, standard preset | 80% first-year survival, 30% second-year, 1.43 swarms per colony per two years |
+| Balance, standard preset | 75% first-year survival, 37% second-year, 1.23 swarms per colony per two years |
 | `beesim` | Runs, sweeps any constant with `--set`, reports forage scale with `--scale` |
 
 ### Not verified, and cannot be here
@@ -91,6 +91,16 @@ a honey bee cannot work for nectar, which is the right four.
 and guided generation places flowers at whatever rank it is sure of. Vision and
 CoreLocation move to their modern async APIs. New tests are Swift Testing.
 
+**The player experience, all twenty-one proposals.** See `docs/PROPOSALS.md`
+for each. The shape of it: decisions with real windows — a siege, a swarm
+gathering, the autumn entrance, the colony's surplus — that arrive as
+notifications with action buttons and default to instinct if nobody answers; a
+record the colony keeps of itself in a line of queens and an almanac; the
+garden as a collection with a bloom calendar; Live Activities and a Home Screen
+widget; swarms and forage requests between players; a faster winter; the hum.
+Every mechanic is in the engine and measured; the interface is written and
+uncompiled.
+
 ---
 
 ## 3. What is next
@@ -99,7 +109,9 @@ CoreLocation move to their modern async APIs. New tests are Swift Testing.
 
 1. **Generate and build.** `brew install xcodegen && xcodegen generate`, then
    fix what the compiler finds. This is the single biggest unknown in the
-   project and everything below is easier once it is done.
+   project and everything below is easier once it is done. There are now four
+   targets — the widget extension is new — and roughly 7,000 lines of
+   uncompiled interface, services, ActivityKit and WidgetKit.
 2. **Run on a device.** The paths worth walking first are the ones with no test
    coverage at all: photographing a flower with the camera, the map with and
    without location permission, and the watch receiving its first save.

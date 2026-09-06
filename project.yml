@@ -71,6 +71,9 @@ targets:
           # The superseded 2023 model layer. Kept for reference until the new
           # app has run on device; see FlowerPower/Legacy/README.md.
           - "Legacy/**"
+      # The Live Activity's attributes are shared with the widget extension
+      # that draws them.
+      - FlowerPowerWidgets/HiveActivityAttributes.swift
     dependencies:
       - package: FlowerPowerCore
         product: FlowerPowerCore
@@ -81,6 +84,8 @@ targets:
         copy:
           destination: productsDirectory
           subpath: "$(CONTENTS_FOLDER_PATH)/Watch"
+      - target: FlowerPowerWidgets
+        embed: true
     entitlements:
       path: FlowerPower/FlowerPower.entitlements
       properties:
@@ -140,12 +145,30 @@ targets:
                 - flower
               public.mime-type:
                 - application/vnd.flowerpower.flower+json
+          - UTTypeIdentifier: com.kylepeterson.flowerpower.swarm
+            UTTypeDescription: FlowerPower Swarm
+            UTTypeConformsTo:
+              - public.data
+              - public.content
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - swarm
+              public.mime-type:
+                - application/vnd.flowerpower.swarm+json
         CFBundleDocumentTypes:
           - CFBundleTypeName: FlowerPower Flower
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
             LSItemContentTypes:
               - com.kylepeterson.flowerpower.flower
+          - CFBundleTypeName: FlowerPower Swarm
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.kylepeterson.flowerpower.swarm
+
+        # Live Activities for a siege, a swarm gathering and a mating flight.
+        NSSupportsLiveActivities: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower
@@ -154,6 +177,34 @@ targets:
         DEVELOPMENT_ASSET_PATHS: '"FlowerPower/Preview Content"'
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  # The phone's Home Screen widget and its Live Activities. Reads the same
+  # save through the App Group; draws the same gauge as the watch.
+  FlowerPowerWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - FlowerPowerWidgets
+    dependencies:
+      - package: FlowerPowerCore
+        product: FlowerPowerCore
+      - package: FlowerPowerCore
+        product: FlowerPowerGame
+    entitlements:
+      path: FlowerPowerWidgets/FlowerPowerWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.kylepeterson.flowerpower
+    info:
+      path: FlowerPowerWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: The Hive
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.widgets
+        PRODUCT_NAME: FlowerPowerWidgets
 
   # The watch. No camera, so it cannot do the thing the game is about; what it
   # can do is tell you in a glance whether the colony needs you.

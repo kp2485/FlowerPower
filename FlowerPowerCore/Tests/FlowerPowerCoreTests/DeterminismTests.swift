@@ -141,7 +141,18 @@ final class DeterminismTests: XCTestCase {
         XCTAssertTrue(names.contains("QueenSystem"))
         XCTAssertTrue(names.contains("DiseaseSystem"))
         XCTAssertTrue(names.contains("ThermoregulationSystem"))
-        XCTAssertEqual(names.first, "WeatherSystem", "weather must run before anything depending on it")
-        XCTAssertEqual(names.last, "ColonyStatusSystem", "status must observe the finished state")
+        // Posture expiry runs before weather; it depends on nothing and the
+        // day's stance should be settled before anything reads it.
+        XCTAssertEqual(names.first, "PostureSystem")
+        XCTAssertLessThan(
+            names.firstIndex(of: "WeatherSystem") ?? .max,
+            names.firstIndex(of: "ForagingSystem") ?? .min,
+            "weather must run before anything depending on it"
+        )
+        // Status observes the finished state; the lineage system after it
+        // only reads the tick's events and changes nothing the status looks at.
+        XCTAssertEqual(names.last, "LineageSystem")
+        XCTAssertEqual(names.dropLast().last, "ColonyStatusSystem",
+                       "status must observe the finished state")
     }
 }

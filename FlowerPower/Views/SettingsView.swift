@@ -22,6 +22,11 @@ struct SettingsView: View {
     @State private var isConfirmingRestart = false
     @State private var isChoosingNewSite = false
     @State private var keepFlowers = true
+    @State private var isAskingForForage = false
+
+    @AppStorage("hiveHum") private var humEnabled = false
+    @AppStorage("digestHour") private var digestHour = 8
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
 
     var body: some View {
         NavigationStack {
@@ -29,6 +34,7 @@ struct SettingsView: View {
                 difficultySection
                 nestSection
                 gardenSection
+                rhythmSection
                 startOverSection
                 aboutSection
             }
@@ -47,6 +53,9 @@ struct SettingsView: View {
                     ))
                     isRelocating = false
                 }
+            }
+            .sheet(isPresented: $isAskingForForage) {
+                AskForForageView()
             }
             .sheet(isPresented: $isChoosingNewSite) {
                 NewColonyView(reason: .firstColony) { site in
@@ -106,7 +115,7 @@ struct SettingsView: View {
         } header: {
             Text("Nest")
         } footer: {
-            Text("Comb space, not forage, is what limits how much a colony can store. A bigger cavity is the single biggest thing you can change.")
+            Text("Comb space, not forage, is what limits how much a colony can store. A bigger cavity is the single biggest thing you can change — but moving is absconding. The bees go; the comb, the stores and the brood stay behind.")
         }
     }
 
@@ -122,6 +131,43 @@ struct SettingsView: View {
         } footer: {
             Text("Flowers do not last. A patch you photograph is at its best for about two months and is gone a few months after that, so keep finding new ones.")
         }
+    }
+
+    // MARK: - Rhythm
+
+    private var rhythmSection: some View {
+        Section {
+            Picker("Morning report", selection: $digestHour) {
+                ForEach([6, 7, 8, 9, 10, 12, 18, 20], id: \.self) { hour in
+                    Text(hourLabel(hour)).tag(hour)
+                }
+            }
+
+            Toggle("Winter runs at double speed", isOn: Binding(
+                get: { store.winterSpeed > 1.5 },
+                set: { store.winterSpeed = $0 ? SimClock.defaultWinterSpeed : 1 }
+            ))
+
+            Toggle("Hive hum", isOn: $humEnabled)
+
+            Picker("Hemisphere", selection: $hemisphereRaw) {
+                Text("Northern").tag(Hemisphere.northern.rawValue)
+                Text("Southern").tag(Hemisphere.southern.rawValue)
+            }
+
+            Button("Ask a Friend for Forage") { isAskingForForage = true }
+        } header: {
+            Text("Rhythm")
+        } footer: {
+            Text("One report a day, at the hour you choose; decisions still arrive when they open. At double speed a winter lasts about four real days instead of seven. The hemisphere sets which flowers are in season for your walks.")
+        }
+    }
+
+    private func hourLabel(_ hour: Int) -> String {
+        var components = DateComponents()
+        components.hour = hour
+        let date = Calendar.current.date(from: components) ?? Date()
+        return date.formatted(date: .omitted, time: .shortened)
     }
 
     // MARK: - Starting over
