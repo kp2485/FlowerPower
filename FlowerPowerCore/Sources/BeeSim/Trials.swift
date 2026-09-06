@@ -27,9 +27,15 @@ enum SwarmPolicy: String, CaseIterable {
     /// the odds rather than the answer.
     case makeRoom
 
-    /// Opens the nest up as soon as the comb fills the cavity — the moment the
-    /// "nest is full" news fires, which is a week or so before swarm cells.
+    /// Opens the nest up when the comb has actually filled the cavity, which
+    /// is the moment the "nest is full" news fires and the only cue the
+    /// interface ever gives.
     case addComb
+
+    /// Opens it up on congestion alone, without waiting for the cavity to be
+    /// worked out. A more eager player than the notification asks for, and the
+    /// comparison that says whether the cue is pitched right.
+    case addCombEagerly
 
     /// Divides the colony deliberately once swarm cells are started.
     case split
@@ -38,7 +44,11 @@ enum SwarmPolicy: String, CaseIterable {
     /// This is what a beekeeper actually does.
     case roomThenSplit
 
-    var addsComb: Bool { self == .addComb || self == .roomThenSplit }
+    var addsComb: Bool { self == .addComb || self == .addCombEagerly || self == .roomThenSplit }
+
+    /// Whether this player waits for the cavity to be worked out, as the
+    /// notification does, or acts on crowding alone.
+    var waitsForAFullCavity: Bool { self != .addCombEagerly }
     var splits: Bool { self == .split || self == .roomThenSplit }
 }
 
@@ -206,7 +216,9 @@ enum Trials {
                 if policy.addsComb,
                    simulation.canAddComb,
                    simulation.canAffordComb,
-                   simulation.hive.combOccupancy >= 0.9 {
+                   simulation.hive.combOccupancy >= 0.9,
+                   !policy.waitsForAFullCavity
+                       || simulation.hive.comb.builtCells >= simulation.hive.comb.capacity {
                     if simulation.addComb() > 0 { outcome.combAdditions += 1 }
                 }
 

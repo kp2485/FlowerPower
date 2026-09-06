@@ -542,7 +542,7 @@ public struct Simulation: Codable, Equatable, Sendable {
 
         // Never spend the colony into a corner. The same reserve
         // `ConstructionSystem` refuses to build below.
-        let spendable = max(0, world.hive.resources[.honey] - config.buildHoneyReserve)
+        let spendable = max(0, world.hive.resources[.honey] - combPurchaseReserve)
         let affordable = Int(spendable / honeyPerDrawnCell)
 
         // Cavity the colony already has but has not drawn out costs nothing to
@@ -581,9 +581,28 @@ public struct Simulation: Codable, Equatable, Sendable {
     public var combOnOffer: Int {
         let step = max(1, Int((Double(world.hive.location.type.maximumCells)
                                * config.combExtensionStep).rounded()))
-        let spendable = max(0, world.hive.resources[.honey] - config.buildHoneyReserve)
+        let spendable = max(0, world.hive.resources[.honey] - combPurchaseReserve)
         let affordable = Int(spendable / honeyPerDrawnCell)
         return max(0, min(step, affordable, world.hive.comb.freeCapacity + combExtensionRemaining))
+    }
+
+    /// What the colony will not spend on wax, however much room there is.
+    ///
+    /// Not `buildHoneyReserve` alone, which is a flat 25 units. That is the
+    /// number `ConstructionSystem` refuses to build below, and it is safe there
+    /// only because the surplus-income rule already stops a colony converting
+    /// its larder — see `waxIncomeShare`. `addComb` has no such rule: it is the
+    /// player spending stores on comb directly, and on a flat reserve it was a
+    /// way to reproduce, on purpose, the exact bug that the wax fix removed.
+    ///
+    /// So it scales with the colony, on the same footing as the spring and
+    /// summer floor in `broodHeadroom`: what is a comfortable cushion for a
+    /// nucleus is less than a day's food for a strong one.
+    public var combPurchaseReserve: Double {
+        max(
+            config.buildHoneyReserve,
+            Double(world.hive.adultCount) * config.layingReservePerBee
+        )
     }
 
     /// Whether the colony could pay for an extension right now.
@@ -592,7 +611,7 @@ public struct Simulation: Codable, Equatable, Sendable {
     /// larder, and a player asked to open the nest up in a dearth deserves to
     /// be told that the bees cannot afford the wax.
     public var canAffordComb: Bool {
-        max(0, world.hive.resources[.honey] - config.buildHoneyReserve) >= honeyPerDrawnCell
+        max(0, world.hive.resources[.honey] - combPurchaseReserve) >= honeyPerDrawnCell
     }
 
     /// The best-developed queen cell the colony is holding, of any purpose.

@@ -328,9 +328,24 @@ player who acts on the notifications (`beesim --policy`, new):
 |---|---|---|---|---|---|---|
 | instinct (nobody answers) | 66% | 2.49 | — | — | 612 | 313 |
 | make room (the old answer) | 76% | 1.75 | — | — | 756 | 366 |
-| add comb | 62% | 2.23 | 1.87 | — | 580 | 279 |
+| add comb, on the cue | 68% | 2.46 | 0.17 | — | 615 | 313 |
+| add comb, on crowding alone | 63% | 2.29 | 1.88 | — | 594 | 281 |
 | split | 56% | 0.06 | — | 2.59 | 517 | 203 |
-| add comb, then split | 61% | 0.08 | 2.04 | 2.48 | 528 | 253 |
+| add comb, then split | 55% | 0.06 | 0.24 | 2.58 | 495 | 169 |
+
+**The two "add comb" rows are the same mechanic and two different players**, and
+the difference between them was very nearly written up as a fault in the
+mechanic. The first waits for the thing the interface actually tells them about
+— the comb has filled the cavity, which is what the "nest is full" notification
+fires on. That happens about once every six colony-years, and is worth two
+points. The second opens the nest up whenever the colony is merely crowded,
+which is four points *worse* than doing nothing.
+
+The first measurement of this used the eager trigger, concluded that adding comb
+was a mild trap, and said so in this document. It was measuring a player who
+ignores the only cue the game gives them. The lesson is narrower than the usual
+one about noise: **when a mechanic measures badly, check that the policy being
+measured is the one the interface actually asks for.**
 
 **Read that table against the one this section used to contain, because the
 difference is the point.** These mechanics were built and measured *before* the
@@ -461,15 +476,13 @@ about them matters most.
 
 ### Not decided
 
-- **Adding comb measures slightly worse than doing nothing** — 62% against
-  instinct's 66%, with lower autumn stores (580 against 612). That is arguably
-  honest: drawn comb costs seven honey to one of wax, and a colony that was not
-  actually comb-limited has bought room it did not need with stores it did. But
-  it means the mechanic is a mild trap unless the player is reading the nest
-  card and only spending when the comb has genuinely filled the cavity, which is
-  a subtler judgement than the notification implies. Worth deciding whether the
-  cue should be narrower, or the price lower, or whether being able to make a
-  wrong call is the point.
+- **Whether "add comb" should be reachable at all except on its cue.** Taken
+  when the notification fires it is worth two points; taken whenever the colony
+  looks crowded it costs four. The button on the nest card is only shown once
+  the comb has filled the cavity, which is right, but the swarm decision card
+  offers it for the whole swarm window regardless. Narrowing that is a one-line
+  change and a real design decision: being able to make a wrong call may well be
+  the point.
 
 - **The colony is now healthier than the realism target, and that is a
   calibration call rather than a bug.** Fixing the two modelling errors above
