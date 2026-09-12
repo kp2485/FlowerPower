@@ -253,6 +253,12 @@ struct SettingsView: View {
     private var helpSection: some View {
         Section {
             Button("How to Play") { isRereadingIntroduction = true }
+            // The two reference books. They are also reachable from the
+            // garden and the almanac, which is where a player is when a word
+            // or a flower puzzles them; this is where they are found on
+            // purpose.
+            NavigationLink("Field Guide") { FieldGuideView() }
+            NavigationLink("Glossary") { GlossaryView() }
             NavigationLink("About FlowerPower") { AboutView() }
         } header: {
             Text("Help")

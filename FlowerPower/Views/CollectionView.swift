@@ -82,6 +82,19 @@ struct CollectionView: View {
                     }
                 }
             }
+
+            // The sections above are the spaces on the shelf. This is what
+            // goes in them: the collection knows what is missing, and only
+            // the guide says what to look for.
+            Section {
+                NavigationLink {
+                    FieldGuideView()
+                } label: {
+                    Label("See what you are missing", systemImage: "book.closed")
+                }
+            } footer: {
+                Text("The field guide lists every plant the game knows, whether or not you have found it — what to look for, when it flowers, and whether your bees can reach the nectar.")
+            }
         }
         .navigationTitle("Collection")
     }

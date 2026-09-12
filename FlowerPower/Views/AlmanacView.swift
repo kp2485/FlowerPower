@@ -57,6 +57,18 @@ struct AlmanacView: View {
         }
         .navigationTitle("Almanac")
         .toolbar {
+            // Winter is the reading season, and the almanac is written in the
+            // vocabulary the glossary explains — supersedure, dearth, a drone
+            // layer. The definition should be one tap from the sentence. It
+            // sits with the year picker rather than in the leading slot,
+            // which on a pushed screen belongs to the back button.
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink {
+                    GlossaryView()
+                } label: {
+                    Label("Glossary", systemImage: "character.book.closed")
+                }
+            }
             if years.count > 1 {
                 ToolbarItem(placement: .primaryAction) {
                     Picker("Year", selection: Binding(

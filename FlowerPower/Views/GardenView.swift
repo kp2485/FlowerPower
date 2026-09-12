@@ -54,6 +54,16 @@ struct GardenView: View {
             }
             .navigationTitle("Garden")
             .toolbar {
+                // The guide to everything, as against the garden of what has
+                // been found. It belongs next to the camera button: this is
+                // the screen somebody opens before going out.
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        FieldGuideView()
+                    } label: {
+                        Label("Field Guide", systemImage: "book.closed")
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Photograph", systemImage: "camera.fill", action: onPhotograph)
                 }
