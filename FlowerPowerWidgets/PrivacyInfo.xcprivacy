@@ -4,12 +4,16 @@
   PrivacyInfo.xcprivacy — the widget and Live Activity extension.
 
   An extension is its own binary and gets its own manifest. This one collects
-  nothing and calls no required-reason API, which is not an oversight: the
-  extension reads the colony straight out of the App Group save file through
-  `GamePersistence` and draws it. It has no settings of its own, so unlike the
-  app it never touches UserDefaults — `NSPrivacyAccessedAPITypes` is empty
-  because there is nothing true to put in it, and a copied-over declaration
-  would be a claim about the binary that is not so.
+  nothing. It reads the colony straight out of the App Group save file through
+  `GamePersistence` and draws it, and it has no settings of its own, so unlike
+  the app it never touches UserDefaults.
+
+  It does declare file timestamps (C617.1), and for a reason worth spelling
+  out: `GamePersistence.changeToken()` reads the save file's modification
+  date, that code is compiled into every binary that links `FlowerPowerGame`,
+  and Apple's check is a static scan of the binary rather than a trace of what
+  runs. Whether a widget ever reaches it is beside the point; the call is in
+  there. Nothing else is declared because nothing else is true.
 
   See `FlowerPower/PrivacyInfo.xcprivacy` for the whole reasoning and for
   which required-reason APIs were grepped for.
@@ -23,6 +27,15 @@
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
-	<array/>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

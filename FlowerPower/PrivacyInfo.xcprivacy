@@ -29,11 +29,16 @@
     can read. Note that the App Group is used for the save *file* and not for
     defaults, which would be a different reason code.
 
+  - File timestamps, category C617.1. `GamePersistence.changeToken()` reads
+    the save file's modification date through `attributesOfItem`, so that a
+    `GameStore` can tell when a notification button, a widget button or Siri
+    wrote the file behind its back and reload before it advances. C617.1 is
+    the reason for a file inside the app's own container, which is what the
+    save is. (`PhotoLibrary` reads `PHAsset.creationDate`, which is a photo
+    library property rather than a file attribute and needs no declaration.)
+
   Deliberately absent, having been looked for:
 
-  - File timestamps (C617.1). Nothing reads a modification or creation date
-    off the file system. `PhotoLibrary` reads `PHAsset.creationDate`, which is
-    a photo library property rather than a file attribute.
   - System boot time (35F9.1). No `systemUptime`, no `ProcessInfo` clock.
   - Disk space (E174.1). Nothing asks how much room is left.
   - Active keyboards, and the whole of the tracking-domain machinery.
@@ -58,6 +63,14 @@
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
 				<string>CA92.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
 			</array>
 		</dict>
 	</array>

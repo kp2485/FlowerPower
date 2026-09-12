@@ -51,6 +51,24 @@ public final class GameStore {
     private let persistence: GamePersisting
     private let clock: () -> Date
 
+    /// What the persistence said about the stored colony the last time this
+    /// store wrote it or read it. See `takeInOutsideChanges()`.
+    ///
+    /// Nil means this store has never had anything to do with the save —
+    /// a first run before a site is chosen, or one of the throwaway stores
+    /// built around a simulation already in hand — and there is then nothing
+    /// to compare a token against and no file this store has any claim on.
+    private var storedSaveToken: String?
+
+    /// Set while the store cannot tell whether the save is still its own, or
+    /// cannot read the one that replaced it.
+    ///
+    /// Survives a successful write rather than being cleared by it, because
+    /// the write is the worrying half: it is the moment the store puts its own
+    /// colony over a file it could not read, and whatever somebody else had
+    /// decided in there goes with it.
+    private var unreadableSave: String?
+
     /// Drives the live view while the app is in the foreground. The simulation
     /// itself never depends on this — it is purely a refresh trigger.
     private var ticker: Task<Void, Never>?
@@ -80,7 +98,11 @@ public final class GameStore {
         clock: @escaping () -> Date = Date.init
     ) -> GameStore {
         if let saved = try? persistence.load() {
-            return GameStore(simulation: saved, persistence: persistence, clock: clock)
+            let store = GameStore(simulation: saved, persistence: persistence, clock: clock)
+            // This colony came out of the save, so the save is this store's
+            // until somebody else writes it.
+            store.storedSaveToken = try? persistence.changeToken()
+            return store
         }
 
         let fresh = Simulation.newGame(
@@ -98,6 +120,10 @@ public final class GameStore {
     /// Brings the colony up to date. Safe to call on launch, on foreground, and
     /// as often as you like — the engine works out how much time has passed.
     public func catchUp() {
+        // Before anything else, because everything below reads the colony and
+        // the last thing this does is write it over the save.
+        takeInOutsideChanges()
+
         // Whether the colony was already gone before this catch-up. A player
         // returning to a colony that died last week should not be handed a
         // fresh report about the week of nothing that followed; they should be
@@ -489,15 +515,104 @@ public final class GameStore {
 
     // MARK: - Persistence
 
+    /// Takes in a colony another process wrote while this store was holding
+    /// one in memory.
+    ///
+    /// The save file has four writers. Three of them act on the file alone,
+    /// because they have to: a tapped notification action, a widget button and
+    /// a Shortcut can all arrive with no interface running at all, and each
+    /// loads the save, applies the answer and writes it back. The fourth is
+    /// this store, which keeps the colony in memory and writes over the file
+    /// on every catch-up. So a decision answered from the lock screen while
+    /// the app was in the foreground — or merely suspended with the store
+    /// still alive — used to be overwritten by the store's next tick, twenty
+    /// seconds later, with no sign that anything had been lost. That is the
+    /// bug this closes, and it is closed here rather than in each of those
+    /// three writers because they are all correct: the file *is* the only
+    /// thing they can act on.
+    ///
+    /// Two deliberate silences.
+    ///
+    /// **No report.** The colony that arrives has already been advanced to the
+    /// moment the other process saw, and the report it produced there was
+    /// thrown away; `catchUp` goes on to advance from there to now and reports
+    /// that much. The hours the other process simulated are not narrated
+    /// twice, and not narrated at all. That is the same thing a cold launch
+    /// has always done — a store that loads the save narrates only what it
+    /// advances — so the exchange is a few hours of narration for a colony
+    /// that is actually the one the player decided about.
+    ///
+    /// **No dismissal.** A `pendingReport` the player has not read yet stays
+    /// put. Those events happened, the player has not been shown them, and
+    /// clearing the sheet out from under them because a widget button was
+    /// pressed would lose the one thing this store exists to say.
+    private func takeInOutsideChanges() {
+        // A store with no claim on the save must not reload one. That is a
+        // first run, where the colony is a placeholder nobody has chosen and
+        // the file may hold the colony the player is about to replace; and it
+        // is the throwaway stores those three writers build, which have just
+        // read the file themselves.
+        guard !needsSetup, let known = storedSaveToken else { return }
+
+        // Cleared here rather than anywhere else: this runs on every
+        // catch-up, so a condition that is still true will set it again and
+        // one that has gone away stops being reported.
+        unreadableSave = nil
+
+        let current: String?
+        do {
+            current = try persistence.changeToken()
+        } catch {
+            // Not being able to ask is not a reason to discard anything.
+            unreadableSave = "Could not check the save: \(error.localizedDescription)"
+            lastError = unreadableSave
+            return
+        }
+
+        // Nothing stored at all means somebody cleared the file rather than
+        // wrote it, and the colony in memory is now the only copy there is.
+        // Keeping it is what saves it: the write at the end of `catchUp` puts
+        // it back.
+        guard let current, current != known else { return }
+
+        do {
+            guard let stored = try persistence.load() else { return }
+            simulation = stored
+            snapshot = simulation.snapshot()
+            storedSaveToken = current
+        } catch {
+            // Keep what we have. A save this store cannot read is a worse
+            // thing to hold than one it has in memory, and the player is told
+            // because the next write will overwrite whatever is down there.
+            unreadableSave = "Could not re-read the save: \(error.localizedDescription)"
+            lastError = unreadableSave
+        }
+    }
+
     private func refresh() {
         snapshot = simulation.snapshot()
         save()
     }
 
+    /// Writes the colony down, and remembers what the save looked like
+    /// afterwards so `takeInOutsideChanges` can recognise its own work.
+    ///
+    /// Deliberately does *not* reload first, though it is a write over the
+    /// same file. By the time this runs the change is already in the
+    /// simulation — every caller mutates and then refreshes — so reloading
+    /// here would throw away the action the player just took. The two cases
+    /// are not the same shape: a timer overwriting a decision is a bug, and
+    /// two of the player's own actions seconds apart in two processes is a
+    /// race that the later one should win. The store's catch-up runs on
+    /// foreground and every twenty seconds thereafter, which is how long that
+    /// window can be.
     private func save() {
         do {
             try persistence.save(simulation)
-            lastError = nil
+            storedSaveToken = try? persistence.changeToken()
+            // Not `nil`: a write that succeeded does not undo the store's
+            // having been unable to read what it wrote over.
+            lastError = unreadableSave
         } catch {
             // A failed save is worth surfacing but must never interrupt play.
             lastError = "Could not save: \(error.localizedDescription)"

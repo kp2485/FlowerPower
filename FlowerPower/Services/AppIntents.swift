@@ -26,14 +26,12 @@
 //  alone and this file is compiled into the widget extension as well — where
 //  the only thing in scope is the package. See `project.yml`.
 //
-//  What that leaves uncertain is the running app. `GameStore` holds the
-//  simulation in memory and saves over the file on every catch-up, so a
-//  decision written here while the interface is in the foreground is lost at
-//  the store's next tick. That is exactly the behaviour a tapped notification
-//  action has today, and fixing it belongs in `GameStore` — reload when the
-//  file on disk is newer than the last save it wrote — rather than in each
-//  intent separately. In practice the foreground case barely arises: a widget
-//  button and a Control Centre control are both pressed from outside the app.
+//  The running app is handled on the other side. `GameStore` holds the
+//  simulation in memory and saves over the file on every catch-up, which
+//  would lose a decision written here while the interface was in the
+//  foreground — so the store asks its persistence for a change token before
+//  it advances, and reloads the file if somebody else wrote it. See
+//  `GameStore.takeInOutsideChanges()`. Nothing here needs to know.
 //
 
 import Foundation

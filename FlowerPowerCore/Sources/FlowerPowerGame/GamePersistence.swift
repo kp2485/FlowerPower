@@ -33,6 +33,34 @@ public protocol GamePersisting: Sendable {
     func save(_ simulation: Simulation) throws
     func load() throws -> Simulation?
     func clear() throws
+
+    /// Something that changes whenever the stored colony changes, so a holder
+    /// of a simulation in memory can tell whether the save is still the one it
+    /// wrote.
+    ///
+    /// This exists because the save file has more than one writer. A tapped
+    /// notification action, a widget button and a Shortcut all act on the file
+    /// with no interface running, and `GameStore` holds the colony in memory
+    /// and writes over the file on every catch-up — so without a way to ask
+    /// this question the store silently loses the player's decision. See
+    /// `GameStore.catchUp()`.
+    ///
+    /// A token rather than a date deliberately: the store never compares two
+    /// saves for age, it only asks "is this still mine?", and a persistence
+    /// with no timestamps to offer — an in-memory double, and a CloudKit
+    /// backing later — can answer that with a counter or a record version.
+    ///
+    /// - Returns: nil where there is nothing stored, which is not the same as
+    ///   an unchanged save.
+    func changeToken() throws -> String?
+}
+
+extension GamePersisting {
+
+    /// A persistence that cannot tell says so, and a store over it simply
+    /// never reloads — which is the behaviour every one of them had before
+    /// this existed.
+    public func changeToken() throws -> String? { nil }
 }
 
 public struct GamePersistence: GamePersisting {
@@ -117,6 +145,33 @@ public struct GamePersistence: GamePersisting {
         try FileManager.default.removeItem(at: url)
     }
 
+    /// The file's modification date and length, together.
+    ///
+    /// Either alone would be too weak. A colony's JSON is very nearly the same
+    /// length from one day to the next, so the length cannot see an ordinary
+    /// save; and a filesystem's timestamp resolution is coarser than the gap
+    /// between two writes made in the same second, so the date cannot either.
+    /// Together they miss only a save that lands inside that resolution *and*
+    /// happens to encode to exactly the same number of bytes — and the cost of
+    /// missing one is a single lost decision rather than a store that stays
+    /// wrong, because the next write re-records the token.
+    ///
+    /// Reading a modification date is a required-reason API on Apple
+    /// platforms: C617.1, "declaring the file timestamp for a file inside the
+    /// app container". It belongs in `PrivacyInfo.xcprivacy`.
+    public func changeToken() throws -> String? {
+        let url = saveURL
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+
+        // The date's bit pattern rather than its description, so nothing about
+        // the token depends on how a double happens to be formatted.
+        return "\(modified.bitPattern):\(size)"
+    }
+
     // MARK: - Crossing between devices
 
     /// Encodes a simulation for transport to the watch.
@@ -155,6 +210,10 @@ public final class InMemoryPersistence: GamePersisting, @unchecked Sendable {
     /// Counts saves, so a test can assert that a player action persisted.
     public private(set) var saveCount = 0
 
+    /// Counts loads, so a test can assert the opposite of a reload: that a
+    /// store with no reason to go back to the save did not go back to it.
+    public private(set) var loadCount = 0
+
     public init(initial: Simulation? = nil) {
         self.stored = initial
     }
@@ -167,12 +226,21 @@ public final class InMemoryPersistence: GamePersisting, @unchecked Sendable {
 
     public func load() throws -> Simulation? {
         lock.lock(); defer { lock.unlock() }
+        loadCount += 1
         return stored
     }
 
     public func clear() throws {
         lock.lock(); defer { lock.unlock() }
         stored = nil
+    }
+
+    /// The save count, which is all a counter needs to be: it changes on every
+    /// write and on nothing else, which is exactly the question being asked.
+    public func changeToken() throws -> String? {
+        lock.lock(); defer { lock.unlock() }
+        guard stored != nil else { return nil }
+        return String(saveCount)
     }
 }
 
@@ -189,4 +257,9 @@ public struct FailingPersistence: GamePersisting {
     public func save(_ simulation: Simulation) throws { throw Failure() }
     public func load() throws -> Simulation? { throw Failure() }
     public func clear() throws { throw Failure() }
+
+    /// Fails like everything else here, so a store over it has to cope with
+    /// not being able to find out whether its save is current — which is the
+    /// case that must not be allowed to throw away the colony in memory.
+    public func changeToken() throws -> String? { throw Failure() }
 }
