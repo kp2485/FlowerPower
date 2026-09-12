@@ -223,6 +223,14 @@ public final class GameStore {
     /// preset is selected.
     public var currentConfig: SimulationConfig { simulation.config }
 
+    /// The colony's day-by-day record, for the charts.
+    ///
+    /// Computed over the stored simulation rather than copied into a published
+    /// property: `@Observable` tracks the read either way, and two years of
+    /// samples should not be duplicated on every refresh when only the newest
+    /// one has changed.
+    public var history: ColonyHistory { simulation.history }
+
     public func setDifficulty(_ config: SimulationConfig) {
         simulation.config = config
         refresh()

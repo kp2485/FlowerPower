@@ -129,10 +129,14 @@ public struct Simulation: Codable, Equatable, Sendable {
         PropolisSystem(),
         ColonyStatusSystem(),
         LineageSystem(),
-        // Dead last, and after the lineage, because two of its conditions read
-        // the record the lineage system has just written. It reads everything
-        // and writes only `world.milestones`, so it cannot move the balance.
-        MilestoneSystem()
+        // After the lineage, because two of its conditions read the record
+        // the lineage system has just written. It reads everything and writes
+        // only `world.milestones`, so it cannot move the balance.
+        MilestoneSystem(),
+        // Absolutely last: it takes a reading of the finished day and writes
+        // it to the record. Nothing downstream, nothing random, nothing that
+        // any other system can see.
+        HistorySystem()
     ]
 
     public static var systemNames: [String] { pipeline.map(\.name) }
@@ -153,6 +157,12 @@ public struct Simulation: Codable, Equatable, Sendable {
     public var weather: Weather { world.weather }
     /// What this colony has done for the first time.
     public var milestones: Milestones { world.milestones }
+
+    /// The day-by-day record, for the charts. Not on the snapshot: a snapshot
+    /// is rebuilt on every refresh and two years of samples is not something
+    /// to copy twenty times a minute.
+    public var history: ColonyHistory { world.history }
+
     public var season: Season { Season(day: clock.day) }
     public var day: Int { clock.day }
 

@@ -62,6 +62,43 @@ public enum ColonyStatus: Int, Codable, Comparable, Sendable, CaseIterable {
     }
 }
 
+extension ColonyStatus {
+
+    /// The judgement, as a function of the finished state.
+    ///
+    /// It was a private method on the snapshot until the day-by-day record
+    /// needed the same verdict: `HistorySystem` sees only the world and the
+    /// tick, and a second copy of these thresholds written into a system would
+    /// have drifted from this one within a release. The snapshot now asks the
+    /// same question the record does.
+    public static func evaluate(
+        hive: Hive,
+        season: Season,
+        config: SimulationConfig
+    ) -> ColonyStatus {
+        if hive.isCollapsed { return .collapsed }
+
+        if hive.hasLayingWorkers { return .critical }
+        if !hive.isQueenright && !hive.canStillRearAQueen && !hive.comb.hasQueenCells {
+            return .critical
+        }
+        if hive.adultWorkerCount < config.minimumViablePopulation { return .critical }
+        if hive.resources.edibleEnergy < config.layingEnergyThreshold { return .critical }
+
+        if !hive.isQueenright { return .struggling }
+        if hive.pathogens.totalPressure > 0.5 { return .struggling }
+        if hive.averageVitality < 0.6 { return .struggling }
+        if season == .autumn && !hive.isWinterReady { return .struggling }
+
+        if hive.broodCount > 0, hive.isWinterReady || season != .autumn,
+           hive.averageVitality > 0.85 {
+            return .thriving
+        }
+
+        return .steady
+    }
+}
+
 // MARK: - Alerts
 
 public struct ColonyAlert: Identifiable, Codable, Equatable, Sendable {
@@ -565,28 +602,7 @@ extension Simulation {
     // MARK: Judgement
 
     private func colonyStatus() -> ColonyStatus {
-        let hive = world.hive
-
-        if hive.isCollapsed { return .collapsed }
-
-        if hive.hasLayingWorkers { return .critical }
-        if !hive.isQueenright && !hive.canStillRearAQueen && !hive.comb.hasQueenCells {
-            return .critical
-        }
-        if hive.adultWorkerCount < config.minimumViablePopulation { return .critical }
-        if hive.resources.edibleEnergy < config.layingEnergyThreshold { return .critical }
-
-        if !hive.isQueenright { return .struggling }
-        if hive.pathogens.totalPressure > 0.5 { return .struggling }
-        if hive.averageVitality < 0.6 { return .struggling }
-        if season == .autumn && !hive.isWinterReady { return .struggling }
-
-        if hive.broodCount > 0, hive.isWinterReady || season != .autumn,
-           hive.averageVitality > 0.85 {
-            return .thriving
-        }
-
-        return .steady
+        ColonyStatus.evaluate(hive: world.hive, season: season, config: config)
     }
 
     /// One sentence describing what the colony is doing. Written for a glance,

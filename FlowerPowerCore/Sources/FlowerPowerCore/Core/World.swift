@@ -57,6 +57,8 @@ public struct World: Codable, Equatable, Sendable {
 
     public var lineage = Lineage()
     public var almanac = Almanac()
+    /// The colony's numbers, one reading a day. See `History.swift`.
+    public var history = ColonyHistory()
     /// Honey the player has taken, over the life of the colony.
     public var honeyTaken: Double = 0
     /// What this colony has done for the first time. See `Milestones` for why
@@ -113,6 +115,8 @@ public struct World: Codable, Equatable, Sendable {
         milestones = try container.decodeIfPresent(
             Milestones.self, forKey: .milestones
         ) ?? Milestones()
+        history = try container.decodeIfPresent(ColonyHistory.self, forKey: .history)
+            ?? ColonyHistory()
     }
 
     public static let attackHistoryLimit = 40

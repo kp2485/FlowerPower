@@ -65,6 +65,18 @@ enum Theme {
         }
     }
 
+    /// Used to band the history charts, so a line can be read against the
+    /// time of year it happened in. Deliberately muted: these are drawn behind
+    /// the data and must never compete with it.
+    static func colour(for season: Season) -> Color {
+        switch season {
+        case .spring: return Color(red: 0.55, green: 0.78, blue: 0.45)
+        case .summer: return Color(red: 0.98, green: 0.82, blue: 0.35)
+        case .autumn: return Color(red: 0.85, green: 0.55, blue: 0.25)
+        case .winter: return Color(red: 0.55, green: 0.68, blue: 0.82)
+        }
+    }
+
     static func colour(for severity: SimEvent.Severity) -> Color {
         switch severity {
         case .critical: return alarm

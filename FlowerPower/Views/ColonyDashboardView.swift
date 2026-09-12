@@ -667,7 +667,10 @@ struct SectionTitle: View {
 /// winter is for reading.
 private struct RecordLinks: View {
     var body: some View {
-        HStack(spacing: 12) {
+        // A grid rather than a row: there are more of these than fit across a
+        // phone now, and a bordered button squeezed to three characters is
+        // worse than a second line of them.
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
             NavigationLink { LineageView() } label: {
                 Label("Lineage", systemImage: "crown.fill")
             }
@@ -679,6 +682,9 @@ private struct RecordLinks: View {
             }
             NavigationLink { MilestonesView() } label: {
                 Label("Milestones", systemImage: "rosette")
+            }
+            NavigationLink { HistoryView() } label: {
+                Label("History", systemImage: "chart.xyaxis.line")
             }
         }
         .font(.subheadline.weight(.medium))
