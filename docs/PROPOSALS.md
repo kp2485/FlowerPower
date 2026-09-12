@@ -13,6 +13,16 @@ something to read in winter; alarm pheromone wired to defence and foraging; and
 two modelling errors behind the second-year cliff. The measured effect of each
 is in PLAN.md, including the two that measured *worse* than doing nothing.
 
+**On 2026-09-12 the app around the game was built**, on Kyle's instruction to
+make it fully featured, and again it is written up in PLAN.md rather than
+here. None of it was proposed and approved by number; all of it is the kind of
+thing an app needs before anyone but its author uses it: a first run, the
+colony's record of its own numbers with charts, milestones, decisions answered
+from the watch, a field guide and a glossary, Siri and widget buttons, and a
+way to back a colony up. Where it touches these proposals — the watch half of
+6, the reading season of 14, the collection of 13 and the reason-showing of 16
+— the entry below carries a note.
+
 Twenty-one proposals, numbered so you can approve or deny each one by
 number. Each has a pitch, what the player would actually see, the decision it
 puts in front of them if any, the biology it rests on, a cost, and a
@@ -332,6 +342,8 @@ and it points the player at the door.
 
 *Built.* `BotanyCollection` over the garden — families, genera, species, the bloom calendar with its gaps — and `CollectionView`.
 
+*Extended 2026-09-12.* The collection is what the player has; `FieldGuide` is everything — every catalogue species with its traits, bloom months and whether a honey bee can reach the nectar — and the collection's gaps link into it.
+
 ---
 
 ## D. Winter
@@ -347,6 +359,8 @@ shared flower matters most. Nothing to do, something to look at.
 **Recommendation: Approve, as the framing.** Winter should feel like winter.
 
 *Built as framing.* The lineage, almanac and collection are reachable from the dashboard, and the bloom prompt steps aside in winter.
+
+*Extended 2026-09-12.* Two more things to read: the colony's history as charts, and its milestones. Both sit beside the lineage, the almanac and the collection.
 
 ### 15. A faster winter clock
 
@@ -389,6 +403,8 @@ shows the tube.
 and this is how the player sees it.
 
 *Built.* `FloralTraitsView` on every flower: the corolla drawn against a honey bee's reach, sugar concentration, pollen protein, and a warning for incomplete amino acids.
+
+*Extended 2026-09-12.* The same page now serves the field guide, so the reason is shown for flowers the player has not found yet, and a glossary explains the words the game uses.
 
 ### 17. "In bloom near you"
 
