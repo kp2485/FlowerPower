@@ -110,11 +110,25 @@ private struct PopulationChart: View {
         return max(10, (tallest * 1.1).rounded(.up))
     }
 
+    /// Where the lines start, where they end and how high they got, which is
+    /// what somebody reads a population chart for.
+    private var summary: String {
+        guard let first = samples.first, let last = samples.last else {
+            return "No days recorded."
+        }
+        let peak = samples.map(\.adults).max() ?? last.adults
+        return "\(samples.count) days. "
+            + "Adults from \(first.adults) to \(last.adults), at most \(peak). "
+            + "Brood from \(first.brood) to \(last.brood). "
+            + "\(last.winterBees) winter bees now."
+    }
+
     var body: some View {
         ChartCard(
             title: "Population",
             symbolName: "person.3.fill",
-            caption: samples.last.map { "\($0.adults) adults, \($0.brood) brood" }
+            caption: samples.last.map { "\($0.adults) adults, \($0.brood) brood" },
+            summary: summary
         ) {
             Chart {
                 SeasonBands(spans: spans, ceiling: ceiling)
@@ -185,13 +199,29 @@ private struct StoresChart: View {
 
     let samples: [DailySample]
 
+    /// The gap between the two lines is the story, so the summary is about
+    /// the gap rather than about either line.
+    private var summary: String {
+        guard let first = samples.first, let last = samples.last else {
+            return "No days recorded."
+        }
+        let lowest = samples.map(\.edibleEnergy).min() ?? last.edibleEnergy
+        let short = last.edibleEnergy < last.winterRequirement
+        return "\(samples.count) days. "
+            + "Stores from \(Int(first.edibleEnergy.rounded())) to "
+            + "\(Int(last.edibleEnergy.rounded())) units, lowest \(Int(lowest.rounded())). "
+            + "The winter needs \(Int(last.winterRequirement.rounded())), "
+            + "so they are \(short ? "short of it" : "ahead of it")."
+    }
+
     var body: some View {
         ChartCard(
             title: "Stores",
             symbolName: "drop.fill",
             caption: samples.last.map {
                 "\(Int($0.edibleEnergy.rounded())) of \(Int($0.winterRequirement.rounded())) units needed"
-            }
+            },
+            summary: summary
         ) {
             Chart {
                 ForEach(samples) { sample in
@@ -235,6 +265,20 @@ private struct TemperatureChart: View {
 
     let samples: [DailySample]
 
+    /// How steady the nest line is against how far the outside one moves is
+    /// the colony's thermoregulation, and it is the one thing here that
+    /// cannot be read off the last day alone.
+    private var summary: String {
+        guard !samples.isEmpty else { return "No days recorded." }
+        let nest = samples.map(\.nestTemperature)
+        let outside = samples.map(\.outsideTemperature)
+        return "\(samples.count) days. "
+            + "The nest held between \(Int((nest.min() ?? 0).rounded())) and "
+            + "\(Int((nest.max() ?? 0).rounded())) degrees, against outside "
+            + "\(Int((outside.min() ?? 0).rounded())) to "
+            + "\(Int((outside.max() ?? 0).rounded())). Brood needs 34."
+    }
+
     var body: some View {
         ChartCard(
             title: "Nest and outside",
@@ -242,7 +286,8 @@ private struct TemperatureChart: View {
             caption: samples.last.map {
                 "\(Int($0.nestTemperature.rounded()))°C in the nest, "
                     + "\(Int($0.outsideTemperature.rounded()))°C outside"
-            }
+            },
+            summary: summary
         ) {
             Chart {
                 ForEach(samples) { sample in
@@ -284,11 +329,25 @@ private struct IntakeChart: View {
 
     let samples: [DailySample]
 
+    /// The total and the empty days. A flow is a handful of very good days
+    /// among ordinary ones, and the count of days with nothing is the
+    /// clearest sign of a dearth there is.
+    private var summary: String {
+        guard !samples.isEmpty else { return "No days recorded." }
+        let total = samples.reduce(0) { $0 + $1.nectarIntake }
+        let best = samples.map(\.nectarIntake).max() ?? 0
+        let empty = samples.filter { $0.nectarIntake < 0.5 }.count
+        return "\(Int(total.rounded())) units over \(samples.count) days. "
+            + "The best day brought in \(Int(best.rounded())), "
+            + "and \(empty) days brought in nothing."
+    }
+
     var body: some View {
         ChartCard(
             title: "Nectar brought in",
             symbolName: "arrow.down.to.line",
-            caption: samples.last.map { "\(Int($0.nectarIntake.rounded())) units on the last full day" }
+            caption: samples.last.map { "\(Int($0.nectarIntake.rounded())) units on the last full day" },
+            summary: summary
         ) {
             Chart(samples) { sample in
                 // A bar a day reads well for a month and turns into a smear
@@ -319,17 +378,24 @@ private struct ChartCard<Content: View>: View {
     let title: String
     let symbolName: String
     let caption: String?
+    /// The shape of the line, in words. Swift Charts publishes an element per
+    /// mark, which on a year of daily samples is several hundred stops that
+    /// each say a number and none of which says what the chart shows. The
+    /// chart is collapsed to one element and this is read for it.
+    let summary: String
     let content: Content
 
     init(
         title: String,
         symbolName: String,
         caption: String? = nil,
+        summary: String,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.symbolName = symbolName
         self.caption = caption
+        self.summary = summary
         self.content = content()
     }
 
@@ -361,6 +427,9 @@ private struct ChartCard<Content: View>: View {
                     AxisMarks(position: .leading)
                 }
                 .chartLegend(position: .bottom, alignment: .leading, spacing: 8)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(title) chart")
+                .accessibilityValue(summary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()

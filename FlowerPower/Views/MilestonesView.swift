@@ -132,9 +132,9 @@ private struct BadgeTile: View {
         .opacity(isEarned ? 1 : 0.55)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(milestone.title)
-        .accessibilityValue(isEarned
-                            ? "Earned on day \(dayEarned ?? 0)"
-                            : "Not yet earned")
+        // The same words the tile shows, rather than the raw day count: a
+        // colony's day 419 means nothing said aloud.
+        .accessibilityValue(dayEarned.map { "Earned. \(dayLabel($0))" } ?? "Not yet earned")
         .accessibilityHint(milestone.detail)
     }
 

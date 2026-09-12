@@ -21,6 +21,11 @@ struct CatchUpReportView: View {
 
     @Environment(GameStore.self) private var store
 
+    /// Flipped once, on appearing, when the report carries a milestone. The
+    /// trigger form never plays on its initial value, so this is the change
+    /// from false that plays — and it cannot play twice for one report.
+    @State private var reachedSomething = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -46,6 +51,13 @@ struct CatchUpReportView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("While You Were Away")
             .navigationBarTitleDisplayMode(.inline)
+            // A first is the one thing in a catch-up report that is
+            // unambiguously good news, which is what makes it the only thing
+            // here worth a tap.
+            .sensoryFeedback(.success, trigger: reachedSomething)
+            .onAppear {
+                if !report.milestones.isEmpty { reachedSomething = true }
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", action: onDismiss)

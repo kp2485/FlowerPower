@@ -256,6 +256,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     ProgressView()
+                        .accessibilityLabel("Packaging the colony up")
                 }
             }
         } header: {

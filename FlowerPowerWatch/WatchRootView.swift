@@ -58,17 +58,24 @@ private struct DecisionPage: View {
     /// deliberately knows nothing about what the answers mean.
     var onAnswer: (String) -> Void
 
+    /// Answering from the wrist deserves the same tap the phone gives. The
+    /// model plays a haptic when a decision *arrives*; nothing marked the
+    /// answer going back.
+    @State private var answers = 0
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 5) {
                     Image(systemName: decision.kind.symbolName)
                         .foregroundStyle(WatchTheme.alarm)
+                        .accessibilityHidden(true)
                     Text(decision.title)
                         .font(.headline)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
                 }
+                .accessibilityElement(children: .combine)
 
                 if let days = decision.daysRemaining {
                     Text(remaining(days))
@@ -82,10 +89,13 @@ private struct DecisionPage: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 ForEach(decision.options, id: \.identifier) { option in
-                    Button(option.title) { onAnswer(option.identifier) }
-                        .buttonStyle(.bordered)
-                        .tint(WatchTheme.honey)
-                        .frame(maxWidth: .infinity)
+                    Button(option.title) {
+                        onAnswer(option.identifier)
+                        answers += 1
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(WatchTheme.honey)
+                    .frame(maxWidth: .infinity)
                 }
 
                 Text("Or leave it to the bees, which is what happens if you do nothing.")
@@ -95,6 +105,7 @@ private struct DecisionPage: View {
             }
             .padding(.horizontal, 4)
         }
+        .sensoryFeedback(.success, trigger: answers)
     }
 
     private func remaining(_ days: Int) -> String {

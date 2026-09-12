@@ -406,6 +406,15 @@ struct BestAnswerButton: View {
     let decision: OpenDecision
 
     var body: some View {
+        button
+            // On a widget the button is the only thing there is, so its own
+            // words — "Make Room", "Hold the Entrance" — are an answer with
+            // the question missing. The label carries the question.
+            .accessibilityLabel(spokenLabel)
+    }
+
+    @ViewBuilder
+    private var button: some View {
         switch decision {
         case .swarm:
             Button(intent: MakeRoomIntent()) {
@@ -416,6 +425,15 @@ struct BestAnswerButton: View {
             }
         case .siege(let posture):
             siegeButton(posture)
+        }
+    }
+
+    private var spokenLabel: String {
+        switch decision {
+        case .swarm:
+            return "\(HivePosture.makeRoom.displayName). Answers the swarm the colony is preparing."
+        case .siege(let posture):
+            return "\(posture.displayName). Answers what is at the entrance."
         }
     }
 

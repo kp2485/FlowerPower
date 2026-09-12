@@ -71,6 +71,7 @@ struct GlossaryView: View {
                 .lineLimit(2)
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -109,6 +110,7 @@ private struct GlossaryTermView: View {
                                         Image(systemName: "chevron.right")
                                             .font(.caption2)
                                             .foregroundStyle(.tertiary)
+                                            .accessibilityHidden(true)
                                     }
                                 }
                                 .buttonStyle(.plain)

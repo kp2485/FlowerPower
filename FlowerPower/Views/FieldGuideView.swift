@@ -159,6 +159,9 @@ struct FieldGuideView: View {
                 }
             }
             .padding(.vertical, 2)
+            // One stop per plant rather than five: the name, whether it has
+            // been found, and the badges are one thing to read.
+            .accessibilityElement(children: .combine)
         }
     }
 

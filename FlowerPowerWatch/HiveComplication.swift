@@ -166,8 +166,20 @@ private struct CornerView: View {
                 .tint(summary?.hasDecision == true ? WatchTheme.alarm : WatchTheme.honey)
             }
             .widgetAccentable()
-            .accessibilityLabel(summary?.gauge.meaning.label ?? "Hive")
-            .accessibilityValue(summary?.gauge.caption ?? "No colony")
+            // The corner shows the decision's title when there is one, so the
+            // spoken label has to follow it rather than always naming the
+            // gauge — otherwise the one family that says "a wasp at the
+            // entrance" on the face says "winter stores" aloud.
+            .accessibilityLabel(
+                summary?.decision?.title ?? summary?.gauge.meaning.label ?? "Hive"
+            )
+            .accessibilityValue(accessibilityValue)
+    }
+
+    private var accessibilityValue: String {
+        guard let summary else { return "No colony" }
+        if let decision = summary.decision { return decision.detail }
+        return summary.gauge.caption
     }
 }
 

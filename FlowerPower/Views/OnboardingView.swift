@@ -79,6 +79,7 @@ struct OnboardingView: View {
     let onFinish: () -> Void
 
     @State private var page = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let pages: [Page] = [
         Page(
@@ -125,7 +126,13 @@ struct OnboardingView: View {
             // button below would be a third way off it.
             if page < Self.pages.count {
                 Button {
-                    withAnimation { page += 1 }
+                    // The page still turns; under Reduce Motion it is simply
+                    // on the next page rather than sliding there.
+                    if reduceMotion {
+                        page += 1
+                    } else {
+                        withAnimation { page += 1 }
+                    }
                 } label: {
                     Text("Next")
                         .frame(maxWidth: .infinity)
