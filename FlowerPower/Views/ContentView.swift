@@ -33,6 +33,11 @@ struct ContentView: View {
     @State private var incomingSwarm: SwarmShare?
     @State private var incomingFailure: String?
 
+    /// A colony backup the player opened. Carries its own failure case rather
+    /// than sharing `incomingFailure`, because a restore that could not be
+    /// read needs to say that nothing was replaced — see `OpenedBackup`.
+    @State private var incomingBackup: OpenedBackup?
+
     @Environment(\.requestedAction) private var requestedAction
     @AppStorage("hiveHum") private var humEnabled = false
 
@@ -79,6 +84,10 @@ struct ContentView: View {
         }
         .sheet(item: $incomingSwarm) { share in
             ReceiveSwarmView(share: share)
+                .environment(store)
+        }
+        .sheet(item: $incomingBackup) { opened in
+            RestoreBackupView(opened: opened)
                 .environment(store)
         }
         .onChange(of: requestedAction) { _, action in
@@ -192,18 +201,36 @@ struct ContentView: View {
         }
     }
 
-    /// Handles a `.flower` file the player opened from a message.
+    /// Handles a `.flower`, `.swarm` or `.flowerhive` file the player opened
+    /// from a message, from Files, or from anywhere else.
     ///
     /// The file arrives in a location the app is only lent access to, so it is
-    /// read straight away rather than held as a URL. Nothing is imported here
-    /// — `ReceiveFlowerView` shows it first.
+    /// read straight away rather than held as a URL. Nothing is imported or
+    /// restored here — the receiving screen shows it first, which for a backup
+    /// is not a nicety: opening one replaces the colony.
     private func open(_ url: URL) {
         let needsPermission = url.startAccessingSecurityScopedResource()
         defer { if needsPermission { url.stopAccessingSecurityScopedResource() } }
 
+        let kind = url.pathExtension.lowercased()
+
+        // A backup's own failure goes to its own screen, so the reassurance
+        // that nothing was replaced comes with it. Everything else falls
+        // through to the flower alert, as before.
+        if kind == SaveArchive.fileExtension {
+            do {
+                incomingBackup = .archive(
+                    try SaveArchive.decoded(from: Data(contentsOf: url))
+                )
+            } catch {
+                incomingBackup = .failure(error.localizedDescription)
+            }
+            return
+        }
+
         do {
             let data = try Data(contentsOf: url)
-            if url.pathExtension.lowercased() == SwarmShare.fileExtension {
+            if kind == SwarmShare.fileExtension {
                 incomingSwarm = try SwarmShare.decoded(from: data)
             } else {
                 incoming = try FlowerShare.decoded(from: data)

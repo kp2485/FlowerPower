@@ -38,11 +38,36 @@ That is the whole setup. `project.yml` already declares:
 - the App Group `group.com.kylepeterson.flowerpower` on all three;
 - the camera, photo library and location usage strings;
 - background refresh, and the task identifier it registers;
-- the `.flower` and `.swarm` document types, which are how one player's
-  flower or swarm reaches another and what makes tapping one in a message
-  open the app;
+- the `.flower`, `.swarm` and `.flowerhive` document types — the first two are
+  how one player's flower or swarm reaches another, the third is a backup of a
+  whole colony, and all three are what makes tapping one in a message open the
+  app;
 - Live Activities, and the notification categories whose action buttons let a
   player answer a siege from the lock screen.
+
+It also picks up three kinds of file that are not source and are not listed
+anywhere, because XcodeGen chooses a build phase from the file extension and
+everything it has no special case for goes into Copy Bundle Resources. They are
+all simply inside a target's directory:
+
+- **`PrivacyInfo.xcprivacy`**, one each in `FlowerPower/`,
+  `FlowerPowerWidgets/` and `FlowerPowerWatch/` (the watch's is named
+  explicitly for the complication extension as well, since that target lists
+  its files individually). App Store submission is rejected without one.
+  **It has to be kept in step with the code**, and the failure mode is a
+  rejected build rather than a compiler error: it declares the
+  required-reason APIs the binary actually calls, which today is UserDefaults
+  in the phone app and nothing at all in the two extensions. If anything ever
+  reads a file's modification date, the system boot time, or how much disk
+  space is left, the manifest needs a matching entry. The comment at the top
+  of `FlowerPower/PrivacyInfo.xcprivacy` lists what was grepped for and what
+  was deliberately left out.
+- **`Localizable.xcstrings`**, one per target, currently empty.
+  `SWIFT_EMIT_LOC_STRINGS` is on, so the first Mac build extracts every
+  `Text("…")` in the app into them. They exist now only so that extraction has
+  somewhere to go; nothing is translated and the game is English-only.
+- **`Assets.xcassets`**, which now actually has an app icon in it — see
+  `tools/make_app_icon.py` below.
 
 Re-run `xcodegen generate` after adding a file. Nothing needs ticking by hand:
 target membership is a directory now, not a list of UUIDs. The generated
@@ -65,6 +90,7 @@ swift test --package-path FlowerPowerCore
 | `FlowerPower/` | The iOS app: views and services. |
 | `FlowerPowerWatch/` | The watch app and the complication. |
 | `FlowerPower/Legacy/` | The superseded 2023 model layer, excluded from every target. Delete it once the new app has run on device. |
+| `tools/` | Scripts that generate committed assets. Standard-library Python only, so they run on the development machine. |
 
 The rule that keeps this honest: **if it can live in the package, put it in the
 package**, because that is the part that can be compiled and tested without a
@@ -123,6 +149,49 @@ hard to separate.
 
 Visual Look Up — the plant identification in Photos — has no public API and
 cannot be used. That is why a model is needed at all.
+
+## 6. The app icon
+
+`FlowerPower/Assets.xcassets/AppIcon.appiconset/AppIcon.png` is generated:
+
+```bash
+python tools/make_app_icon.py --preview 60
+```
+
+A honey comb filling the frame with a pale six-petalled flower on the middle
+of it. Pure standard library — no Pillow, no numpy — so it runs on the Windows
+machine the engine is developed on: shapes are signed distance functions,
+pixels are filled by coverage, and the PNG is written with `zlib` and
+`struct`. The palette is `Theme.honey`, `Theme.nectar`, `Theme.pollen` and
+`Theme.wax` from `FlowerPower/Views/Theme.swift`, and `AccentColor.colorset`
+is set to `Theme.honey` exactly.
+
+`--preview 60` writes a second PNG downsampled to 60 pixels, which is the only
+honest way to check the claim that it is legible at icon size. `--out` and
+`--also` write elsewhere; the watch's own `FlowerPowerWatch/Assets.xcassets`
+gets the same image, which survives watchOS's circular mask because the comb
+runs to the edges and the flower is centred.
+
+It is not a designed icon and should be replaced by one. It is there because
+the empty `AppIcon.appiconset` that was there before is a build error waiting
+to happen, and because a script can be adjusted by changing a number and
+reviewed in a diff.
+
+## 7. The UI tests
+
+**`FlowerPowerUITests` has never been run**, by anything, ever. Neither has
+`FlowerPowerTests`. They are written and desk-checked and that is all.
+
+What is in there is one launch test that asserts the app reaches one of three
+screens — the tab bar's "Colony", or "A New Colony", or "Begin Again" — and is
+still in the foreground when it does, plus the launch-performance measurement
+and a per-configuration launch screenshot. The Xcode template's `testExample`,
+which launched the app and asserted nothing, is gone: it would have reported
+green for an app that drew a blank window.
+
+There is no launch argument for starting from a known save, so the tests run
+against whatever colony is on the simulator. That is the first thing to add
+before any test can drive the interface rather than just watch it start.
 
 ---
 

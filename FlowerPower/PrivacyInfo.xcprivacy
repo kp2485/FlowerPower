@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  PrivacyInfo.xcprivacy — the iOS app.
+
+  App Store submission is rejected without one of these, so it is here for the
+  same reason the entitlements file is: the app does not ship without it.
+
+  What it says is short because the game genuinely collects nothing. There is
+  no server, no account and no analytics: the colony is a JSON file in an App
+  Group container, photographs stay in the player's own library, and the only
+  thing that ever leaves the device is a `.flower`, `.swarm` or `.flowerhive`
+  file the player hands to somebody through the share sheet. So
+  NSPrivacyTracking is false, NSPrivacyTrackingDomains is empty, and there are
+  no collected data types to declare — including location, which the game reads
+  but never sends anywhere. See `FlowerShare` for the one place a coordinate
+  can leave the device, and for why it is off by default.
+
+  NSPrivacyAccessedAPITypes is the part that must be kept in step with the
+  code. It lists required-reason APIs the app actually calls, and Apple checks
+  it against the binary. Grepped rather than guessed:
+
+  - UserDefaults, category CA92.1. Reached through `@AppStorage` in
+    `SettingsView`, `ContentView`, `ColonyDashboardView`, `CollectionView`,
+    `ShareFlowerView`, `RequestViews` and `SwarmShareViews`, and directly in
+    `BackgroundRefresh`. All of it `UserDefaults.standard`, all of it the
+    app's own settings — the hum, the digest hour, the hemisphere, the name
+    the player shares under. CA92.1 is exactly that: defaults only this app
+    can read. Note that the App Group is used for the save *file* and not for
+    defaults, which would be a different reason code.
+
+  Deliberately absent, having been looked for:
+
+  - File timestamps (C617.1). Nothing reads a modification or creation date
+    off the file system. `PhotoLibrary` reads `PHAsset.creationDate`, which is
+    a photo library property rather than a file attribute.
+  - System boot time (35F9.1). No `systemUptime`, no `ProcessInfo` clock.
+  - Disk space (E174.1). Nothing asks how much room is left.
+  - Active keyboards, and the whole of the tracking-domain machinery.
+
+  If any of those four ever gets used, this file has to change with it, and the
+  failure mode is a rejected build rather than a compiler error. That is the
+  note in SETUP.md.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

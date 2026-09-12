@@ -24,6 +24,8 @@ struct SettingsView: View {
     @State private var keepFlowers = true
     @State private var isAskingForForage = false
     @State private var isRereadingIntroduction = false
+    @State private var preparedBackup: URL?
+    @State private var backupFailure: String?
 
     @AppStorage("hiveHum") private var humEnabled = false
     @AppStorage("digestHour") private var digestHour = 8
@@ -48,6 +50,7 @@ struct SettingsView: View {
                 gardenSection
                 rhythmSection
                 notificationsSection
+                backupSection
                 startOverSection
                 helpSection
                 aboutSection
@@ -213,6 +216,66 @@ struct SettingsView: View {
             Text("Notifications")
         } footer: {
             Text("Decisions are a siege, swarm cells, a full nest, a swarm that has left, the autumn entrance — each with a window, each answerable from the notification itself. Colony news is everything else the colony does badly, including the day it ends. The morning report is one summary a day at the hour set above.")
+        }
+    }
+
+    // MARK: - Backup
+
+    /// Getting the colony off the phone.
+    ///
+    /// The save is a file in an App Group container, which means it lives
+    /// inside the app and nowhere else: there is no account and no sync, so
+    /// deleting the app or moving to a phone without an iCloud device backup
+    /// takes months of real walks with it. This is the way out. See
+    /// `SaveArchive`.
+    ///
+    /// The file is written on the way in to this screen rather than on the
+    /// tap, because `ShareLink` wants something to share before it is
+    /// pressed, and it is rewritten whenever the colony moves on a day so the
+    /// share sheet can never hand over yesterday's colony. Encoding a save is
+    /// what the game does after every player action anyway.
+    private var backupSection: some View {
+        Section {
+            if let preparedBackup {
+                ShareLink(item: preparedBackup) {
+                    Label("Export a Backup", systemImage: "square.and.arrow.up")
+                }
+            } else if let backupFailure {
+                Label(backupFailure, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Theme.alarm)
+            } else {
+                HStack {
+                    Text("Export a Backup")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    ProgressView()
+                }
+            }
+        } header: {
+            Text("Backup")
+        } footer: {
+            Text("The file is the whole colony and its garden — every bee, the comb, the queens and the flowers you have photographed. Keep it somewhere you keep things. Opening one on another phone replaces that phone's colony, so it is a way to move a colony rather than to share one.")
+        }
+        // Keyed on the day, so a colony that has moved on gets a fresh file
+        // and one that has not is not re-encoded on every redraw.
+        .task(id: store.snapshot.day) { @MainActor in
+            prepareBackup()
+        }
+    }
+
+    @MainActor
+    private func prepareBackup() {
+        preparedBackup = nil
+        backupFailure = nil
+        do {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent(SaveArchive.suggestedFileName())
+            try store.exportArchive().write(to: url, options: .atomic)
+            preparedBackup = url
+        } catch {
+            backupFailure = "This colony could not be packaged up: "
+                + error.localizedDescription
         }
     }
 

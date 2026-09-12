@@ -436,6 +436,41 @@ public final class GameStore {
         simulation.hasImported(shareID: share.id)
     }
 
+    // MARK: - Backing the colony up
+
+    /// Packages the whole colony into a file the player can keep.
+    ///
+    /// Throws rather than returning nil because there is nothing to fall back
+    /// on: if the colony will not encode, the save on disk is in the same
+    /// trouble, and the player should be told rather than handed an empty
+    /// file.
+    public func exportArchive() throws -> Data {
+        try SaveArchive(simulation: simulation).encode()
+    }
+
+    /// Replaces this device's colony with the one in a backup.
+    ///
+    /// Destructive and irreversible — the colony that was here is gone the
+    /// moment this saves — so the caller is expected to have confirmed with
+    /// the player first, exactly as `startNewGame` is. Unlike `startNewGame`
+    /// there is no keeping the garden: the archive carries its own garden, and
+    /// merging two would invent patches the player never photographed.
+    ///
+    /// Saved immediately rather than at the next tick, so a player who
+    /// restores and then force-quits still has the colony they asked for.
+    public func restore(from archive: SaveArchive) {
+        simulation = archive.simulation
+        pendingReport = nil
+        // Refreshed before the ticker rather than after, which is the other
+        // way round from `startNewGame`. A restored colony may be a dead one —
+        // a player keeping a backup of a colony that later collapsed is an
+        // obvious reason to have one — and `startLiveUpdates` decides whether
+        // to run from the snapshot, so it has to be looking at the restored
+        // colony and not the one being replaced.
+        refresh()
+        startLiveUpdates()
+    }
+
     // MARK: - Watch
 
     /// The compact payload sent to the watch.

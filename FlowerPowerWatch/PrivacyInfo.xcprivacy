@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  PrivacyInfo.xcprivacy — the watch app, and the complication extension that
+  is built from the same folder.
+
+  The watch collects nothing and calls no required-reason API. It receives a
+  copy of the colony from the phone over WatchConnectivity, writes it into its
+  own container and catches it up; it has no settings, so no UserDefaults, and
+  it reads nothing off the file system beyond its own save. Hence an empty
+  `NSPrivacyAccessedAPITypes` rather than a copy of the app's — see
+  `FlowerPower/PrivacyInfo.xcprivacy`, which carries the full reasoning and
+  the list of required-reason APIs that were grepped for.
+
+  If the watch ever gets a setting of its own — a complication style, say —
+  that is a UserDefaults declaration and it has to be added here.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

@@ -2,40 +2,66 @@
 //  FlowerPowerUITests.swift
 //  FlowerPowerUITests
 //
-//  Created by Kyle Peterson on 11/8/23.
+//  Does the app launch and get somewhere.
+//
+//  That is the whole of it, and it is deliberately the whole of it. What was
+//  here before was Xcode's 2023 template: a `testExample` that launched the
+//  app and asserted nothing, which passes whatever the app does. A test that
+//  cannot fail is worse than no test, because it reports green.
+//
+//  The one thing asserted is that the app reaches a screen. Which screen is
+//  not something the test controls — a first run offers "A New Colony", a run
+//  whose colony has died offers "Begin Again", and any other run shows the tab
+//  bar, whose first tab is "Colony" — so any of those three counts, and the
+//  app has to still be in the foreground when one of them arrives. A crash on
+//  launch, a blank window, a hang in `catchUp`, or a save the store cannot
+//  read all fail this. Nothing else does, and nothing else is claimed.
+//
+//  It runs against whatever colony happens to be on the simulator, which is
+//  the honest thing for a launch test to do and also its limitation: there is
+//  no launch argument for starting from a known save. That is the first thing
+//  any test wanting to drive the interface will have to add.
+//
+//  **These have never been run.** There is no Mac in the loop that produced
+//  them; they are written against XCTest from documentation and desk-checked.
+//  See SETUP.md.
 //
 
 import XCTest
 
 final class FlowerPowerUITests: XCTestCase {
 
+    /// The three places a launch can legitimately land.
+    private static let landings = ["Colony", "A New Colony", "Begin Again"]
+
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-    }
-
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testLaunchReachesAScreen() throws {
         let app = XCUIApplication()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        // Matched across every element type rather than `staticTexts`,
+        // because "Colony" is a tab bar button's label while the other two are
+        // navigation titles, and which of those the accessibility tree calls a
+        // static text is not something to bet a test on.
+        let landed = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label IN %@", Self.landings))
+            .firstMatch
+
+        XCTAssertTrue(
+            landed.waitForExistence(timeout: 20),
+            "The app launched but showed none of \(Self.landings)."
+        )
+
+        // Still running, rather than having shown something and then died.
+        XCTAssertEqual(app.state, .runningForeground)
     }
 
     func testLaunchPerformance() throws {
-        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 7.0, *) {
-            // This measures how long it takes to launch your application.
-            measure(metrics: [XCTApplicationLaunchMetric()]) {
-                XCUIApplication().launch()
-            }
+        measure(metrics: [XCTApplicationLaunchMetric()]) {
+            XCUIApplication().launch()
         }
     }
 }

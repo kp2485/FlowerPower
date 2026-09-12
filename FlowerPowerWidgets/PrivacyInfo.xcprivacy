@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  PrivacyInfo.xcprivacy — the widget and Live Activity extension.
+
+  An extension is its own binary and gets its own manifest. This one collects
+  nothing and calls no required-reason API, which is not an oversight: the
+  extension reads the colony straight out of the App Group save file through
+  `GamePersistence` and draws it. It has no settings of its own, so unlike the
+  app it never touches UserDefaults — `NSPrivacyAccessedAPITypes` is empty
+  because there is nothing true to put in it, and a copied-over declaration
+  would be a claim about the binary that is not so.
+
+  See `FlowerPower/PrivacyInfo.xcprivacy` for the whole reasoning and for
+  which required-reason APIs were grepped for.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

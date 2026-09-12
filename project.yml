@@ -74,6 +74,15 @@ targets:
       # The Live Activity's attributes are shared with the widget extension
       # that draws them.
       - FlowerPowerWidgets/HiveActivityAttributes.swift
+      #
+      # Nothing needs listing for `Assets.xcassets`, `PrivacyInfo.xcprivacy`
+      # or `Localizable.xcstrings`: they are inside the directory above, and
+      # XcodeGen picks a build phase from the file extension — recognised
+      # source extensions compile, and everything else it does not have a
+      # special case for goes into Copy Bundle Resources, which is where all
+      # three belong. (`buildPhase:` is the override if that ever guesses
+      # wrong; `Info.plist` is the one file it never adds to any phase, which
+      # is why the generated one below is safe to leave under this path.)
     dependencies:
       - package: FlowerPowerCore
         product: FlowerPowerCore
@@ -155,6 +164,25 @@ targets:
                 - swarm
               public.mime-type:
                 - application/vnd.flowerpower.swarm+json
+          # A backup of the whole colony. Same mechanism as the two above and
+          # a very different weight: opening one *replaces* the colony on the
+          # phone, so `ContentView.open(_:)` asks before it restores. The
+          # identifier, the extension and the format version must agree with
+          # `SaveArchive`.
+          #
+          # Exported rather than imported for the same reason as the others —
+          # this app defines the format — and `LSHandlerRank: Owner` below is
+          # what makes a backup in Files or a message open here.
+          - UTTypeIdentifier: com.kylepeterson.flowerpower.save
+            UTTypeDescription: FlowerPower Colony Backup
+            UTTypeConformsTo:
+              - public.data
+              - public.content
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - flowerhive
+              public.mime-type:
+                - application/vnd.flowerpower.save+json
         CFBundleDocumentTypes:
           - CFBundleTypeName: FlowerPower Flower
             CFBundleTypeRole: Viewer
@@ -166,6 +194,11 @@ targets:
             LSHandlerRank: Owner
             LSItemContentTypes:
               - com.kylepeterson.flowerpower.swarm
+          - CFBundleTypeName: FlowerPower Colony Backup
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.kylepeterson.flowerpower.save
 
         # Live Activities for a siege, a swarm gathering and a mating flight.
         NSSupportsLiveActivities: true
@@ -251,6 +284,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.watchkitapp
         PRODUCT_NAME: FlowerPower
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # The watch has its own asset catalogue now, carrying the same icon
+        # and the same honey accent as the phone. This setting was already
+        # naming an icon that did not exist.
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: YES
 
   # The complication. Reads the watch's own copy of the save — see WatchLink
@@ -261,6 +298,12 @@ targets:
     sources:
       - FlowerPowerWatch/HiveComplication.swift
       - FlowerPowerWatch/WatchTheme.swift
+      # This target names its files individually rather than taking a
+      # directory, so the watch folder's privacy manifest has to be named too.
+      # It is its own binary and needs its own copy; the phase is stated
+      # outright here because there is no directory rule to lean on.
+      - path: FlowerPowerWatch/PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: FlowerPowerCore
         product: FlowerPowerCore
