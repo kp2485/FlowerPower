@@ -370,6 +370,32 @@ Reading a file's timestamp is a required-reason API, so C617.1 is in all
 three privacy manifests — the call is compiled into every binary that links
 the game layer, and Apple's check is a static scan.
 
+**Feeding the colony, measured.** Honey the player takes is the score, and it
+was a dead end. `Simulation.feed` gives it back — into the same pool the bees
+eat from, capped by what is banked and by the comb it can be stored in, using
+the same arithmetic as intake — as a decision on the winter-shortage cue,
+`DecisionAction.feed` on the phone, the watch and the widget. Measured over
+200 colonies, two years:
+
+| policy | survival | autumn stores | winter cluster | taken | fed |
+|---|---|---|---|---|---|
+| instinct | 66% | 612 | 313 | – | – |
+| harvest each autumn, never feed | 64% | 586 | 317 | 26 | 0 |
+| harvest each autumn, feed when short | 66% | 592 | 313 | 27 | 20 |
+| harvest whenever offered | 0% | 3 | 1 | 204 | 0 |
+| harvest whenever offered, feed when short | 36% | 200 | 7 | 830 | 511 |
+
+Autumn harvesting costs two points and feeding buys them back, which is the
+mechanic working as intended. The last two rows are the finding. Outside
+autumn `takeHoney`'s cap reserves a laying threshold rather than the winter
+requirement, the honey card is shown from midsummer, and a player who takes
+what it offers whenever it offers it kills 200 colonies out of 200 with a
+median collapse on day 130. Feeding it all back recovers a third of them,
+because the honey was gone in the season it was needed. **The spring and
+summer branch of the cap is the exposure**, it was not retuned in the same
+change, and `beesim --policy harvestEagerly` exists so a fix can be measured.
+That is in section 3 as a decision to make.
+
 ---
 
 ## 3. What is next
@@ -625,6 +651,15 @@ winter flower means. Hiding the prompt removed the one season where knowing
 about them matters most.
 
 ### Not decided
+
+- **What `takeHoney` may offer outside autumn.** A player who takes the
+  surplus whenever the card offers it loses every colony (0% of 200), and the
+  card offers it from midsummer. The autumn cap, which reserves the winter
+  requirement, is fine. The cheapest fix is to reserve the winter requirement
+  in every season, or to show the card only in autumn; either should be
+  measured with `beesim --policy harvestEagerly` and `harvestEagerlyAndFeed`,
+  which are there for exactly this. Whether being able to ruin a colony on
+  purpose is part of the game is Kyle's call, as it is for "add comb" above.
 
 - **Whether "add comb" should be reachable at all except on its cue.** Taken
   when the notification fires it is worth two points; taken whenever the colony
