@@ -178,6 +178,34 @@ these spellings are from documentation rather than a compiler:
   the asset catalogues up as resources from a directory source. Checked
   against XcodeGen's documentation, not by generating.
 
+#### The desk-check of 2026-09-12
+
+Done the same way as the first: every symbol the changed interface files name
+was grepped in the package and its signature, access level and isolation
+compared, and six Swift-language questions were settled with
+`swiftc -swift-version 6 -typecheck` probes — including a two-module probe
+showing that the app's own `Tips` enum does not stop `TipKit.Tips.configure`
+resolving. **No certain build failure was found.** Seven probable faults were,
+and six are fixed: `GameStore.save()` not gated on `needsSetup` (the real
+one — a watch tap during the introduction would have persisted the placeholder
+colony); the watch app sweeping up the widget's generated `WidgetInfo.plist`;
+the complication target with no string catalogue; `Bundle` under `import
+SwiftUI` alone; the follow-the-swarm notification without the nonce the
+photograph intent carries; and the root `.task` not re-running when
+onboarding ends. The seventh is left as a thing to watch: `ContentView`
+stacks three `.sheet(item:)` and an alert on one view, and SwiftUI has been
+known to let sibling presentations shadow each other. If the backup sheet
+ever fails to appear, collapse the three into one `enum Incoming:
+Identifiable` and present it once.
+
+Still open from that check, all Apple-framework spellings: whether `#Rule`'s
+expansion names `Tips` unqualified (if `Services/Tips.swift` fails to
+compile, rename the local enum rather than the rule); `@Parameter` as a
+static property wrapper; `IntentDialog(stringLiteral:)` with a runtime
+string; interpolated `IntentDescription`s under `SWIFT_EMIT_LOC_STRINGS`;
+`.task(id:)` and `.confirmationDialog` on a `Section` inside a `Form`; and
+`WidgetCenter.reloadAllTimelines()` from a nonisolated `perform()`.
+
 ---
 
 ## 2. What was done
