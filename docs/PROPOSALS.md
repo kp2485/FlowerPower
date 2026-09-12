@@ -217,6 +217,8 @@ buttons and the handling.
 
 *Built.* `NotificationActions` registers a category per decision, and a tapped button becomes a store call on the save file with no interface running. Stale taps do nothing rather than something wrong.
 
+*Also built, later.* "On the watch, the same actions" was the half of this proposal that had not been done: the watch showed status and nothing else. `WatchSummary` now carries the open decision and its answers, the watch's first page is a button per answer, and the complication shows the question instead of the gauge while one is open. The vocabulary the two ends speak — `DecisionAction` — moved into the package with the switch that applies it, so the identifiers and the staleness rules exist once and are compiled on Windows.
+
 ### 7. Live Activities for events in progress
 
 **Pitch.** An attack under way, a swarm gathering, a queen out on her mating
@@ -460,6 +462,8 @@ glance.
 **Recommendation: Approve with 6.**
 
 *Built.* A distinct tap for a critical alert arriving, another for any alert.
+
+*And for the thing it was actually proposed for:* a decision arriving now taps too, and takes precedence — a siege usually brings an alert with it, and two haptics a second apart read as a malfunction rather than as two pieces of news.
 
 ---
 

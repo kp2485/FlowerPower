@@ -9,12 +9,19 @@
 //  watch, and the app never has to be opened. This registers the categories
 //  those buttons live in, and turns a tapped button back into a store call.
 //
+//  What the buttons are spelled with, and what a tapped one does, both live in
+//  the package now, as `DecisionAction` and `GameStore.apply(_:)`. The watch
+//  needs the same vocabulary and cannot see this file; and the switch that
+//  turned an identifier into a change to the colony was an exhaustive switch
+//  over engine types written somewhere no compiler on this machine could check
+//  it. All that is left here is the notification centre: which categories
+//  exist, which buttons they carry, and which piece of news belongs in which.
+//
 //  What arrives here is the player's own choice on their own device, so it is
 //  not treated as untrusted. What it is treated as is possibly stale: a
 //  notification can sit on the lock screen for hours, and by the time it is
-//  tapped the siege may be over. Every handler checks the decision is still
-//  open before acting, and does nothing rather than something wrong if it
-//  is not.
+//  tapped the siege may be over. `GameStore.apply(_:)` checks the decision is
+//  still open and does nothing rather than something wrong if it is not.
 //
 
 import Foundation
@@ -54,18 +61,25 @@ enum NotificationActions {
         }
     }
 
-    /// Action identifiers carry the posture or the choice in their suffix,
-    /// so one handler serves every category.
+    /// The one action that is not a `DecisionAction`.
+    ///
+    /// Following a swarm needs a site chosen, and a site cannot be chosen from
+    /// a lock screen, so this button opens the app and is answered there.
+    /// Every other identifier is `DecisionAction.identifier`.
     enum Action {
-        static let posturePrefix = "posture."
-        static let discourageSwarm = "swarm.discourage"
-        static let addComb = "nest.addComb"
-        static let split = "swarm.split"
-        static let letSwarmGo = "swarm.let"
         static let followSwarm = "swarm.follow"
-        static let staySwarm = "swarm.stay"
-        static let sealEntrance = "entrance.seal"
-        static let openEntrance = "entrance.open"
+    }
+
+    /// A button for an answer, with the answer's own words on it.
+    private static func button(
+        _ action: DecisionAction,
+        options: UNNotificationActionOptions = []
+    ) -> UNNotificationAction {
+        UNNotificationAction(
+            identifier: action.identifier,
+            title: action.title,
+            options: options
+        )
     }
 
     /// Registers every category once. Called at launch.
@@ -76,13 +90,7 @@ enum NotificationActions {
             guard let category = Category.forThreat(style) else { continue }
             let actions = HivePosture.options(against: style)
                 .filter { $0 != .instinct }
-                .map { posture in
-                    UNNotificationAction(
-                        identifier: Action.posturePrefix + posture.rawValue,
-                        title: posture.displayName,
-                        options: []
-                    )
-                }
+                .map { button(.posture($0)) }
             categories.insert(UNNotificationCategory(
                 identifier: category.rawValue,
                 actions: actions,
@@ -103,10 +111,10 @@ enum NotificationActions {
         categories.insert(UNNotificationCategory(
             identifier: Category.swarmPreparing.rawValue,
             actions: [
-                UNNotificationAction(identifier: Action.discourageSwarm, title: "Make Room", options: []),
-                UNNotificationAction(identifier: Action.addComb, title: "Open the Nest Up", options: []),
-                UNNotificationAction(identifier: Action.split, title: "Divide Them", options: []),
-                UNNotificationAction(identifier: Action.letSwarmGo, title: "Let Them Go", options: [])
+                button(.discourageSwarm),
+                button(.addComb),
+                button(.split),
+                button(.letSwarmGo)
             ],
             intentIdentifiers: [], options: []
         ))
@@ -114,9 +122,7 @@ enum NotificationActions {
         // The week before the cells, when space is still cheap.
         categories.insert(UNNotificationCategory(
             identifier: Category.nestFull.rawValue,
-            actions: [
-                UNNotificationAction(identifier: Action.addComb, title: "Open the Nest Up", options: [])
-            ],
+            actions: [button(.addComb)],
             intentIdentifiers: [], options: []
         ))
 
@@ -126,17 +132,14 @@ enum NotificationActions {
                 // Following needs a site chosen, so it opens the app.
                 UNNotificationAction(identifier: Action.followSwarm, title: "Follow the Swarm",
                                      options: [.foreground]),
-                UNNotificationAction(identifier: Action.staySwarm, title: "Stay", options: [])
+                button(.staySwarm)
             ],
             intentIdentifiers: [], options: []
         ))
 
         categories.insert(UNNotificationCategory(
             identifier: Category.entrance.rawValue,
-            actions: [
-                UNNotificationAction(identifier: Action.sealEntrance, title: "Seal It", options: []),
-                UNNotificationAction(identifier: Action.openEntrance, title: "Keep It Open", options: [])
-            ],
+            actions: [button(.sealEntrance), button(.openEntrance)],
             intentIdentifiers: [], options: []
         ))
 
@@ -168,66 +171,46 @@ enum NotificationActions {
 
     /// Turns a tapped action into a change to the colony.
     ///
-    /// Runs on the save file directly, because a notification action can
-    /// arrive with no interface running. The store, if there is one, picks
-    /// the change up on its next catch-up.
+    /// Works on the save file rather than on the app's own store, because a
+    /// notification action can arrive with no interface running at all — and
+    /// through a store built around that file rather than by reaching into the
+    /// simulation, so a decision answered from the lock screen takes exactly
+    /// the path a button in the app takes, saving as it goes.
+    ///
+    /// The store is main-actor-bound, which is why this is. That is not the
+    /// same thing as needing an interface: the main actor exists in an app
+    /// woken in the background, and nothing here touches a view.
+    ///
+    /// A store the player is actually looking at is a different matter: it
+    /// holds its own copy of the colony and will overwrite this one from that
+    /// copy on its next catch-up, taking the decision with it. That is the
+    /// usual case for a tap on the watch, which is why `WatchLink` goes
+    /// through the running store when there is one. It is the unusual case
+    /// here — a button tapped from the notification centre with the app
+    /// already open — and it is not handled, as it was not before.
+    @MainActor
     static func handle(
         actionIdentifier: String,
         persistence: GamePersisting = GamePersistence(),
         now: Date = Date()
     ) -> Bool {
-        guard var simulation = try? persistence.load() else { return false }
-        simulation.advance(to: now)
+        guard let action = DecisionAction(identifier: actionIdentifier) else { return false }
+        // `try?` flattens, so one binding covers both "it would not read" and
+        // "there is nothing saved".
+        guard let simulation = try? persistence.load() else { return false }
 
-        var changed = true
-        switch actionIdentifier {
-        case let id where id.hasPrefix(Action.posturePrefix):
-            guard let posture = HivePosture(rawValue: String(id.dropFirst(Action.posturePrefix.count))),
-                  let threat = simulation.world.activeThreat
-            else { return false }
-            simulation.respond(to: threat, with: posture)
+        let store = GameStore(simulation: simulation, persistence: persistence, clock: { now })
+        // The tap may be hours old, and the decision has to be judged against
+        // the colony as it is now rather than as it was when the notification
+        // was written.
+        store.catchUp()
 
-        case Action.discourageSwarm:
-            guard simulation.world.pendingSwarm != nil else { return false }
-            simulation.discourageSwarm()
-
-        case Action.addComb:
-            // Stale in the useful direction: if the swarm has already gone,
-            // the room is still worth having, so this does not check for a
-            // pending one. It checks only that there is room to give.
-            guard simulation.addComb() > 0 else { return false }
-
-        case Action.split:
-            // This one is checked, and hard. A division taken after the colony
-            // has already swarmed would send away a second half of a colony
-            // that has just lost the first.
-            guard simulation.world.pendingSwarm != nil, simulation.canSplit else { return false }
-            guard simulation.split() else { return false }
-
-        case Action.letSwarmGo:
-            changed = false
-
-        case Action.staySwarm:
-            simulation.forgetLastSwarm()
-
-        case Action.sealEntrance:
-            simulation.decideEntrance(sealed: true)
-
-        case Action.openEntrance:
-            simulation.decideEntrance(sealed: false)
-
-        default:
+        let applied = store.apply(action)
+        if let error = store.lastError {
+            logger.error("could not save a decision: \(error)")
             return false
         }
-
-        guard changed else { return true }
-        do {
-            try persistence.save(simulation)
-            return true
-        } catch {
-            logger.error("could not save a decision: \(error.localizedDescription)")
-            return false
-        }
+        return applied
     }
 }
 
@@ -257,9 +240,10 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
             await MainActor.run { self.onOpenApp?(action) }
             return
         }
-        // Deliberately not on the main actor: this reads and writes the save
-        // file, and there may be no interface running at all.
-        _ = NotificationActions.handle(actionIdentifier: action)
+        // On the main actor because the store is, and on the save file because
+        // there may be no interface running at all. Those are not in tension:
+        // see `handle(actionIdentifier:persistence:now:)`.
+        _ = await NotificationActions.handle(actionIdentifier: action)
     }
 
     /// Show decisions even while the app is in the foreground; the in-app

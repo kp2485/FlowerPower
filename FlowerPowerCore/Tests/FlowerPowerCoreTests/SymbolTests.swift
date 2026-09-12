@@ -40,6 +40,7 @@ struct SymbolTests {
         check(ColonyStatus.self) { $0.symbolName }
         check(SimEvent.Severity.self) { $0.symbolName }
         check(HiveLocationType.self) { $0.symbolName }
+        check(WatchDecision.Kind.self) { $0.symbolName }
     }
 
     /// The types that are not `CaseIterable`, listed by hand. If one gains a

@@ -12,6 +12,12 @@
 //  `Simulation.watchSummary()` decides, so the phone and the watch never
 //  disagree about what matters today.
 //
+//  A decision outranks all of it. The gauge is a report and a decision is the
+//  colony asking for something, with a window on it — so while one is open the
+//  complication shows the question rather than the measurement. That is the
+//  whole of what a glance is for: not "stores are at 60%" but "they are about
+//  to swarm and you have two days".
+//
 
 import WidgetKit
 import SwiftUI
@@ -106,7 +112,12 @@ private struct CircularView: View {
         Gauge(value: summary?.gauge.value ?? 0) {
             Image(systemName: "hexagon.fill")
         } currentValueLabel: {
-            if let summary {
+            // The badge, on the one slot this family has. A shield, a swarm or
+            // a door in the middle of the gauge says the colony is waiting on
+            // an answer; the status icon says it is not.
+            if let decision = summary?.decision {
+                Image(systemName: decision.kind.symbolName)
+            } else if let summary {
                 Image(systemName: summary.status.symbolName)
             } else {
                 Image(systemName: "hexagon")
@@ -124,6 +135,9 @@ private struct CircularView: View {
 
     private var accessibilityText: String {
         guard let summary else { return "No colony" }
+        if let decision = summary.decision {
+            return "\(decision.title). \(decision.detail)"
+        }
         return "\(summary.gauge.meaning.label): \(summary.gauge.caption). \(summary.shortHeadline)"
     }
 }
@@ -133,12 +147,14 @@ private struct CornerView: View {
     let summary: WatchSummary?
 
     var body: some View {
-        Image(systemName: "hexagon.fill")
+        Image(systemName: summary?.decision?.kind.symbolName ?? "hexagon.fill")
             .widgetLabel {
                 Gauge(value: summary?.gauge.value ?? 0) {
-                    Text(summary?.gauge.meaning.label ?? "Hive")
+                    // The corner's label is a few characters wide, so the
+                    // decision's short title displaces the gauge's.
+                    Text(summary?.decision?.title ?? summary?.gauge.meaning.label ?? "Hive")
                 }
-                .tint(WatchTheme.honey)
+                .tint(summary?.hasDecision == true ? WatchTheme.alarm : WatchTheme.honey)
             }
             .widgetAccentable()
     }
@@ -149,7 +165,9 @@ private struct InlineView: View {
     let summary: WatchSummary?
 
     var body: some View {
-        if let summary {
+        if let decision = summary?.decision {
+            Label(decision.title, systemImage: decision.kind.symbolName)
+        } else if let summary {
             Label("\(summary.shortHeadline) · \(summary.population) bees", systemImage: "hexagon.fill")
         } else {
             Label("No colony", systemImage: "hexagon")
@@ -165,29 +183,52 @@ private struct RectangularView: View {
         if let summary {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Image(systemName: summary.status.symbolName)
-                    Text(summary.shortHeadline)
+                    Image(systemName: summary.decision?.kind.symbolName ?? summary.status.symbolName)
+                    Text(summary.decision?.title ?? summary.shortHeadline)
                         .font(.headline)
                         .lineLimit(1)
                 }
                 .widgetAccentable()
 
-                Text(summary.gauge.meaning.label)
+                // This family has a second line, so it can say what the
+                // colony is asking rather than only that it is asking.
+                Text(decisionSubtitle ?? summary.gauge.meaning.label)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
 
                 Gauge(value: summary.gauge.value) {
                     EmptyView()
                 }
                 .gaugeStyle(.accessoryLinearCapacity)
-                .tint(WatchTheme.honey)
+                .tint(summary.hasDecision ? WatchTheme.alarm : WatchTheme.honey)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(summary.shortHeadline). \(summary.gauge.meaning.label): \(summary.gauge.caption)")
+            .accessibilityLabel(accessibilityText)
         } else {
             Label("Open FlowerPower on iPhone", systemImage: "hexagon")
                 .font(.caption)
         }
+    }
+
+    /// How long there is to answer, or the question itself where there is no
+    /// countdown to give.
+    private var decisionSubtitle: String? {
+        guard let decision = summary?.decision else { return nil }
+        guard let days = decision.daysRemaining else { return decision.detail }
+        switch days {
+        case ..<1: return "Decided today"
+        case 1: return "1 day to decide"
+        default: return "\(days) days to decide"
+        }
+    }
+
+    private var accessibilityText: String {
+        guard let summary else { return "No colony" }
+        if let decision = summary.decision {
+            return "\(decision.title). \(decisionSubtitle ?? decision.detail)"
+        }
+        return "\(summary.shortHeadline). \(summary.gauge.meaning.label): \(summary.gauge.caption)"
     }
 }
 

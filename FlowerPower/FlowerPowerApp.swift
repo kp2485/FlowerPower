@@ -69,6 +69,10 @@ struct FlowerPowerApp: App {
                     notifications.onOpenApp = { action in
                         requestedAction = action
                     }
+                    // So a decision answered on the watch goes through the
+                    // store the player is looking at rather than behind its
+                    // back. See `WatchLink.store`.
+                    watchLink.store = store
                 }
                 .environment(\.requestedAction, requestedAction)
                 // Notification permission is not asked for here any more. A

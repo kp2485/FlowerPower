@@ -92,6 +92,13 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
             } else if let lastSentSummary, let lastSent {
                 worthSending = summary.status != lastSentSummary.status
                     || summary.topAlert?.kind != lastSentSummary.topAlert?.kind
+                    // A decision opening or closing is the one thing the watch
+                    // exists for, and none of the others necessarily moves
+                    // when one does — a siege beginning need not change the
+                    // status, the top alert or the headline. Without this a
+                    // question with half a day to answer it could wait out
+                    // the fifteen-minute throttle first.
+                    || summary.decision?.kind != lastSentSummary.decision?.kind
                     || summary.season != lastSentSummary.season
                     || summary.shortHeadline != lastSentSummary.shortHeadline
                     || now.timeIntervalSince(lastSent) >= minimumInterval
@@ -134,6 +141,22 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
     }
 
     private let throttle = Throttle()
+
+    /// The running interface, when there is one.
+    ///
+    /// An answer tapped on the watch has to go through the store the player is
+    /// looking at, if there is one. Writing it to the save file instead — which
+    /// is what the notification path does, and what this did before it could
+    /// receive anything — would work right up until the store's next catch-up
+    /// overwrote the file from its own copy of the colony, taking the decision
+    /// with it. `FlowerPowerApp` hands it over when the interface appears;
+    /// `NotificationActions.handle` is the fallback when there is none, which
+    /// is the case this is woken in the background.
+    ///
+    /// Weak, and main-actor-isolated rather than behind the lock, because
+    /// `GameStore` is `@MainActor` and there is nothing to be gained by
+    /// reaching it from anywhere else.
+    @MainActor weak var store: GameStore?
 
     override init() {
         super.init()
@@ -256,6 +279,48 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
         // A watch that had to ask is a watch whose copy is old. Send the file
         // regardless of the throttle.
         sendSaveFile(simulation, force: true)
+    }
+
+    /// An answer tapped on the watch.
+    ///
+    /// Sent without a reply handler, which is why this is a second
+    /// `didReceiveMessage` beside the one above: WatchConnectivity calls the
+    /// replying variant only when the sender asked for a reply. There is
+    /// nothing to reply with — the watch has already applied the answer to its
+    /// own copy for the player to see, and is not waiting on the phone to
+    /// agree.
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        receive(message)
+    }
+
+    /// The same, queued: a tap made with the phone out of range arrives here
+    /// whenever the two next speak, which may be hours later. Nothing about
+    /// handling it is different, because staleness was never assumed away —
+    /// `GameStore.apply(_:)` judges the answer against the colony as it is now.
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+        receive(userInfo)
+    }
+
+    private func receive(_ payload: [String: Any]) {
+        guard let identifier = payload["decision"] as? String,
+              let action = DecisionAction(identifier: identifier) else { return }
+
+        // Delivered on a queue of WatchConnectivity's choosing, and everything
+        // below is main-actor work.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let store = self.store {
+                if !store.apply(action) {
+                    self.logger.debug(
+                        "a decision from the watch arrived too late: \(identifier, privacy: .public)"
+                    )
+                }
+                return
+            }
+            // No interface: the save file, by the same path a notification
+            // action takes.
+            _ = NotificationActions.handle(actionIdentifier: identifier)
+        }
     }
 
     func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {

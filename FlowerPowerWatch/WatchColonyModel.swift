@@ -73,7 +73,15 @@ final class WatchColonyModel: NSObject {
             // A distinct tap for a decision arriving, a different one for
             // trouble. The watch's whole job is to be glanced at; haptics are
             // how it earns the glance.
-            if decoded.topAlert?.kind != summary?.topAlert?.kind {
+            //
+            // The decision comes first and only one tap plays, because a siege
+            // usually brings an alert with it and two haptics a second apart
+            // read as a malfunction rather than as two pieces of news. A
+            // decision is the more urgent of the two anyway: it is the one
+            // that stops being answerable.
+            if let arriving = decoded.decision, arriving.kind != summary?.decision?.kind {
+                WKInterfaceDevice.current().play(.notification)
+            } else if decoded.topAlert?.kind != summary?.topAlert?.kind {
                 if decoded.topAlert?.severity == .critical {
                     WKInterfaceDevice.current().play(.failure)
                 } else if decoded.topAlert != nil {
@@ -119,6 +127,94 @@ final class WatchColonyModel: NSObject {
 
         } catch {
             logger.error("could not read shared save: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Answering
+
+    /// Answers the decision on screen.
+    ///
+    /// Two things happen, in this order, for different reasons.
+    ///
+    /// The answer is applied to the watch's own copy of the colony first, so
+    /// the page changes under the player's thumb whether or not the phone is in
+    /// the room. That is not a pretence: `GameStore.apply(_:)` is the same code
+    /// the phone will run, on a deterministic engine, so the watch computes
+    /// exactly what the phone will compute and is overwritten by it next time
+    /// they speak. It also means a stale tap is refused here as well — the page
+    /// does not pretend to answer a siege that is over.
+    ///
+    /// Then it goes to the phone, which holds the colony that counts. The phone
+    /// is where photographs are taken and where the canonical save lives, and
+    /// the watch's copy is only ever a copy.
+    func answer(_ identifier: String) {
+        guard let action = DecisionAction(identifier: identifier) else { return }
+        applyLocally(action)
+        send(decision: identifier)
+    }
+
+    private func applyLocally(_ action: DecisionAction) {
+        do {
+            guard let simulation = try persistence.load() else { return }
+            // A store around the watch's own save, exactly as the phone builds
+            // one around its own for a notification action. The alternative is
+            // a second copy of the rules that decide whether a decision is
+            // still open, which is how the two ends would come to disagree.
+            let store = GameStore(simulation: simulation, persistence: persistence)
+            store.catchUp()
+            guard store.apply(action) else { return }
+
+            summary = store.watchSummary()
+            lastUpdated = Date()
+            // Worked out here rather than sent by the phone, which is what
+            // `isStale` means. `apply(_:)` clears it when the phone is next
+            // heard from.
+            isStale = true
+
+        } catch {
+            logger.error("could not answer locally: \(error.localizedDescription)")
+        }
+    }
+
+    /// Sends the answer, or queues it if the phone is not listening.
+    ///
+    /// `sendMessage` needs the phone reachable and delivers immediately;
+    /// `transferUserInfo` is queued by the system and delivered whenever the
+    /// two next speak, which may be after the watch app has been put away.
+    /// A decision is worth queueing — the window is hours, not seconds, and
+    /// the phone judges staleness when it arrives.
+    private func send(decision identifier: String) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        let payload = ["decision": identifier]
+
+        // Nothing may be handed to an unactivated session, so an answer tapped
+        // in the second before activation completes is lost rather than
+        // queued. It is applied locally either way, and the phone's next
+        // summary will quietly correct the watch — which is the right way
+        // round for a copy to be wrong.
+        guard session.activationState == .activated else {
+            logger.error("a decision was answered before the session was up")
+            return
+        }
+
+        guard session.isReachable else {
+            session.transferUserInfo(payload)
+            return
+        }
+
+        session.sendMessage(payload, replyHandler: nil) { [weak self] error in
+            self?.logger.error("could not send a decision: \(error.localizedDescription)")
+            // Reachable and it still failed, so fall back to the queue rather
+            // than losing the tap. A failed send could in principle have
+            // arrived anyway, so this can deliver the same answer twice —
+            // which every answer here tolerates, because the second one finds
+            // the decision closed and does nothing. The exception is opening
+            // the nest up, which is deliberately not checked against a
+            // decision at all: a duplicate would draw a second batch of comb
+            // and pay for it. The colony can afford that or it would draw
+            // nothing, so losing the answer is the worse of the two risks.
+            WCSession.default.transferUserInfo(payload)
         }
     }
 

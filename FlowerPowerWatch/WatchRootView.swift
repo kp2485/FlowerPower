@@ -2,8 +2,14 @@
 //  WatchRootView.swift
 //  FlowerPower Watch
 //
-//  Three pages, in order of how often you want them: how the colony is, what
-//  the weather is doing to it, and the numbers.
+//  Pages, in order of how often you want them: the decision if there is one,
+//  how the colony is, what the weather is doing to it, and the numbers.
+//
+//  The decision page is first rather than last for the same reason the watch
+//  exists at all. The design rule is that every decision the game asks is
+//  answerable from a wrist, and a page reached by scrolling past three others
+//  is not answerable so much as findable. When there is nothing to decide the
+//  page is not there, so the colony's state is what a glance lands on.
 //
 
 import SwiftUI
@@ -17,6 +23,11 @@ struct WatchRootView: View {
         NavigationStack {
             if let summary = model.summary {
                 TabView {
+                    if let decision = summary.decision {
+                        DecisionPage(decision: decision) { identifier in
+                            model.answer(identifier)
+                        }
+                    }
                     StatusPage(summary: summary, isStale: model.isStale)
                     ConditionsPage(summary: summary)
                     NumbersPage(summary: summary)
@@ -29,6 +40,69 @@ struct WatchRootView: View {
             }
         }
         .onAppear { model.refresh() }
+    }
+}
+
+// MARK: - A decision
+
+/// The question, what it costs, and a button for each answer.
+///
+/// Instinct is not among the buttons, on purpose. Doing nothing is what happens
+/// if the player never looks, so a button for it would spend one of the three
+/// places a watch screen has on the outcome the player already has. The page
+/// says so in a line instead.
+private struct DecisionPage: View {
+
+    let decision: WatchDecision
+    /// Takes a `DecisionAction` identifier, which the model parses. The view
+    /// deliberately knows nothing about what the answers mean.
+    var onAnswer: (String) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 5) {
+                    Image(systemName: decision.kind.symbolName)
+                        .foregroundStyle(WatchTheme.alarm)
+                    Text(decision.title)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                }
+
+                if let days = decision.daysRemaining {
+                    Text(remaining(days))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(decision.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(decision.options, id: \.identifier) { option in
+                    Button(option.title) { onAnswer(option.identifier) }
+                        .buttonStyle(.bordered)
+                        .tint(WatchTheme.honey)
+                        .frame(maxWidth: .infinity)
+                }
+
+                Text("Or leave it to the bees, which is what happens if you do nothing.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 4)
+        }
+    }
+
+    private func remaining(_ days: Int) -> String {
+        switch days {
+        case ..<1: return "Decided today"
+        case 1: return "1 day to decide"
+        default: return "\(days) days to decide"
+        }
     }
 }
 

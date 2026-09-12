@@ -228,6 +228,20 @@ public extension QueenCell.Purpose {
     }
 }
 
+public extension WatchDecision.Kind {
+
+    /// What the watch puts beside the question, and what the complication
+    /// shows in place of the status icon while one is open.
+    var symbolName: String {
+        switch self {
+        case .siege: return "exclamationmark.shield.fill"
+        case .swarm: return "arrow.triangle.branch"
+        case .nestFull: return "square.grid.3x3.fill"
+        case .entrance: return "door.left.hand.closed"
+        }
+    }
+}
+
 public extension SimEvent.Severity {
 
     var symbolName: String {
