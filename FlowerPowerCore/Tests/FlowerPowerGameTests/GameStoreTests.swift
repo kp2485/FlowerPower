@@ -438,6 +438,22 @@ struct FirstRunTests {
         #expect((try? persistence.load()) == nil)
     }
 
+    @Test("A player action before setup does not save either")
+    func playerActionDoesNotSaveBeforeSetup() {
+        let persistence = InMemoryPersistence()
+        let store = GameStore.load(persistence: persistence, clock: { Self.epoch })
+
+        // Every player action ends in a refresh, and a refresh saves. A watch
+        // tap during the introduction used to persist the placeholder colony
+        // through exactly this path.
+        store.setDifficulty(.gentle)
+        _ = store.emphasise(.foragingBee)
+        store.decideEntrance(sealed: true)
+
+        #expect(store.needsSetup)
+        #expect(persistence.saveCount == 0)
+    }
+
     @Test("A store that loaded a colony is not a first run")
     func savedColonyLoads() {
         let saved = Simulation.newGame(

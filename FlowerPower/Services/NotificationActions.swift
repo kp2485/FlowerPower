@@ -237,7 +237,11 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
         let action = response.actionIdentifier
         if action == NotificationActions.Action.followSwarm
             || action == UNNotificationDefaultActionIdentifier {
-            await MainActor.run { self.onOpenApp?(action) }
+            // With a nonce, for the same reason `PhotographFlowerIntent`
+            // carries one: the interface reacts to the value *changing*, and
+            // the second tap of the same button in one session would
+            // otherwise look like no request at all.
+            await MainActor.run { self.onOpenApp?(action + "#" + UUID().uuidString) }
             return
         }
         // On the main actor because the store is, and on the save file because

@@ -256,6 +256,12 @@ targets:
         excludes:
           # Carries its own @main and belongs to the widget extension.
           - "HiveComplication.swift"
+          # Generated for the widget extension below. XcodeGen leaves a file
+          # called exactly `Info.plist` out of every build phase but knows no
+          # such rule for this name, so without the exclude it would be
+          # copied into the watch app as a stray resource on every
+          # regeneration after the first.
+          - "WidgetInfo.plist"
     dependencies:
       - package: FlowerPowerCore
         product: FlowerPowerCore
@@ -303,6 +309,10 @@ targets:
       # It is its own binary and needs its own copy; the phase is stated
       # outright here because there is no directory rule to lean on.
       - path: FlowerPowerWatch/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      # The complication draws its own strings, so the catalogue Xcode fills
+      # from them has to be in this target too.
+      - path: FlowerPowerWatch/Localizable.xcstrings
         buildPhase: resources
     dependencies:
       - package: FlowerPowerCore

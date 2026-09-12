@@ -17,6 +17,7 @@
 //  the app can measure them; if the balance moves, this file moves with it.
 //
 
+import Foundation
 import SwiftUI
 
 struct AboutView: View {

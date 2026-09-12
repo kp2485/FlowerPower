@@ -67,7 +67,7 @@ struct ContentView: View {
         // `.task` takes a @Sendable closure, which does not inherit the view's
         // main-actor isolation — so the hop has to be explicit to reach the
         // @MainActor store.
-        .task { @MainActor in
+        .task(id: store.needsSetup) { @MainActor in
             resume()
         }
         .onOpenURL { url in
@@ -94,7 +94,7 @@ struct ContentView: View {
             // Following a swarm needs a site chosen, so the notification
             // opened the app; the departed-swarm card on the dashboard is
             // where that choice lives.
-            if action == NotificationActions.Action.followSwarm { selection = .colony }
+            if action?.hasPrefix(NotificationActions.Action.followSwarm) ?? false { selection = .colony }
             // "Photograph a flower" from Siri, a Shortcut or Control Centre.
             // Matched on a prefix because the identifier carries a nonce —
             // see `PhotographFlowerIntent` for why asking twice has to look

@@ -139,10 +139,7 @@ public final class GameStore {
 
         if isCollapsed { stopLiveUpdates() }
 
-        // Not while the player is still being introduced. The colony this
-        // would write is the placeholder one `load` invented, at a site
-        // nobody chose.
-        if !needsSetup { save() }
+        save()
     }
 
     /// Whether there is still a colony to play. The interface swaps to
@@ -607,6 +604,12 @@ public final class GameStore {
     /// foreground and every twenty seconds thereafter, which is how long that
     /// window can be.
     private func save() {
+        // Not while the player is still being introduced. The colony this
+        // would write is the placeholder one `load` invented, at a site
+        // nobody chose. The gate is here rather than in `catchUp()` because
+        // every player action ends in `refresh()`, which ends here — and a
+        // watch tap or a widget button can arrive during the introduction.
+        guard !needsSetup else { return }
         do {
             try persistence.save(simulation)
             storedSaveToken = try? persistence.changeToken()
