@@ -326,12 +326,21 @@ strings; a generated placeholder icon so the appiconset is not empty (it should
 be replaced by a designed one); the two UI tests rewritten to assert something
 true.
 
-**And one bug the work surfaced.** Notification buttons, App Intents and
-widget buttons all act on the save *file* with no interface running. When the
-app is in the foreground, `GameStore` holds the colony in memory and writes it
-over the file at the next catch-up, and the decision is lost. It has been true
-since the notification actions were built. The fix — the store noticing the
-file changed under it and reloading before it advances — is in section 3.
+**And one bug the work surfaced, and fixed.** Notification buttons, App
+Intents and widget buttons all act on the save *file* with no interface
+running. When the app was in the foreground, `GameStore` held the colony in
+memory and wrote it over the file at the next catch-up, and the decision was
+lost. It had been true since the notification actions were built, and two of
+the seven agents found it independently. `GamePersisting` now offers a
+`changeToken()` — the save's modification date and size — the store records
+the token after every save, and `catchUp()` reloads the file first if the
+token has moved. Twelve tests, four of which fail with the reload commented
+out. The reload happens in `catchUp()` only: by the time `save()` runs the
+player's own change is already in memory, and two of the player's own actions
+seconds apart in two processes is a race the later one should win, not a bug.
+Reading a file's timestamp is a required-reason API, so C617.1 is in all
+three privacy manifests — the call is compiled into every binary that links
+the game layer, and Apple's check is a static scan.
 
 ---
 
