@@ -15,6 +15,7 @@
 
 import SwiftUI
 import MapKit
+import TipKit
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -44,6 +45,10 @@ struct ForageMapView: View {
                     mapContent
                 }
             }
+            // Over the map rather than on the toolbar button, which is
+            // disabled until the hive has a coordinate — and a popover
+            // anchored to a disabled control is a tip nobody sees.
+            .overlay(alignment: .bottom) { TipView(Tips.forage).padding() }
             .navigationTitle("Forage")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {

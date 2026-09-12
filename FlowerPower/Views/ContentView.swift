@@ -13,6 +13,7 @@
 //
 
 import SwiftUI
+import TipKit
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -41,7 +42,12 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if store.isCollapsed {
+            if store.needsSetup {
+                // A first launch. Nothing is saved until a site is chosen at
+                // the end of this, so quitting half way through comes back
+                // here rather than to a colony nobody picked.
+                FirstRunView()
+            } else if store.isCollapsed {
                 NewColonyView(
                     reason: .afterCollapse,
                     epitaph: store.snapshot.epitaph
@@ -57,8 +63,7 @@ struct ContentView: View {
         // main-actor isolation — so the hop has to be explicit to reach the
         // @MainActor store.
         .task { @MainActor in
-            store.catchUp()
-            store.startLiveUpdates()
+            resume()
         }
         .onOpenURL { url in
             open(url)
@@ -104,8 +109,7 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                store.catchUp()
-                store.startLiveUpdates()
+                resume()
                 if humEnabled { HiveHum.shared.start() }
             case .inactive, .background:
                 store.stopLiveUpdates()
@@ -118,6 +122,24 @@ struct ContentView: View {
                 break
             }
         }
+    }
+
+    /// Brings the colony up to date and starts the live view. Called on every
+    /// appearance and every return to the foreground.
+    ///
+    /// Not during setup: the colony that exists then is the placeholder
+    /// `GameStore.load` invented, at a site nobody has chosen, and running it
+    /// forward underneath the introduction would hand the player a catch-up
+    /// report about a nest they have not seen. The store refuses to save or to
+    /// tick while it needs setting up; this keeps it from being asked.
+    private func resume() {
+        guard !store.needsSetup else { return }
+        store.catchUp()
+        store.startLiveUpdates()
+        // See `SettingsTip`: it holds off until there is a flower in the
+        // garden, so that it cannot out-run the camera tip on the first
+        // screen a player ever sees.
+        SettingsTip.hasPhotographed = !store.snapshot.patches.isEmpty
     }
 
     private var tabs: some View {
@@ -150,6 +172,7 @@ struct ContentView: View {
             .tint(Theme.honey)
             .padding(.trailing, 16)
             .accessibilityLabel("Settings")
+            .popoverTip(Tips.settings)
         }
         .sheet(isPresented: $isCapturing) {
             CaptureView()

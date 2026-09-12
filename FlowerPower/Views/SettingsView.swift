@@ -23,10 +23,22 @@ struct SettingsView: View {
     @State private var isChoosingNewSite = false
     @State private var keepFlowers = true
     @State private var isAskingForForage = false
+    @State private var isRereadingIntroduction = false
 
     @AppStorage("hiveHum") private var humEnabled = false
     @AppStorage("digestHour") private var digestHour = 8
     @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
+
+    // The three kinds of notification, switched separately. Defaulting to true
+    // is what makes an absent key mean "on", which is how
+    // `BackgroundRefresh.isEnabled` reads them from the background task, where
+    // there is no `@AppStorage` to be had.
+    @AppStorage(BackgroundRefresh.Preference.decisions.rawValue)
+    private var notifyDecisions = true
+    @AppStorage(BackgroundRefresh.Preference.digest.rawValue)
+    private var notifyDigest = true
+    @AppStorage(BackgroundRefresh.Preference.news.rawValue)
+    private var notifyNews = true
 
     var body: some View {
         NavigationStack {
@@ -35,7 +47,9 @@ struct SettingsView: View {
                 nestSection
                 gardenSection
                 rhythmSection
+                notificationsSection
                 startOverSection
+                helpSection
                 aboutSection
             }
             .navigationTitle("Settings")
@@ -56,6 +70,15 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $isAskingForForage) {
                 AskForForageView()
+            }
+            .sheet(isPresented: $isRereadingIntroduction) {
+                // Not asking for notification permission a second time: iOS
+                // shows that prompt once and afterwards the answer lives in
+                // the system's own Settings, so a button here would do
+                // nothing at all.
+                OnboardingView(asksForNotifications: false) {
+                    isRereadingIntroduction = false
+                }
             }
             .sheet(isPresented: $isChoosingNewSite) {
                 NewColonyView(reason: .firstColony) { site in
@@ -170,6 +193,29 @@ struct SettingsView: View {
         return date.formatted(date: .omitted, time: .shortened)
     }
 
+    // MARK: - Notifications
+
+    /// Three switches, because the three things the game sends are worth
+    /// completely different amounts and a player who is tired of one should
+    /// not have to silence all of them.
+    ///
+    /// A decision has a window on it: turned off, the colony still asks, and
+    /// still falls back on instinct when nobody answers — the question simply
+    /// waits on the dashboard until the player next opens the app, by which
+    /// time it may have closed. That is the one worth keeping, and the footer
+    /// says so rather than leaving it to be discovered.
+    private var notificationsSection: some View {
+        Section {
+            Toggle("Decisions", isOn: $notifyDecisions)
+            Toggle("Morning report", isOn: $notifyDigest)
+            Toggle("Colony news", isOn: $notifyNews)
+        } header: {
+            Text("Notifications")
+        } footer: {
+            Text("Decisions are a siege, swarm cells, a full nest, a swarm that has left, the autumn entrance — each with a window, each answerable from the notification itself. Colony news is everything else the colony does badly, including the day it ends. The morning report is one summary a day at the hour set above.")
+        }
+    }
+
     // MARK: - Starting over
 
     private var startOverSection: some View {
@@ -196,6 +242,20 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This colony and everything it has built will be gone. There is no undo.")
+        }
+    }
+
+    // MARK: - Help
+
+    /// The introduction is three pages read once, before the player has seen
+    /// any of the game, so it is exactly the sort of thing somebody wants back
+    /// a week later. It is the same view, minus the permission prompt.
+    private var helpSection: some View {
+        Section {
+            Button("How to Play") { isRereadingIntroduction = true }
+            NavigationLink("About FlowerPower") { AboutView() }
+        } header: {
+            Text("Help")
         }
     }
 

@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import TipKit
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -97,6 +98,7 @@ struct ColonyDashboardView: View {
                     Button(action: onPhotograph) {
                         Label("Photograph a Flower", systemImage: "camera.fill")
                     }
+                    .popoverTip(Tips.photograph)
                 }
             }
         }

@@ -1,4 +1,5 @@
 import XCTest
+import Testing
 import FlowerPowerCore
 @testable import FlowerPowerGame
 
@@ -384,5 +385,89 @@ final class GameStoreTests: XCTestCase {
         let summary = store.watchSummary()
         XCTAssertEqual(summary.status, store.snapshot.status)
         XCTAssertEqual(summary.season, store.snapshot.season)
+    }
+}
+
+// MARK: - The first run
+
+/// Telling a first launch from a returning player.
+///
+/// `load` has to hand back a playable store either way, so before `needsSetup`
+/// existed the two were indistinguishable: a new player was dropped onto a
+/// dashboard of numbers about a colony living somewhere they had never been
+/// asked about. The flag itself is small. What it has to get right is that the
+/// placeholder colony never reaches the save file, because a save is what
+/// makes a site permanent — quit half way through the introduction and the
+/// next launch would find a colony and skip it.
+@Suite("The first run")
+@MainActor
+struct FirstRunTests {
+
+    private static let epoch = Date(timeIntervalSince1970: 1_700_000_000)
+
+    /// The store is driven by elapsed real time, so a test that wants a
+    /// catch-up to do anything has to move the clock rather than the colony.
+    private final class Clock: @unchecked Sendable {
+        var now: Date
+        init(_ now: Date) { self.now = now }
+    }
+
+    @Test("A store with nothing to load needs setting up")
+    func nothingSaved() {
+        let store = GameStore.load(
+            persistence: InMemoryPersistence(),
+            clock: { Self.epoch }
+        )
+        #expect(store.needsSetup)
+    }
+
+    @Test("Catching up during setup does not write the placeholder colony")
+    func catchUpDoesNotSaveBeforeSetup() {
+        let persistence = InMemoryPersistence()
+        let clock = Clock(Self.epoch)
+        let store = GameStore.load(persistence: persistence, clock: { clock.now })
+
+        // Two real days, which at five minutes to the simulated hour is a
+        // fortnight of colony. Whatever it does in that fortnight stays off
+        // disk.
+        clock.now = Self.epoch.addingTimeInterval(2 * 24 * 3600)
+        store.catchUp()
+
+        #expect(store.needsSetup)
+        #expect(persistence.saveCount == 0)
+        #expect((try? persistence.load()) == nil)
+    }
+
+    @Test("A store that loaded a colony is not a first run")
+    func savedColonyLoads() {
+        let saved = Simulation.newGame(
+            at: HiveLocation(type: .nestbox),
+            startingAt: Self.epoch,
+            seed: 7
+        )
+        let store = GameStore.load(
+            persistence: InMemoryPersistence(initial: saved),
+            clock: { Self.epoch }
+        )
+
+        #expect(!store.needsSetup)
+        #expect(store.snapshot.nest.siteType == .nestbox)
+    }
+
+    @Test("Choosing a site ends setup and the colony starts being saved")
+    func startingTheGameSaves() throws {
+        let persistence = InMemoryPersistence()
+        let store = GameStore.load(persistence: persistence, clock: { Self.epoch })
+        #expect(store.needsSetup)
+
+        store.startNewGame(at: HiveLocation(type: .cave))
+        // The live ticker `startNewGame` starts would otherwise outlive the
+        // test and keep saving into the persistence it is asserting about.
+        store.stopLiveUpdates()
+
+        #expect(!store.needsSetup)
+        #expect(persistence.saveCount > 0)
+        let onDisk = try persistence.load()
+        #expect(onDisk?.snapshot().nest.siteType == .cave)
     }
 }

@@ -48,6 +48,9 @@ struct FlowerPowerApp: App {
         // delivered.
         NotificationActions.register()
         UNUserNotificationCenter.current().delegate = notifications
+
+        // Contextual tips. Must be configured before any `TipView` is drawn.
+        Tips.configure()
     }
 
     var body: some Scene {
@@ -68,11 +71,13 @@ struct FlowerPowerApp: App {
                     }
                 }
                 .environment(\.requestedAction, requestedAction)
-                .task {
-                    // Asked for on first run rather than at launch, so the
-                    // prompt lands after the player has seen what the app is.
-                    await BackgroundRefresh.requestNotificationPermission()
-                }
+                // Notification permission is not asked for here any more. A
+                // `.task` on the root view fires before the first frame, so
+                // the system prompt was the opening screen of the app with
+                // nothing behind it to explain why — and iOS gives an app
+                // exactly one chance to ask. It is now the last page of
+                // `OnboardingView`, after the page that says the colony makes
+                // decisions while the app is closed.
         }
     }
 }

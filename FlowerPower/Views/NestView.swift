@@ -15,6 +15,7 @@
 //
 
 import SwiftUI
+import TipKit
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -29,6 +30,7 @@ struct NestView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    TipView(Tips.nest)
                     CombPanel(snapshot: snapshot)
                     CombLegend()
                     JobBreakdown(population: snapshot.population)

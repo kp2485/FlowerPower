@@ -128,6 +128,27 @@ enum BackgroundRefresh {
         await digestIfDue(report: report, snapshot: after, now: now)
     }
 
+    // MARK: - What the player wants to hear about
+
+    /// The three kinds of notification the game sends, each switchable in
+    /// `SettingsView`.
+    ///
+    /// Read straight out of `UserDefaults` rather than passed in, because
+    /// everything below runs in a background task with no interface, no store
+    /// and no `@AppStorage` wrapper to read for it. An absent key means on,
+    /// which is the same default `SettingsView`'s toggles declare — so a
+    /// player who has never opened that section gets everything, and the two
+    /// halves cannot disagree about what silence means.
+    enum Preference: String {
+        case decisions = "notifyDecisions"
+        case digest = "notifyDigest"
+        case news = "notifyNews"
+    }
+
+    static func isEnabled(_ preference: Preference) -> Bool {
+        UserDefaults.standard.object(forKey: preference.rawValue) as? Bool ?? true
+    }
+
     // MARK: - The morning report
 
     private static let lastDigestKey = "lastDigestDay"
@@ -135,6 +156,8 @@ enum BackgroundRefresh {
     /// One digest a day, at the hour the player chose, and only if there is
     /// something in it.
     private static func digestIfDue(report: CatchUpReport, snapshot: ColonySnapshot, now: Date) async {
+        guard isEnabled(.digest) else { return }
+
         let hour = UserDefaults.standard.object(forKey: "digestHour") as? Int ?? 8
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
@@ -181,6 +204,14 @@ enum BackgroundRefresh {
     ) async {
         guard let news = ColonyNews.between(before: before, after: after) else { return }
 
+        // Whether this piece of news carries a decision is not a separate
+        // judgement: it is exactly whether there is a category of action
+        // buttons to put it in. Which makes it also the line the player's two
+        // switches fall on — a siege they can answer from the lock screen on
+        // one side, the colony merely getting worse on the other.
+        let category = NotificationActions.category(for: news, snapshot: after)
+        guard isEnabled(category == nil ? .news : .decisions) else { return }
+
         let content = UNMutableNotificationContent()
         content.title = news.title
         content.body = news.body
@@ -188,7 +219,7 @@ enum BackgroundRefresh {
 
         // A decision gets its action buttons, and the interruption level
         // that lets it through; routine news stays quiet.
-        if let category = NotificationActions.category(for: news, snapshot: after) {
+        if let category {
             content.categoryIdentifier = category.rawValue
             content.interruptionLevel = .timeSensitive
         }

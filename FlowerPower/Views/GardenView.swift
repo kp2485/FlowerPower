@@ -11,6 +11,7 @@
 
 import SwiftUI
 import Photos
+import TipKit
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -66,6 +67,7 @@ struct GardenView: View {
     private var gardenGrid: some View {
         ScrollView {
             VStack(spacing: 16) {
+                TipView(Tips.garden)
                 SeasonalAdviceCard(season: snapshot.season)
 
                 Picker("Filter", selection: $filter) {

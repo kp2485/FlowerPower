@@ -42,3 +42,6 @@ build/
 # Windows
 Thumbs.db
 Desktop.ini
+
+# Agent worktrees created by Claude Code sessions.
+.claude/worktrees/

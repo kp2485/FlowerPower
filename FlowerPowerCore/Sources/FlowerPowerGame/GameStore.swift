@@ -30,6 +30,21 @@ public final class GameStore {
     public private(set) var isBusy = false
     public private(set) var lastError: String?
 
+    /// Whether this is a colony nobody has chosen yet.
+    ///
+    /// `load` always hands back a playable store — there has to be something
+    /// to render — so when there is no save it starts a colony at a default
+    /// site. That default is a placeholder, not a choice: where the swarm
+    /// settles decides more about the next two years than anything the player
+    /// picks afterwards, so a first-run player must get to choose it.
+    ///
+    /// While this is true the store keeps the placeholder colony out of the
+    /// save file. A player who quits half way through the introduction should
+    /// come back to the introduction, not to a colony living in a tree they
+    /// never saw. It is cleared by `startNewGame`, which is what the
+    /// site-choosing screen calls.
+    public private(set) var needsSetup = false
+
     // MARK: - Private state
 
     private var simulation: Simulation
@@ -54,6 +69,11 @@ public final class GameStore {
     }
 
     /// Loads a saved game, or starts a new one at the given site.
+    ///
+    /// A store that had nothing to load comes back with `needsSetup` set, so
+    /// the interface can tell a first run from a returning player — which
+    /// used to be indistinguishable, and meant a new player landed on a
+    /// dashboard full of numbers with no idea what any of it was.
     public static func load(
         persistence: GamePersisting = GamePersistence(),
         defaultSite: HiveLocation = HiveLocation(type: .livingTreeCavity),
@@ -68,7 +88,9 @@ public final class GameStore {
             startingAt: clock(),
             seed: UInt64.random(in: 1...UInt64.max)
         )
-        return GameStore(simulation: fresh, persistence: persistence, clock: clock)
+        let store = GameStore(simulation: fresh, persistence: persistence, clock: clock)
+        store.needsSetup = true
+        return store
     }
 
     // MARK: - Advancing time
@@ -91,7 +113,10 @@ public final class GameStore {
 
         if isCollapsed { stopLiveUpdates() }
 
-        save()
+        // Not while the player is still being introduced. The colony this
+        // would write is the placeholder one `load` invented, at a site
+        // nobody chose.
+        if !needsSetup { save() }
     }
 
     /// Whether there is still a colony to play. The interface swaps to
@@ -106,8 +131,11 @@ public final class GameStore {
     public func startLiveUpdates(interval: Duration = .seconds(20)) {
         stopLiveUpdates()
         // Nothing left to refresh, and a ticker on a dead colony would keep
-        // the phone awake to recompute the same empty nest for ever.
-        guard !isCollapsed else { return }
+        // the phone awake to recompute the same empty nest for ever. Nor
+        // before setup: a ticker would run the placeholder colony forward
+        // underneath the introduction, and its catch-ups would be the first
+        // thing to hand the player a report about a nest they have not seen.
+        guard !isCollapsed, !needsSetup else { return }
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: interval)
@@ -426,7 +454,10 @@ public final class GameStore {
     }
 
     /// Wipes the saved game and starts again. Destructive, so the caller is
-    /// expected to have confirmed with the player first.
+    /// expected to have confirmed with the player first — except on a first
+    /// run, where there is nothing to destroy and this is simply how the
+    /// introduction ends: the same site-choosing screen, and `needsSetup`
+    /// cleared here so the colony starts being saved.
     ///
     /// - Parameter keepingFlowers: carries the garden across to the new
     ///   colony, which is the default and almost always what is wanted. The
@@ -434,6 +465,9 @@ public final class GameStore {
     ///   flowers are still there whether or not the bees are. Passing `false`
     ///   is a genuine restart from nothing, for a player who asks for one.
     public func startNewGame(at site: HiveLocation, keepingFlowers: Bool = true) {
+        // A site has been chosen, so there is a colony worth keeping. Cleared
+        // before the calls below, both of which are gated on it.
+        needsSetup = false
         simulation = Simulation.newGame(
             at: site,
             startingAt: clock(),
