@@ -67,7 +67,10 @@ struct EventNarrationTests {
         .colonyDivided(beesLeft: 60),
 
         .starving,
-        .winterStoresLow(have: 40, need: 120)
+        .winterStoresLow(have: 40, need: 120),
+
+        .milestone(.firstFlower),
+        .milestone(.firstWinterSurvived)
     ]
 
     @Test("Every event narrates as a sentence")

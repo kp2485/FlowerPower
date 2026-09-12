@@ -128,7 +128,11 @@ public struct Simulation: Codable, Equatable, Sendable {
         ThreatSystem(),
         PropolisSystem(),
         ColonyStatusSystem(),
-        LineageSystem()
+        LineageSystem(),
+        // Dead last, and after the lineage, because two of its conditions read
+        // the record the lineage system has just written. It reads everything
+        // and writes only `world.milestones`, so it cannot move the balance.
+        MilestoneSystem()
     ]
 
     public static var systemNames: [String] { pipeline.map(\.name) }
@@ -147,6 +151,8 @@ public struct Simulation: Codable, Equatable, Sendable {
 
     public var patches: [FlowerPatch] { world.patches }
     public var weather: Weather { world.weather }
+    /// What this colony has done for the first time.
+    public var milestones: Milestones { world.milestones }
     public var season: Season { Season(day: clock.day) }
     public var day: Int { clock.day }
 

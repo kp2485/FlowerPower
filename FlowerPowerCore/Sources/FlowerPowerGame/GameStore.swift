@@ -211,6 +211,14 @@ public final class GameStore {
         refresh()
     }
 
+    /// What this colony has done for the first time.
+    ///
+    /// Read straight from the simulation rather than copied into the snapshot:
+    /// the badge page is a whole screen of its own that nothing on the
+    /// dashboard reads, and two dozen records in every published snapshot
+    /// would be paid for on every refresh.
+    public var milestones: Milestones { simulation.milestones }
+
     /// The difficulty currently in force, so a settings screen can show which
     /// preset is selected.
     public var currentConfig: SimulationConfig { simulation.config }

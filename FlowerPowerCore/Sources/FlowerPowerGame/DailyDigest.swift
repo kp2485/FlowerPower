@@ -60,6 +60,14 @@ public struct DailyDigest: Equatable, Sendable {
         if report.starved {
             lines.append("The colony went hungry.")
         }
+        // A first is the one line in the digest that is unambiguously good
+        // news, and the one the player would be sorriest to have missed.
+        if let first = report.milestones.first {
+            lines.append(report.milestones.count == 1
+                         ? "A first: \(first.title.lowercased())."
+                         : "\(report.milestones.count) firsts, "
+                            + "including \(first.title.lowercased()).")
+        }
         if report.netPopulationChange != 0, abs(report.netPopulationChange) >= 10 {
             let change = report.netPopulationChange
             lines.append(change > 0

@@ -145,6 +145,26 @@ struct LongGameTests {
         #expect(digest?.body.contains("wasp") == true)
     }
 
+    /// A first earned while the player was away is the one line in the digest
+    /// that is unambiguously good news, so it is worth a notification even on
+    /// a day when nothing went wrong.
+    @Test("A first earned while away reaches the digest")
+    func digestMentionsMilestones() {
+        let (snapshot, report) = snapshot(days: 30)
+
+        var one = report
+        one.record(.milestone(.firstWinterSurvived))
+        let single = DailyDigest.make(from: one, snapshot: snapshot)
+        #expect(single?.body.contains("A first: through the first winter.") == true)
+
+        var several = report
+        several.record(.milestone(.firstWinterSurvived))
+        several.record(.milestone(.firstQueenMated))
+        let many = DailyDigest.make(from: several, snapshot: snapshot)
+        #expect(many?.body.contains("2 firsts") == true)
+        #expect(many?.body.contains("through the first winter") == true)
+    }
+
     @Test("Spoken lists read as English")
     func spokenLists() {
         #expect([String]().spokenList == "")

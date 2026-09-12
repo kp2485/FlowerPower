@@ -96,6 +96,10 @@ public enum SimEvent: Equatable, Sendable {
     // Warnings the UI should surface promptly
     case starving
     case winterStoresLow(have: Double, need: Double)
+
+    /// The colony did something for the first time. Emitted by
+    /// `MilestoneSystem`, once per milestone per colony, for ever.
+    case milestone(Milestone)
 }
 
 /// Aggregated outcome of a span of simulated time.
@@ -125,6 +129,11 @@ public struct CatchUpReport: Equatable, Sendable {
     public var collapsed = false
     public var starved = false
     public var groundedDays = 0
+
+    /// Firsts the colony reached while the player was away, in the order they
+    /// happened. Kept apart from `highlights`, which is capped: a badge earned
+    /// during a busy fortnight should not be the thing the cap throws out.
+    public var milestones: [Milestone] = []
 
     /// Kept in arrival order and capped, so the UI can show a readable
     /// timeline without unbounded growth.
@@ -179,6 +188,8 @@ public struct CatchUpReport: Equatable, Sendable {
             starved = true
         case .groundedByWeather:
             groundedDays += 1
+        case .milestone(let milestone):
+            milestones.append(milestone)
         default:
             break
         }
@@ -206,7 +217,7 @@ extension SimEvent {
              .attacked, .attackRepelled, .raidSucceeded, .winterStoresLow,
              .threatBegan, .threatEnded, .swarmPreparing, .swarmAbandoned,
              .postureAdopted, .entranceSealed, .honeyTaken,
-             .combAdded, .colonyDivided:
+             .combAdded, .colonyDivided, .milestone:
             return true
         }
     }
@@ -225,6 +236,11 @@ extension SimEvent {
         case .colonyDivided:
             // A division the player asked for is news, not a warning. They
             // know: they did it.
+            return .notable
+        case .milestone:
+            // Informational, and deliberately never higher. A badge must not
+            // be able to outrank the sentence saying the queen is lost, and
+            // `.notable` is the tier `Symbols.swift` draws as an info circle.
             return .notable
         case .queenEmerged, .queenMated, .supersededQueen, .nectarFlowBegan,
              .infectionCleared, .attackRepelled, .queenCellStarted:

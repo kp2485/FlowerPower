@@ -59,6 +59,9 @@ public struct World: Codable, Equatable, Sendable {
     public var almanac = Almanac()
     /// Honey the player has taken, over the life of the colony.
     public var honeyTaken: Double = 0
+    /// What this colony has done for the first time. See `Milestones` for why
+    /// they belong to the colony rather than to the player.
+    public var milestones = Milestones()
 
     public init(
         hive: Hive,
@@ -107,6 +110,9 @@ public struct World: Codable, Equatable, Sendable {
         lineage = try container.decodeIfPresent(Lineage.self, forKey: .lineage) ?? Lineage()
         almanac = try container.decodeIfPresent(Almanac.self, forKey: .almanac) ?? Almanac()
         honeyTaken = try container.decodeIfPresent(Double.self, forKey: .honeyTaken) ?? 0
+        milestones = try container.decodeIfPresent(
+            Milestones.self, forKey: .milestones
+        ) ?? Milestones()
     }
 
     public static let attackHistoryLimit = 40

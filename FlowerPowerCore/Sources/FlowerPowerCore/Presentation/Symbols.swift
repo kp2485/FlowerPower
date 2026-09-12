@@ -177,6 +177,46 @@ public extension AlmanacEntry.Kind {
     }
 }
 
+public extension Milestone {
+
+    /// A badge needs a face of its own, so these are deliberately not shared
+    /// with the symbols above: the point of a grid of two dozen badges is that
+    /// the player can tell them apart at a glance.
+    var symbolName: String {
+        switch self {
+        case .firstFlower: return "camera.fill"
+        case .tenFlowers: return "photo.on.rectangle.angled"
+        case .placedToFamily: return "text.magnifyingglass"
+        case .fiveFamilies: return "leaf.fill"
+        case .tenFamilies: return "tree.fill"
+        case .gardenAllYear: return "calendar"
+        case .firstSharedFlower: return "gift.fill"
+
+        case .firstComb: return "hexagon.fill"
+        case .firstBrood: return "circle.hexagongrid.fill"
+        case .hundredAdults: return "figure.walk.motion"
+        case .twoHundredAdults: return "person.3.fill"
+        case .fiveHundredAdults: return "chart.line.uptrend.xyaxis"
+
+        case .firstQueenMated: return "crown.fill"
+        case .supersedureSurvived: return "arrow.triangle.2.circlepath"
+        case .queenNamed: return "signature"
+
+        case .firstSwarm: return "arrow.triangle.branch"
+        case .swarmTalkedOut: return "hand.raised.fill"
+        case .firstSplit: return "scissors"
+
+        case .firstHoney: return "drop.fill"
+        case .sealedForWinter: return "shield.lefthalf.filled"
+        case .firstWinterSurvived: return "snowflake"
+        case .secondWinterSurvived: return "snowflake.circle.fill"
+
+        case .firstRaidRepelled: return "shield.fill"
+        case .tenRaidsRepelled: return "checkmark.shield.fill"
+        }
+    }
+}
+
 public extension QueenCell.Purpose {
 
     var symbolName: String {

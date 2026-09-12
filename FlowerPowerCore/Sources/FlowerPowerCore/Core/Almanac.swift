@@ -266,6 +266,12 @@ public struct Almanac: Codable, Equatable, Sendable {
                 if posture != .instinct {
                     write(.colony, "\(posture.displayName).", day: day)
                 }
+            case .milestone(let milestone):
+                // A line per milestone, and the dedupe in `write` is keyed on
+                // the text, so two badges earned on the same day both get
+                // written rather than the second being swallowed as a repeat.
+                write(.colony, "A first for the colony: \(milestone.title.lowercased()).",
+                      day: day)
             default:
                 break
             }

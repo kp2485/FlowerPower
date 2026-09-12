@@ -149,10 +149,13 @@ final class DeterminismTests: XCTestCase {
             names.firstIndex(of: "ForagingSystem") ?? .min,
             "weather must run before anything depending on it"
         )
-        // Status observes the finished state; the lineage system after it
-        // only reads the tick's events and changes nothing the status looks at.
-        XCTAssertEqual(names.last, "LineageSystem")
-        XCTAssertEqual(names.dropLast().last, "ColonyStatusSystem",
+        // Status observes the finished state; the two record-keeping systems
+        // after it only read the tick's events and change nothing the status
+        // looks at. Milestones go last of all, because two of their conditions
+        // read the lineage the system before them has just written.
+        XCTAssertEqual(names.last, "MilestoneSystem")
+        XCTAssertEqual(names.dropLast().last, "LineageSystem")
+        XCTAssertEqual(names.dropLast(2).last, "ColonyStatusSystem",
                        "status must observe the finished state")
     }
 }

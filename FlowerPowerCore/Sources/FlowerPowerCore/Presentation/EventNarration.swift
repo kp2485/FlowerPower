@@ -141,6 +141,14 @@ extension SimEvent {
             return "The colony was divided on purpose. \(left) bees went with "
                 + "the old queen; the foragers stayed."
 
+        // The record
+        case .milestone(let milestone):
+            // The badge's own title, then the sentence explaining it. The
+            // report is read as prose, and "Through the First Winter." on its
+            // own would tell a player nothing they did not already know.
+            return "A first for the colony — \(milestone.title.lowercased()). "
+                + milestone.detail
+
         // Warnings
         case .starving:
             return "The colony went hungry."

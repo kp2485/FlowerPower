@@ -83,6 +83,20 @@ enum Theme {
         }
     }
 
+    /// A milestone badge's face. Concrete `Color`s on both branches rather
+    /// than `.quaternary` and friends, because a ternary of hierarchical
+    /// styles has nothing for the compiler to infer a single type from.
+    static func badgeFill(earned: Bool) -> AnyShapeStyle {
+        earned
+            ? AnyShapeStyle(honey.gradient)
+            : AnyShapeStyle(Color.secondary.opacity(0.2))
+    }
+
+    /// The glyph on it.
+    static func badgeGlyph(earned: Bool) -> AnyShapeStyle {
+        earned ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.secondary)
+    }
+
     // MARK: Symbols
 
     // The engine owns these now — see `Symbols.swift` in the package. They

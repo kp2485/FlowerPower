@@ -677,6 +677,9 @@ private struct RecordLinks: View {
             NavigationLink { CollectionView() } label: {
                 Label("Collection", systemImage: "leaf.fill")
             }
+            NavigationLink { MilestonesView() } label: {
+                Label("Milestones", systemImage: "rosette")
+            }
         }
         .font(.subheadline.weight(.medium))
         .buttonStyle(.bordered)
