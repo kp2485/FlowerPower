@@ -396,6 +396,20 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     public let almanac: Almanac
     public let honeyTaken: Double
     public let harvestableHoney: Double
+
+    /// How much of the banked honey would actually go back in if the colony
+    /// were fed now: what the player has taken, capped by the comb there is
+    /// to store it in.
+    public let feedOnOffer: Double
+
+    /// How far below the winter requirement the stores are, zero when they are
+    /// not. The same number the `winterStoresLow` alert is written from, so a
+    /// card can say it without redoing the arithmetic.
+    public let storesShortfall: Double
+
+    /// Whether the feeding decision is open: the colony is short of what it
+    /// needs to overwinter, and there is honey banked to give it.
+    public let feedDecisionOpen: Bool
 }
 
 /// What left, without the bees themselves.
@@ -460,7 +474,10 @@ extension Simulation {
             lineage: world.lineage,
             almanac: world.almanac,
             honeyTaken: world.honeyTaken,
-            harvestableHoney: harvestableHoney
+            harvestableHoney: harvestableHoney,
+            feedOnOffer: feedOnOffer,
+            storesShortfall: storesShortfall,
+            feedDecisionOpen: feedDecisionOpen
         )
     }
 
@@ -767,16 +784,24 @@ extension Simulation {
         }
 
         if season == .autumn, !hive.isWinterReady {
-            let shortfall = hive.winterStoresRequired - hive.resources.edibleEnergy
             alerts.append(ColonyAlert(
                 kind: .winterStoresLow,
                 severity: .warning,
                 title: "Winter Stores Short",
                 detail: String(
                     format: "%.0f short of the %.0f needed to overwinter.",
-                    max(0, shortfall), hive.winterStoresRequired
+                    storesShortfall, hive.winterStoresRequired
                 ),
-                suggestion: "Late-blooming flowers are worth far more than their yield suggests."
+                // Flowers first, because photographing them is the game. But a
+                // player who took a crop has something better than a late
+                // bloom, and the alert is the only place that says so.
+                suggestion: canFeed
+                    ? String(
+                        format: "You have %.0f units put by. Giving some back is worth "
+                            + "more than anything still in flower.",
+                        world.honeyTaken
+                    )
+                    : "Late-blooming flowers are worth far more than their yield suggests."
             ))
         }
 

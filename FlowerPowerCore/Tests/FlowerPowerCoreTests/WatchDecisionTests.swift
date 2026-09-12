@@ -130,6 +130,62 @@ struct WatchDecisionTests {
         #expect(simulation.watchSummary().decision == nil)
     }
 
+    // MARK: - Short for winter
+
+    /// A colony short of what it needs to overwinter, with a crop of the
+    /// player's own in the bank. This is the only decision that can still be
+    /// open in January, which is when the watch is the only thing anybody is
+    /// likely to look at.
+    private func short(bank: Double = 300) -> Simulation {
+        var simulation = quiet()
+        simulation.setDay(Season.daysPerSeason * 2 + 40)
+        simulation.mutateWorld { world in
+            world.hive.resources = ResourcePool()
+            world.hive.resources.add(20, of: .honey)
+            world.honeyTaken = bank
+        }
+        return simulation
+    }
+
+    @Test("A colony short for winter is asked about, with one button")
+    func shortForWinterAsks() throws {
+        let decision = try #require(short().watchSummary().decision)
+
+        #expect(decision.kind == .feed)
+        #expect(decision.title == "Short for winter")
+        #expect(decision.options.map(\.identifier) == ["colony.feed"])
+        #expect(decision.options.map(\.title) == ["Feed Them"])
+        #expect(decision.daysRemaining == nil, "a state, not a countdown")
+        #expect(decision.detail.contains("300"), "it should say what there is to give")
+    }
+
+    @Test("Nothing banked is nothing to ask about")
+    func nothingToGive() {
+        // The colony is just as short. There is simply no answer that fits on
+        // a watch, and a question with no answer is a pager. The autumn
+        // entrance is still asked, because it is a different question.
+        #expect(short(bank: 0).watchSummary().decision?.kind != .feed)
+    }
+
+    @Test("It is still asked in the winter, when nothing else is")
+    func askedInWinter() throws {
+        var simulation = short()
+        simulation.setDay(Season.daysPerSeason * 3 + 20)
+        let decision = try #require(simulation.watchSummary().decision)
+        #expect(decision.kind == .feed)
+    }
+
+    @Test("A colony that has been fed stops being asked")
+    func fedColonyIsClosed() {
+        var simulation = short()
+        #expect(simulation.watchSummary().decision?.kind == .feed)
+
+        let short = simulation.storesShortfall
+        simulation.feed(short)
+        #expect(simulation.watchSummary().decision?.kind != .feed,
+                "the watch must not keep asking a question that has been answered")
+    }
+
     // MARK: - A quiet colony
 
     @Test("A colony with nothing to decide says so")

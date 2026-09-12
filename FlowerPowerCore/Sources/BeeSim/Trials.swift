@@ -11,13 +11,19 @@
 import Foundation
 import FlowerPowerCore
 
-/// How the player answers congestion, so the effect of each answer can be
-/// measured against doing nothing.
+/// How the player plays, so the effect of each answer can be measured against
+/// doing nothing.
 ///
 /// The engine's own default is `instinct` and always will be — nobody is
 /// punished for being at work. These are the *other* rows of the table: what a
 /// player who does answer actually buys.
-enum SwarmPolicy: String, CaseIterable {
+///
+/// Named `SwarmPolicy` while every row was an answer to congestion. It is not
+/// one any more: taking a crop and feeding it back are decisions about the
+/// larder, and they belong in the same table for the same reason — they are
+/// things the player does to a colony, and the only honest way to know what
+/// they cost is to run the same seeds with and without them.
+enum PlayerPolicy: String, CaseIterable {
 
     /// Nobody answers. What the engine does on its own, and the baseline every
     /// other row is compared against.
@@ -44,7 +50,38 @@ enum SwarmPolicy: String, CaseIterable {
     /// This is what a beekeeper actually does.
     case roomThenSplit
 
+    /// Takes the crop every autumn and never gives any of it back. The
+    /// harvest measured on its own, because `takeHoney`'s cap is a claim —
+    /// "what the colony can spare" — and a claim about survival is a thing to
+    /// measure rather than to trust.
+    case harvest
+
+    /// Takes the crop, and feeds it back whenever the colony is short of what
+    /// it needs to overwinter. The guardian, as opposed to the harvester.
+    case harvestAndFeed
+
+    /// Empties the surplus every day of the year, which is what the honey
+    /// card actually lets a player do — the same relationship to `harvest` as
+    /// `addCombEagerly` has to `addComb`. The row that says whether the cap is
+    /// pitched right, rather than whether one polite harvest is survivable.
+    case harvestEagerly
+
+    /// The same player, giving it back when the colony goes short. Whether a
+    /// bank can undo a stripping is not obvious: the honey is gone over the
+    /// summer it was taken in, and a cluster reared on nothing is smaller
+    /// before anybody feeds it.
+    case harvestEagerlyAndFeed
+
     var addsComb: Bool { self == .addComb || self == .addCombEagerly || self == .roomThenSplit }
+
+    /// Whether this player takes one crop, late in autumn.
+    var harvestsInAutumn: Bool { self == .harvest || self == .harvestAndFeed }
+    /// Whether they take whatever is spare, whenever it is spare.
+    var harvestsWheneverOffered: Bool {
+        self == .harvestEagerly || self == .harvestEagerlyAndFeed
+    }
+    /// Whether they give it back to a colony that is short.
+    var feeds: Bool { self == .harvestAndFeed || self == .harvestEagerlyAndFeed }
 
     /// Whether this player waits for the cavity to be worked out, as the
     /// notification does, or acts on crowding alone.
@@ -76,6 +113,12 @@ struct TrialOutcome {
     var repelled = 0
     var combAdditions = 0
     var splits = 0
+    /// Honey the player took over the colony's life, and honey they gave
+    /// back. Two numbers rather than a net one: a colony fed 200 units after
+    /// a 200-unit crop is not the same colony as one that was never touched,
+    /// because the honey was gone over the winter in between.
+    var honeyTaken = 0.0
+    var honeyFed = 0.0
     var queenLosses = 0
     var supersedures = 0
     var matingFailures = 0
@@ -117,7 +160,7 @@ enum Trials {
         palette: [FlowerSpecies],
         start: Date,
         shared: Bool = false,
-        policy: SwarmPolicy = .instinct
+        policy: PlayerPolicy = .instinct
     ) -> [TrialOutcome] {
 
         (0..<trials).map { trial in
@@ -162,6 +205,9 @@ enum Trials {
             var layingWorkers = false
             var absconded = false
             var starvedRecently = false
+            /// The last year this colony's crop was taken, so the harvest is
+            /// once a year rather than every day of autumn.
+            var harvestedInYear = -1
 
             for day in 0..<days {
                 for event in simulation.stepDay() {
@@ -230,6 +276,45 @@ enum Trials {
                    let pending = simulation.world.pendingSwarm,
                    !pending.discouraged {
                     simulation.discourageSwarm()
+                }
+
+                // The crop, once a year, late in autumn.
+                //
+                // Late rather than at the end of the flow, because that is
+                // when `harvestableHoney` means what it says: the winter
+                // requirement it reserves scales with the cluster, and the
+                // cluster is not settled until the summer bees have gone. A
+                // player who harvests in August is offered a reserve sized
+                // for a colony four times the one that will actually have to
+                // eat it.
+                if policy.harvestsInAutumn,
+                   Season(day: simulation.day) == .autumn,
+                   Season.progress(simulation.day) > 0.75,
+                   harvestedInYear != simulation.day / Season.daysPerYear {
+                    harvestedInYear = simulation.day / Season.daysPerYear
+                    // Read into a local first: passing `simulation.spare` to a
+                    // mutating method of `simulation` is two overlapping
+                    // accesses to the same variable.
+                    let spare = simulation.harvestableHoney
+                    outcome.honeyTaken += simulation.takeHoney(spare)
+                }
+
+                // Or the player who takes it whenever the card offers it,
+                // which is every day the colony is above its reserve — and in
+                // summer that reserve is not the winter requirement at all.
+                if policy.harvestsWheneverOffered {
+                    let spare = simulation.harvestableHoney
+                    outcome.honeyTaken += simulation.takeHoney(spare)
+                }
+
+                // And giving it back, on exactly the cue the interface gives:
+                // the colony is short of what it needs to overwinter and
+                // there is honey banked. Checked every day, because a colony
+                // that was provisioned in November can still be short in
+                // February, and that is the winter a guardian is for.
+                if policy.feeds, simulation.feedDecisionOpen {
+                    let short = simulation.storesShortfall
+                    outcome.honeyFed += simulation.feed(short)
                 }
 
                 outcome.daysSurvived = day
@@ -327,6 +412,14 @@ enum Trials {
         print(String(format: "Mean swarms:          %.2f", mean(outcomes.map { Double($0.swarms) })))
         print(String(format: "Mean comb additions:  %.2f", mean(outcomes.map { Double($0.combAdditions) })))
         print(String(format: "Mean splits:          %.2f", mean(outcomes.map { Double($0.splits) })))
+        // Printed only for a player who touches the larder, so the report for
+        // every policy that existed before feeding did is byte for byte the
+        // report it was — which is what makes "run it twice and diff" work
+        // across a change as well as across a process.
+        if outcomes.contains(where: { $0.honeyTaken > 0 || $0.honeyFed > 0 }) {
+            print(String(format: "Mean honey taken:     %.0f", mean(outcomes.map(\.honeyTaken))))
+            print(String(format: "Mean honey fed:       %.0f", mean(outcomes.map(\.honeyFed))))
+        }
         print(String(format: "Mean queen losses:    %.2f", mean(outcomes.map { Double($0.queenLosses) })))
         print(String(format: "Mean supersedures:    %.2f", mean(outcomes.map { Double($0.supersedures) })))
         print(String(format: "Mean emergency cells: %.2f", mean(outcomes.map { Double($0.emergencyCells) })))

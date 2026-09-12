@@ -54,6 +54,15 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
     case sealEntrance
     case openEntrance
 
+    /// Give banked honey back to a colony that is short for winter.
+    ///
+    /// Carries no amount, because from a lock screen or a watch face there is
+    /// only one amount it could mean: what they are short of. Giving more
+    /// would spend the player's score on honey the colony does not need, and
+    /// giving less would leave the decision half-answered with no way to say
+    /// so. `FeedDecisionCard` is where an amount can be chosen.
+    case feed
+
     /// Following a swarm is deliberately absent. It needs a site chosen, and a
     /// site cannot be chosen from a notification or a watch face, so that one
     /// opens the app. See `NotificationActions.Action.followSwarm`.
@@ -77,6 +86,7 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
         case .staySwarm: return "swarm.stay"
         case .sealEntrance: return "entrance.seal"
         case .openEntrance: return "entrance.open"
+        case .feed: return "colony.feed"
         }
     }
 
@@ -99,6 +109,7 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
         case "swarm.stay": self = .staySwarm
         case "entrance.seal": self = .sealEntrance
         case "entrance.open": self = .openEntrance
+        case "colony.feed": self = .feed
         default: return nil
         }
     }
@@ -115,6 +126,7 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
         case .staySwarm: return "Stay"
         case .sealEntrance: return "Seal It"
         case .openEntrance: return "Keep It Open"
+        case .feed: return "Feed Them"
         }
     }
 
@@ -122,7 +134,7 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
     public static var all: [DecisionAction] {
         HivePosture.allCases.map(DecisionAction.posture) + [
             .discourageSwarm, .addComb, .split, .letSwarmGo,
-            .staySwarm, .sealEntrance, .openEntrance
+            .staySwarm, .sealEntrance, .openEntrance, .feed
         ]
     }
 }
@@ -184,6 +196,16 @@ extension GameStore {
         case .staySwarm:
             guard snapshot.departedSwarm != nil else { return false }
             letSwarmGo()
+
+        case .feed:
+            // Two ways to be stale, and both are ordinary rather than
+            // exceptional: the colony may have provisioned itself since the
+            // notification was posted, and the bank may have been emptied
+            // into it from the card in the meantime. `feedOnOffer` also
+            // covers the third case, which is a nest with no comb free to
+            // put it in.
+            guard snapshot.storesShortfall > 0, snapshot.feedOnOffer > 0 else { return false }
+            guard feed(snapshot.storesShortfall) > 0 else { return false }
 
         case .sealEntrance, .openEntrance:
             // Autumn only. Out of season there is nothing to decide: the bees

@@ -135,6 +135,9 @@ extension SimEvent {
                 : "The entrance was left open for the winter."
         case .honeyTaken(let units):
             return "\(Int(units.rounded())) units of honey were taken."
+        case .fed(let units):
+            return "\(Int(units.rounded())) units of honey were given back to "
+                + "the colony."
         case .combAdded(let cells):
             return "The nest was opened up by \(cells) cells' worth of room."
         case .colonyDivided(let left):

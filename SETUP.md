@@ -224,8 +224,12 @@ season. That is how a colony worth tracing gets picked.
 ```
 
 Measures what a player who *answers* the decisions gets, against one who never
-opens the app. `instinct` is the default and the baseline; the others are
-`makeRoom`, `addComb`, `split` and `roomThenSplit`.
+opens the app. `instinct` is the default and the baseline. The answers to
+congestion are `makeRoom`, `addComb`, `addCombEagerly`, `split` and
+`roomThenSplit`; the answers about the larder are `harvest` (one crop late
+each autumn), `harvestAndFeed` (and giving it back whenever the colony is
+short), `harvestEagerly` (taking the surplus whenever it is offered, which is
+what the honey card actually allows) and `harvestEagerlyAndFeed`.
 
 ```bash
 swift run --package-path FlowerPowerCore -c release beesim \

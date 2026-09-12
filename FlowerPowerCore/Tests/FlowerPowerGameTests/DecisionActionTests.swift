@@ -102,7 +102,8 @@ struct DecisionActionTests {
         (.letSwarmGo, "swarm.let"),
         (.staySwarm, "swarm.stay"),
         (.sealEntrance, "entrance.seal"),
-        (.openEntrance, "entrance.open")
+        (.openEntrance, "entrance.open"),
+        (.feed, "colony.feed")
     ])
     func identifierSpellings(action: DecisionAction, identifier: String) {
         #expect(action.identifier == identifier)
@@ -133,6 +134,7 @@ struct DecisionActionTests {
         #expect(DecisionAction.staySwarm.title == "Stay")
         #expect(DecisionAction.sealEntrance.title == "Seal It")
         #expect(DecisionAction.openEntrance.title == "Keep It Open")
+        #expect(DecisionAction.feed.title == "Feed Them")
     }
 
     // MARK: - A siege
@@ -284,6 +286,82 @@ struct DecisionActionTests {
             store.simulationForTransfer == before,
             "a tap in December must not put a line in the almanac for something that did not happen"
         )
+    }
+
+    // MARK: - Feeding
+
+    /// A colony in autumn that is short of what it needs to overwinter, with
+    /// a crop of the player's own in the bank and comb to store it in.
+    private func short(honey: Double, bank: Double) -> GameStore {
+        makeStore { simulation in
+            advance(&simulation, toDay: Season.daysPerSeason * 2 + 40)
+            simulation.world.hive.comb = Comb(
+                workerCells: 300, droneCells: 20,
+                capacity: HiveLocationType.livingTreeCavity.maximumCells
+            )
+            simulation.world.hive.resources = ResourcePool()
+            simulation.world.hive.resources.add(honey, of: .honey)
+            simulation.world.honeyTaken = bank
+        }
+    }
+
+    @Test("Feeding gives the colony exactly what it is short of")
+    func feedGivesTheShortfall() {
+        let store = short(honey: 40, bank: 400)
+        let shortfall = store.snapshot.storesShortfall
+        #expect(shortfall > 0)
+
+        #expect(store.apply(.feed))
+        #expect(store.snapshot.storesShortfall < 0.001, "the card would still say short")
+        #expect(abs(store.snapshot.honeyTaken - (400 - shortfall)) < 0.001)
+    }
+
+    @Test("A colony with nothing banked cannot be fed, and nothing changes")
+    func feedWithNoBank() {
+        let store = short(honey: 40, bank: 0)
+        let before = store.simulationForTransfer
+
+        #expect(store.apply(.feed) == false)
+        #expect(
+            store.simulationForTransfer == before,
+            "a refused decision must leave the colony byte-identical"
+        )
+    }
+
+    @Test("A colony that is not short is not fed either")
+    func feedWhenProvisioned() {
+        let store = short(honey: 0, bank: 400)
+        store.feed(store.snapshot.storesShortfall)
+        let before = store.simulationForTransfer
+
+        #expect(store.apply(.feed) == false, "they have what they need")
+        #expect(store.simulationForTransfer == before)
+    }
+
+    @Test("Feeding by hand is capped by the bank and by the comb")
+    func feedingAnAmount() {
+        let store = short(honey: 40, bank: 30)
+
+        let given = store.feed(1_000)
+        #expect(abs(given - 30) < 0.001)
+        #expect(store.snapshot.honeyTaken < 0.001)
+        #expect(store.feed(10) == 0, "nothing left to give")
+    }
+
+    /// The cue, on the same judgement the card uses: short of stores, with
+    /// honey banked. Said once when the window opens, like the entrance.
+    @Test("A colony going short with honey banked is worth an interruption")
+    func newsWhenTheWindowOpens() {
+        let before = ColonyNews.Facts(status: .steady, day: 200)
+        let after = ColonyNews.Facts(
+            status: .steady, day: 201,
+            feedDecisionOpen: true, storesShortfall: 140
+        )
+
+        let news = ColonyNews.between(before: before, after: after)
+        #expect(news?.identifier.hasPrefix("feed-") == true)
+        #expect(news?.body.contains("140") == true)
+        #expect(ColonyNews.between(before: after, after: after) == nil)
     }
 
     // MARK: - The seam with the watch

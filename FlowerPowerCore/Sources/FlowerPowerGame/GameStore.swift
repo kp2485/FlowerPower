@@ -309,6 +309,16 @@ public final class GameStore {
         return taken
     }
 
+    /// Gives banked honey back to a colony that is short. Returns what
+    /// actually went in, which is capped by the bank and by the comb there is
+    /// to store it in.
+    @discardableResult
+    public func feed(_ units: Double) -> Double {
+        let given = simulation.feed(units)
+        if given > 0 { refresh() }
+        return given
+    }
+
     public func nameQueen(_ number: Int, _ name: String?) {
         simulation.nameQueen(number, name)
         refresh()

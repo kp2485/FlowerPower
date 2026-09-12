@@ -66,6 +66,12 @@ public struct ColonyNews: Equatable, Sendable {
         /// Whether the site has any more room to give.
         public var canAddComb: Bool = false
 
+        /// The colony is short of what it needs to overwinter and there is
+        /// honey banked to give it. `Simulation.feedDecisionOpen`.
+        public var feedDecisionOpen: Bool = false
+        /// How far short, so the news can say the number.
+        public var storesShortfall: Double = 0
+
         public init(
             status: ColonyStatus,
             headline: String = "",
@@ -79,7 +85,9 @@ public struct ColonyNews: Equatable, Sendable {
             entranceDecisionOpen: Bool = false,
             day: Int = 0,
             nestIsFull: Bool = false,
-            canAddComb: Bool = false
+            canAddComb: Bool = false,
+            feedDecisionOpen: Bool = false,
+            storesShortfall: Double = 0
         ) {
             self.status = status
             self.headline = headline
@@ -94,6 +102,8 @@ public struct ColonyNews: Equatable, Sendable {
             self.day = day
             self.nestIsFull = nestIsFull
             self.canAddComb = canAddComb
+            self.feedDecisionOpen = feedDecisionOpen
+            self.storesShortfall = storesShortfall
         }
     }
 
@@ -149,6 +159,22 @@ public struct ColonyNews: Equatable, Sendable {
                 identifier: "departed-\(departed)",
                 title: "A swarm has left",
                 body: "The old queen has gone with most of the bees. Stay with the colony, or follow the swarm."
+            )
+        }
+        // The colony is short for winter and the player is holding honey it
+        // could have. Said when the window opens and not again, like the
+        // entrance: the engine already warns weekly about short stores, and
+        // this is the one part of that warning the player can answer from the
+        // lock screen.
+        if after.feedDecisionOpen, !before.feedDecisionOpen {
+            return ColonyNews(
+                identifier: "feed-\(after.day / Season.daysPerYear)",
+                title: "The colony is short for winter",
+                body: String(
+                    format: "They are %.0f units short of what they need, and you have "
+                        + "honey put by. Feeding them is the only thing left that helps.",
+                    after.storesShortfall
+                )
             )
         }
         if after.entranceDecisionOpen, !before.entranceDecisionOpen {
@@ -235,7 +261,9 @@ public extension ColonySnapshot {
             // cavity than comb early on, and a colony always fills the comb it
             // has during a flow.
             nestIsFull: nest.combOccupancy >= 0.9 && nest.builtCells >= nest.capacity,
-            canAddComb: canAddComb
+            canAddComb: canAddComb,
+            feedDecisionOpen: feedDecisionOpen,
+            storesShortfall: storesShortfall
         )
     }
 }

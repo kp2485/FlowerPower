@@ -816,6 +816,92 @@ public struct Simulation: Codable, Equatable, Sendable {
         return taken
     }
 
+    // MARK: Giving it back
+
+    /// How far below the winter requirement the colony's stores are, in the
+    /// same honey-equivalent units `StoresSummary` reports. Zero when it has
+    /// enough.
+    ///
+    /// The same arithmetic as `StoresSummary.winterReadiness` and the
+    /// `winterStoresLow` alert, in one place, because three copies of
+    /// `requirement - edibleEnergy` is how two of them end up subtly
+    /// different.
+    public var storesShortfall: Double {
+        max(0, world.hive.winterStoresRequired - world.hive.resources.edibleEnergy)
+    }
+
+    /// Room for honey in the comb, in units rather than cells.
+    ///
+    /// The same clamp `ForagingSystem` puts on nectar and pollen intake: what
+    /// the colony can take in is what its free cells will hold. A hive with
+    /// nowhere to put honey cannot be given any, which is as true of a jar
+    /// held over the feeder hole as it is of a nectar flow.
+    private var honeyStorageSpace: Double {
+        max(0, Double(world.hive.freeCells) * ResourceKind.honey.unitsPerCell)
+    }
+
+    /// How much of the banked honey would actually go in if the colony were
+    /// fed right now.
+    ///
+    /// Capped twice over: by what the player has taken and not yet given back,
+    /// and by the comb it would have to be stored in. The interface asks this
+    /// rather than working it out, for the same reason `combOnOffer` exists —
+    /// the engine knows, and a second copy of the arithmetic in a view is a
+    /// copy that goes wrong.
+    public var feedOnOffer: Double {
+        min(world.honeyTaken, honeyStorageSpace)
+    }
+
+    /// Whether there is honey banked and somewhere to put it.
+    public var canFeed: Bool { feedOnOffer > 0 }
+
+    /// Whether the feeding decision is in front of the player.
+    ///
+    /// Not a new system and not a new judgement. "Short of stores" is
+    /// `Hive.isWinterReady`, which is what `ColonyStatusSystem` warns on and
+    /// what the `winterStoresLow` alert is raised from; the cue is that alert
+    /// and nothing else. The season gate is the alert's own, widened by one
+    /// season: the warning is pitched to arrive while something can still be
+    /// done, and once the cluster has formed feeding is the only thing left
+    /// that can be.
+    public var feedDecisionOpen: Bool {
+        guard season == .autumn || season == .winter else { return false }
+        return !world.hive.isWinterReady && canFeed
+    }
+
+    /// Gives banked honey back to the colony. Returns what actually went in.
+    ///
+    /// Real beekeepers feed a colony that is short, and a player who took a
+    /// crop in a good autumn ought to be able to answer for it in a bad
+    /// winter. So this is `takeHoney` run backwards, with the same shape: the
+    /// player names an amount, the engine gives them what is really possible,
+    /// and what came back is what is reported.
+    ///
+    /// **Fed honey is honey.** It goes into `resources[.honey]` — the same
+    /// pool `NutritionSystem` eats from and `ThermoregulationSystem` burns —
+    /// and nothing about it is marked or remembered. A colony cannot tell
+    /// where its stores came from and neither can any system here; the only
+    /// trace is the almanac's line and the event.
+    ///
+    /// It is also not free. The bank is `world.honeyTaken`, which is the
+    /// game's score, so every unit given back is a unit off it. That is the
+    /// whole trade, and it is the reason this is a decision rather than a
+    /// button: the honey is the player's, and so is the winter.
+    @discardableResult
+    public mutating func feed(_ units: Double) -> Double {
+        let given = min(max(0, units), feedOnOffer)
+        guard given > 0 else { return 0 }
+
+        world.hive.resources.add(given, of: .honey)
+        world.honeyTaken -= given
+
+        world.almanac.chronicle(
+            [.fed(given)], day: clock.day,
+            honey: world.hive.resources[.honey], lineage: world.lineage
+        )
+        return given
+    }
+
     public mutating func nameQueen(_ number: Int, _ name: String?) {
         world.lineage.name(number, name)
     }

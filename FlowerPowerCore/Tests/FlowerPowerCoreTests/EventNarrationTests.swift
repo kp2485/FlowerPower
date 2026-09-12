@@ -63,6 +63,7 @@ struct EventNarrationTests {
         .entranceSealed(true),
         .entranceSealed(false),
         .honeyTaken(18),
+        .fed(18),
         .combAdded(cells: 175),
         .colonyDivided(beesLeft: 60),
 

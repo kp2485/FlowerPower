@@ -94,9 +94,9 @@ struct Options {
     /// An unknown policy is a hard error for the same reason an unknown
     /// `--set` key is: a sweep whose rows all secretly ran the same thing is
     /// worse than no measurement.
-    var swarmPolicy: SwarmPolicy {
-        guard let parsed = SwarmPolicy(rawValue: policy) else {
-            let known = SwarmPolicy.allCases.map(\.rawValue).joined(separator: ", ")
+    var playerPolicy: PlayerPolicy {
+        guard let parsed = PlayerPolicy(rawValue: policy) else {
+            let known = PlayerPolicy.allCases.map(\.rawValue).joined(separator: ", ")
             print("unknown --policy '\(policy)'. Known: \(known)")
             exit(2)
         }
@@ -199,9 +199,9 @@ if options.trials > 0 {
         palette: palette,
         start: start,
         shared: options.sharedForage,
-        policy: options.swarmPolicy
+        policy: options.playerPolicy
     )
-    print("policy: \(options.swarmPolicy.rawValue)")
+    print("policy: \(options.playerPolicy.rawValue)")
     if CommandLine.arguments.contains("--list") { Trials.list(outcomes) }
     Trials.report(outcomes, days: options.days)
     exit(0)

@@ -48,6 +48,7 @@ enum NotificationActions {
         case nestFull = "nest.full"
         case swarmDeparted = "swarm.departed"
         case entrance = "entrance.autumn"
+        case feed = "colony.short"
         case digest = "digest"
 
         static func forThreat(_ style: AttackStyle) -> Category? {
@@ -143,6 +144,16 @@ enum NotificationActions {
             intentIdentifiers: [], options: []
         ))
 
+        // Short for winter, with honey of theirs in the bank. One button,
+        // because from a lock screen "feed them" can only mean one amount:
+        // what they are short of. The card is where a different amount can be
+        // chosen.
+        categories.insert(UNNotificationCategory(
+            identifier: Category.feed.rawValue,
+            actions: [button(.feed)],
+            intentIdentifiers: [], options: []
+        ))
+
         categories.insert(UNNotificationCategory(
             identifier: Category.digest.rawValue, actions: [],
             intentIdentifiers: [], options: []
@@ -164,6 +175,12 @@ enum NotificationActions {
         }
         if news.identifier.hasPrefix("departed-") { return .swarmDeparted }
         if news.identifier.hasPrefix("entrance-") { return .entrance }
+        if news.identifier.hasPrefix("feed-") {
+            // Same rule as the full nest: no button where there is nothing it
+            // could do. A colony with no comb free cannot be fed however much
+            // is banked.
+            return snapshot.feedOnOffer >= 1 ? .feed : nil
+        }
         return nil
     }
 

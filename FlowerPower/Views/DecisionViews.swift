@@ -397,3 +397,84 @@ struct HoneyDecisionCard: View {
         .sensoryFeedback(.success, trigger: harvests)
     }
 }
+
+// MARK: - Giving it back
+
+/// The harvest run backwards, and the only decision in the game that spends
+/// the score.
+///
+/// Everything shown here is the engine's arithmetic, not this view's: how
+/// short they are, how much of the bank would actually fit in the comb, and
+/// whether the question is open at all. A card that works out its own numbers
+/// is a card that is quietly wrong in November.
+struct FeedDecisionCard: View {
+
+    let snapshot: ColonySnapshot
+    @Environment(GameStore.self) private var store
+    @State private var amount: Double = 0
+    @State private var feeds = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "takeoutbag.and.cup.and.straw.fill")
+                    .foregroundStyle(Theme.honey)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("They are short for winter").font(.headline)
+                    Text(String(format: "%.0f units short", snapshot.storesShortfall))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer()
+                Text("\(Int(snapshot.honeyTaken.rounded())) banked")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .minimumScaleFactor(0.7)
+            }
+            .accessibilityElement(children: .combine)
+
+            Text("Honey you took is still yours to give back, and a colony that goes into winter short of what it needs does not come out of it. What goes in is honey like any other: they will eat it, and burn it keeping warm.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if snapshot.feedOnOffer < 1 {
+                Text("There is no room in the comb for any of it.")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            } else {
+                Slider(value: $amount, in: 0...snapshot.feedOnOffer, step: 1)
+                    .tint(Theme.honey)
+                    .accessibilityLabel("Honey to give back")
+                    .accessibilityValue("\(Int(amount)) of \(Int(snapshot.feedOnOffer)) units")
+                HStack {
+                    Text("\(Int(amount)) of \(Int(snapshot.feedOnOffer)) units")
+                        .font(.caption.monospacedDigit())
+                        .minimumScaleFactor(0.7)
+                    Spacer()
+                    Button(DecisionAction.feed.title) {
+                        store.feed(amount)
+                        amount = 0
+                        feeds += 1
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.honey)
+                    .disabled(amount < 1)
+                }
+                Text("Or leave them to it, which is what happens if you do nothing.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .card()
+        .sensoryFeedback(.success, trigger: feeds)
+        .onAppear {
+            // Opens at what they are actually short of — the amount the
+            // notification's one button would give — so the common case is a
+            // single tap and the slider is for disagreeing with it.
+            amount = min(snapshot.storesShortfall, snapshot.feedOnOffer).rounded()
+        }
+    }
+}

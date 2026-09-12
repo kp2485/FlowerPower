@@ -94,6 +94,7 @@ public struct WatchDecision: Codable, Equatable, Sendable {
         case swarm
         case nestFull
         case entrance
+        case feed
     }
 
     public struct Option: Codable, Equatable, Sendable {
@@ -230,6 +231,26 @@ extension Simulation {
                 title: "The nest is full",
                 detail: "Every cell is drawn and the cavity is worked out. Open the nest up and they keep building; leave it and they divide instead.",
                 options: [.init(identifier: "nest.addComb", title: "Open the Nest Up")]
+            )
+        }
+
+        // Ahead of the entrance, and for the same reason the siege is ahead of
+        // everything: this is the one that decides whether there is a colony
+        // in the spring. It is also the only decision here that can still be
+        // open in January, when the entrance question is long settled and a
+        // watch is the only thing the player is likely to look at.
+        if feedDecisionOpen {
+            return WatchDecision(
+                kind: .feed,
+                title: "Short for winter",
+                detail: String(
+                    format: "They are %.0f short of the %.0f they need, and you have "
+                        + "%.0f put by. What goes back is honey like any other.",
+                    storesShortfall,
+                    world.hive.winterStoresRequired,
+                    world.honeyTaken
+                ),
+                options: [.init(identifier: "colony.feed", title: "Feed Them")]
             )
         }
 

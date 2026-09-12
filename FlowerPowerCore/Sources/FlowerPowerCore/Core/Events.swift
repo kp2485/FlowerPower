@@ -88,6 +88,8 @@ public enum SimEvent: Equatable, Sendable {
     case postureAdopted(HivePosture)
     case entranceSealed(Bool)
     case honeyTaken(Double)
+    /// Honey the player had banked was put back into the colony's stores.
+    case fed(Double)
     /// The nest was given more room to draw comb into.
     case combAdded(cells: Int)
     /// The colony was divided deliberately, rather than swarming.
@@ -216,7 +218,7 @@ extension SimEvent {
              .infectionDetected, .infectionCleared, .infectionCritical,
              .attacked, .attackRepelled, .raidSucceeded, .winterStoresLow,
              .threatBegan, .threatEnded, .swarmPreparing, .swarmAbandoned,
-             .postureAdopted, .entranceSealed, .honeyTaken,
+             .postureAdopted, .entranceSealed, .honeyTaken, .fed,
              .combAdded, .colonyDivided, .milestone:
             return true
         }
@@ -241,6 +243,12 @@ extension SimEvent {
             // Informational, and deliberately never higher. A badge must not
             // be able to outrank the sentence saying the queen is lost, and
             // `.notable` is the tier `Symbols.swift` draws as an info circle.
+            return .notable
+        case .fed:
+            // Taking surplus honey is routine — it is what a good year is
+            // for. Giving it back is not: it only ever happens to a colony
+            // that is short, and in a hard winter it is the difference
+            // between seeing spring and not. Worth a line in the report.
             return .notable
         case .queenEmerged, .queenMated, .supersededQueen, .nectarFlowBegan,
              .infectionCleared, .attackRepelled, .queenCellStarted:

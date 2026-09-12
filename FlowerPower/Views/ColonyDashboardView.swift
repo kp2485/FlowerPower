@@ -39,12 +39,23 @@ struct ColonyDashboardView: View {
                     if snapshot.entranceDecisionOpen {
                         EntranceDecisionCard(snapshot: snapshot)
                     }
+                    // Short for winter, with honey of theirs in the bank. The
+                    // engine decides when this is open — the same judgement
+                    // the winter-stores alert is raised from — so this asks
+                    // rather than working it out again.
+                    if snapshot.feedDecisionOpen {
+                        FeedDecisionCard(snapshot: snapshot)
+                    }
 
                     if !snapshot.alerts.isEmpty {
                         AlertsSection(alerts: snapshot.alerts)
                     }
 
-                    StoresSection(stores: snapshot.stores, season: snapshot.season)
+                    StoresSection(
+                        stores: snapshot.stores,
+                        season: snapshot.season,
+                        banked: snapshot.honeyTaken
+                    )
                     PopulationSection(population: snapshot.population)
                     QueenSection(queen: snapshot.queen)
                     NestConditionSection(nest: snapshot.nest)
@@ -234,6 +245,10 @@ private struct StoresSection: View {
 
     let stores: StoresSummary
     let season: Season
+    /// Honey the player has taken and not given back. It is theirs, but it is
+    /// also the colony's winter if the colony turns out to need it, so it is
+    /// worth seeing beside what is actually in the comb.
+    let banked: Double
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -249,6 +264,15 @@ private struct StoresSection: View {
                     tint: stores.isWinterReady ? Theme.healthy : Theme.caution,
                     symbolName: "snowflake"
                 )
+            }
+
+            if banked >= 1 {
+                Label(
+                    "\(Int(banked.rounded())) units taken and still yours to give back",
+                    systemImage: "arrow.uturn.backward.circle"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
 
             let ordered = ResourceKind.allCases.filter { (stores.resources[$0] ?? 0) > 0.5 }

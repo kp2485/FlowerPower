@@ -262,6 +262,16 @@ public struct Almanac: Codable, Equatable, Sendable {
                       : "The entrance is left open through the winter.", day: day)
             case .honeyTaken(let units):
                 write(.harvest, "\(Int(units.rounded())) units of honey are taken.", day: day)
+            case .fed(let units):
+                // Deliberately not deducted from the year's `honeyTaken`
+                // tally. What the player took in a given year is a fact about
+                // that year; the bank it came out of is not annual, and a
+                // colony fed in January out of last autumn's crop would
+                // otherwise show a harvest it never had. The line says it
+                // instead — which is what the almanac is for.
+                write(.harvest,
+                      "\(Int(units.rounded())) units of honey are given back to the bees.",
+                      day: day)
             case .postureAdopted(let posture):
                 if posture != .instinct {
                     write(.colony, "\(posture.displayName).", day: day)
