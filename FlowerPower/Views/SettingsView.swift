@@ -120,7 +120,7 @@ struct SettingsView: View {
         } header: {
             Text("Difficulty")
         } footer: {
-            Text("Changes apply from now on. Across many simulated colonies, first-year survival runs at about 83% on Forgiving, 77% on Natural and 43% on Harsh.")
+            Text("Changes apply from now on. Over 200 simulated colonies, about 92% see their first spring on Forgiving, 89% on Natural and 64% on Harsh; by the second spring it is 60%, 66% and 14%. Forgiving is not safer over two years: well-fed colonies swarm more, and every swarm stakes the colony on a virgin queen's mating flight.")
         }
     }
 
@@ -297,11 +297,11 @@ enum Difficulty: String, CaseIterable, Identifiable {
     var detail: String {
         switch self {
         case .gentle:
-            return "Richer forage, milder weather, fewer raiders. Colonies grow large and swarm often."
+            return "Richer forage, milder weather, fewer raiders. Colonies grow large and swarm often, which is its own risk."
         case .standard:
             return "Tuned against real colony behaviour. Most colonies see their first spring; few see their third."
         case .harsh:
-            return "A third less forage, hard winters, disease and predators pressing. Most colonies do not last the year."
+            return "A third less forage, hard winters, disease and predators pressing. A third of colonies do not see their first spring, and few see a second."
         }
     }
 
