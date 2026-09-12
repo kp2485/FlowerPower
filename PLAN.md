@@ -1,9 +1,9 @@
 # FlowerPower — state of the project and what is next
 
-Audited and worked through on 2026-09-05, and worked on again on 2026-09-06.
-The engine is built and its full suite runs on Windows; the Xcode side is
-written, desk-checked once, and has still never been compiled, because that
-needs a Mac.
+Audited and worked through on 2026-09-05, worked on again on 2026-09-06, and
+built out into a whole app on 2026-09-12. The engine is built and its full
+suite runs on Windows; the Xcode side is written, desk-checked twice, and has
+still never been compiled, because that needs a Mac.
 
 ---
 
@@ -13,10 +13,11 @@ needs a Mac.
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 124 Swift Testing, 0 failures |
+| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12) |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
-| Balance, standard preset | 89% first year, 66% second, 2.49 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06) |
+| Balance, standard preset | 89% first year, 66% second, 2.49 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06; reproduced byte for byte on 2026-09-12 after the record-keeping systems were added) |
+| Balance, other presets | Gentle 92% / 60%, harsh 64% / 14% (200 colonies, 2026-09-12). Gentle is *worse* at two years: better-fed colonies swarm more |
 | `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale` |
 
 #### The balance baseline, and why the numbers moved
@@ -48,10 +49,10 @@ treated as indicative: a 60-colony sample moves five points on nothing.
 ### Not verified, and cannot be here
 
 Everything in `FlowerPower/`, `FlowerPowerWatch/` and `FlowerPowerWidgets/` —
-roughly 7,000 lines of SwiftUI, MapKit, PhotosUI, Vision, FoundationModels,
-ActivityKit, WidgetKit, WatchConnectivity and BackgroundTasks. **Nothing in
-those three folders has ever been through a compiler**, and nothing said about
-them below should be read as though it had.
+roughly 11,500 lines of SwiftUI, Swift Charts, TipKit, App Intents, MapKit,
+PhotosUI, Vision, FoundationModels, ActivityKit, WidgetKit, WatchConnectivity
+and BackgroundTasks. **Nothing in those three folders has ever been through a
+compiler**, and nothing said about them below should be read as though it had.
 
 `project.yml` has also never been run through XcodeGen. Its keys were checked
 against XcodeGen's own parser source rather than from memory, but XcodeGen does
@@ -151,7 +152,31 @@ were read and reasoned about but not proved:
   a blank square, not a build failure.
 - Whether `HiveActivityAttributes`, compiled into both the app and the widget
   extension as two copies of an internal type, matches at runtime the way
-  ActivityKit expects.
+  ActivityKit expects. The same question now applies to `AppIntents.swift`,
+  which is compiled into both for the widget's buttons.
+
+#### Added on 2026-09-12, and equally unverified
+
+The app grew by about 4,500 lines in one day, written by seven agents in
+parallel and merged by hand, so a second desk-check was run over the merged
+result (its findings are recorded under section 2). Beyond the list above,
+these spellings are from documentation rather than a compiler:
+
+- **TipKit** — `Tip`, `Tips.configure`, `.popoverTip`, `TipView`,
+  `@Parameter`, `#Rule`; and whether `Tips.configure` is synchronous.
+- **Swift Charts**, the project's first use — `Chart`, `LineMark`,
+  `AreaMark`, `BarMark`, `RectangleMark`, `RuleMark`, `chartYScale`.
+- **App Intents** — `AppIntent`, `IntentDialog`, `ProvidesDialog`,
+  `ShowsSnippetView`, `AppShortcutsProvider`, `Button(intent:)`,
+  `ControlWidget`, `ControlWidgetButton`; whether an intent's `perform()`
+  runs in the app's process when a widget button is tapped.
+- **WatchConnectivity messages** — `session(_:didReceiveMessage:)`,
+  `transferUserInfo`, `WKInterfaceDevice.play(.notification)`.
+- `ShareLink(item: URL)` and `.task(id:)` on a `Section`; `XCUIApplication`
+  queries in the two UI tests, which have never run.
+- Whether XcodeGen picks `PrivacyInfo.xcprivacy`, `Localizable.xcstrings` and
+  the asset catalogues up as resources from a directory source. Checked
+  against XcodeGen's documentation, not by generating.
 
 ---
 
@@ -225,6 +250,89 @@ widget; swarms and forage requests between players; a faster winter; the hum.
 Every mechanic is in the engine and measured; the interface is written and
 uncompiled.
 
+### 2026-09-12 — the app around the game
+
+Everything above was a simulation with screens on it. This is the rest of what
+an app on somebody's phone needs, built as seven features in parallel, each in
+its own worktree, each with its logic in the package and tested there, each
+merged by hand and the balance baseline diffed byte for byte afterwards.
+
+**The first run.** `GameStore.load` used to start a colony at a default site
+and say nothing. Now the store knows when there was no save (`needsSetup`) and
+refuses to persist until the player has chosen a site, so quitting half way
+through the introduction does not leave a colony living somewhere nobody
+picked. Three pages of introduction, then the site, then the notification
+prompt — asked after the page that explains the colony will ask questions,
+not before the first frame. Five TipKit tips wait until the player is in front
+of the thing they describe. Notifications are three switches (decisions, the
+morning report, colony news), and the line between them is whether
+`NotificationActions` has action buttons for the news. An About page, with the
+measured survival figures on it, and the Settings footer corrected to the same
+numbers (it had been quoting the pre-fix 83/77/43).
+
+**The colony's record of its own numbers.** `ColonyHistory` on `World`, one
+`DailySample` per simulated day, capped at 720, taken by `HistorySystem` at the
+end of the pipeline. It reads only, and a test proves a tick through it leaves
+the RNG, the id counter and the hive untouched. `HistoryView` draws population,
+stores against the winter requirement, nest against outside temperature, and
+daily intake, with the seasons banded behind — the project's first Swift
+Charts. The snapshot's status judgement moved to `ColonyStatus.evaluate` so the
+record and the snapshot cannot disagree.
+
+**Milestones.** Twenty-four firsts the colony can reach, recognised by
+`MilestoneSystem` from the world and the tick's events, awarded once, narrated
+in the catch-up report and the almanac, and mentioned in the morning digest.
+Three candidates were dropped as unobservable rather than faked, and "a
+thousand adults" was replaced by 100/200/500 after measuring what peak
+populations actually are at this scale (180–300 in the first year, 613 the best
+second year seen). Milestones belong to the colony, not the player: a new
+colony earns its own.
+
+**Decisions on the wrist.** `DecisionAction` in the game layer is now the one
+vocabulary for answering the colony — identifiers byte-identical to what the
+notification buttons already used — and `GameStore.apply(_:)` the one switch,
+which checks the decision is still open and does nothing rather than something
+wrong if it is not. `NotificationActions` lost its own switch and calls it.
+`WatchSummary` carries a `WatchDecision` built from the same state as the
+phone's cards; the watch shows it as its first page, answers it locally for
+immediate feedback, and sends the identifier to the phone, which applies it to
+the *live* store rather than to the file behind its back. The complication
+badges an open decision in all four families.
+
+**A field guide and a glossary.** `FieldGuide` builds an entry per catalogue
+species — traits, bloom months per hemisphere derived from `RealSeason` rather
+than a second month table, a `NectarReach` verdict, whether it has been
+photographed — grouped by family and searchable by common, scientific and
+family name (and "linden" finds lime). `Glossary` holds 95 terms, keyed to
+eight engine enums by exhaustive switch so a new case cannot go undefined,
+plus the free-standing beekeeping words. The thirty identification sentences
+are the only new prose content and are tested for presence, not accuracy.
+
+**Siri, Shortcuts, widget buttons and Control Centre.** `ColonySnapshot.
+spokenStatus` says how the colony is in one to three sentences with sayable
+numbers. Eight App Intents: check the colony, photograph a flower (opens the
+app to the capture sheet down the same channel a notification uses), and the
+decisions that need no interface. The Home Screen widget shows a button for
+the best answer to an open siege or swarm, ordered by measurement as the
+notification buttons are; a Control Centre button opens the camera.
+
+**Getting a colony off the phone, and the five things a build cannot ship
+without.** `SaveArchive` is a `.flowerhive` file: the whole colony and its
+garden, versioned, refused if it comes from a newer format, and restored only
+after a confirmation screen because a restore replaces the colony. Privacy
+manifests for all three binaries, listing only the required-reason APIs each
+actually calls; empty string catalogues so the first Mac build extracts the
+strings; a generated placeholder icon so the appiconset is not empty (it should
+be replaced by a designed one); the two UI tests rewritten to assert something
+true.
+
+**And one bug the work surfaced.** Notification buttons, App Intents and
+widget buttons all act on the save *file* with no interface running. When the
+app is in the foreground, `GameStore` holds the colony in memory and writes it
+over the file at the next catch-up, and the decision is lost. It has been true
+since the notification actions were built. The fix — the store noticing the
+file changed under it and reloading before it advances — is in section 3.
+
 ---
 
 ## 3. What is next
@@ -233,12 +341,15 @@ uncompiled.
 
 1. **Generate and build.** `brew install xcodegen && xcodegen generate`, then
    fix what the compiler finds. This is the single biggest unknown in the
-   project and everything below is easier once it is done. There are now four
-   targets — the widget extension is new — and roughly 7,000 lines of
-   uncompiled interface, services, ActivityKit and WidgetKit.
+   project and everything below is easier once it is done. There are four
+   targets and roughly 11,500 lines of uncompiled interface, services,
+   intents, charts, ActivityKit and WidgetKit.
 2. **Run on a device.** The paths worth walking first are the ones with no test
-   coverage at all: photographing a flower with the camera, the map with and
-   without location permission, and the watch receiving its first save.
+   coverage at all: the first run through the introduction to a chosen site;
+   photographing a flower with the camera; the map with and without location
+   permission; the watch receiving its first save and answering its first
+   siege; a widget button; "how are my bees" to Siri; exporting a backup and
+   opening it.
 3. **Delete `FlowerPower/Legacy/`** once the new app has run.
 
 ### Then
@@ -265,7 +376,9 @@ model, so none of it could be started here.
    not normalised, so it needs real photographs.
 10. **Train the classifier**, if neither of the above is good enough.
    `docs/CLASSIFIER.md` is the brief.
-11. **App icon.** There is an empty `AppIcon.appiconset`.
+11. **App icon.** A generated placeholder is in the appiconset now
+   (`tools/make_app_icon.py`) so the build does not fail on an empty set. It
+   is not a design; replace it.
 
 ### Done since
 
