@@ -86,6 +86,11 @@ struct ContentView: View {
             // opened the app; the departed-swarm card on the dashboard is
             // where that choice lives.
             if action == NotificationActions.Action.followSwarm { selection = .colony }
+            // "Photograph a flower" from Siri, a Shortcut or Control Centre.
+            // Matched on a prefix because the identifier carries a nonce —
+            // see `PhotographFlowerIntent` for why asking twice has to look
+            // like two different requests.
+            if action?.hasPrefix(PhotographFlowerIntent.actionPrefix) ?? false { isCapturing = true }
         }
         .onChange(of: humEnabled, initial: true) { _, enabled in
             if enabled, scenePhase == .active {

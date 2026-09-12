@@ -17,6 +17,7 @@
 import WidgetKit
 import SwiftUI
 import ActivityKit
+import AppIntents
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -25,6 +26,7 @@ struct FlowerPowerWidgetsBundle: WidgetBundle {
     var body: some Widget {
         HiveWidget()
         HiveActivity()
+        PhotographFlowerControl()
     }
 }
 
@@ -33,6 +35,13 @@ struct FlowerPowerWidgetsBundle: WidgetBundle {
 struct HiveWidgetEntry: TimelineEntry {
     let date: Date
     let summary: WatchSummary?
+
+    /// A decision the player can answer from the widget itself, if one is
+    /// open. Carried on the entry rather than read in the view, because a
+    /// timeline entry is the only thing a widget's body is allowed to see —
+    /// and because the answer must be the one that will be true at the entry's
+    /// date, not the one that was true when the timeline was built.
+    var decision: OpenDecision?
 }
 
 struct HiveWidgetProvider: TimelineProvider {
@@ -56,7 +65,11 @@ struct HiveWidgetProvider: TimelineProvider {
             for hoursAhead in stride(from: 0, through: 6, by: 2) {
                 let date = now.addingTimeInterval(TimeInterval(hoursAhead) * 3600)
                 simulation.advance(to: date)
-                entries.append(HiveWidgetEntry(date: date, summary: simulation.watchSummary(now: date)))
+                entries.append(HiveWidgetEntry(
+                    date: date,
+                    summary: simulation.watchSummary(now: date),
+                    decision: OpenDecision(simulation.snapshot())
+                ))
             }
         } else {
             entries.append(HiveWidgetEntry(date: now, summary: nil))
@@ -127,12 +140,26 @@ struct HiveWidgetView: View {
                     }
                     .gaugeStyle(.accessoryLinear)
                     .tint(WidgetTheme.colour(for: summary.status))
-                    HStack {
-                        Label("\(summary.population)", systemImage: "hexagon.fill")
-                        Label("\(Int(summary.honey.rounded()))", systemImage: "drop.fill")
+
+                    // A decision displaces the counts rather than squeezing
+                    // in beside them. A window that closes in a day is worth
+                    // more than the population to two significant figures,
+                    // and on a small widget there is only room for one of
+                    // them.
+                    if let decision = entry.decision {
+                        BestAnswerButton(decision: decision)
+                            .buttonStyle(.borderedProminent)
+                            .tint(WidgetTheme.caution)
+                            .font(.caption2)
+                            .lineLimit(1)
+                    } else {
+                        HStack {
+                            Label("\(summary.population)", systemImage: "hexagon.fill")
+                            Label("\(Int(summary.honey.rounded()))", systemImage: "drop.fill")
+                        }
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                     }
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
                 }
             }
         } else {
@@ -196,6 +223,29 @@ struct HiveActivity: Widget {
                 Image(systemName: context.attributes.symbol)
             }
         }
+    }
+}
+
+// MARK: - Control Centre
+
+/// One tap from Control Centre, the lock screen or the Action button to the
+/// only thing in the game that cannot be done from anywhere else.
+///
+/// The camera earns this place and nothing else does. Every other verb the app
+/// has is either a decision, which arrives as a notification the moment it
+/// matters, or reading, which wants the app open anyway. What a control is for
+/// is the thing you want to do *while you are standing in front of it* — and
+/// standing in front of a flower is how this game is played.
+struct PhotographFlowerControl: ControlWidget {
+
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.kylepeterson.flowerpower.photograph") {
+            ControlWidgetButton(action: PhotographFlowerIntent()) {
+                Label("Photograph a Flower", systemImage: "camera.macro")
+            }
+        }
+        .displayName("Photograph a Flower")
+        .description("Opens FlowerPower on the camera, to add a flower to your garden.")
     }
 }
 

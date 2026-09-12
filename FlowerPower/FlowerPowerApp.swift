@@ -69,6 +69,11 @@ struct FlowerPowerApp: App {
                     notifications.onOpenApp = { action in
                         requestedAction = action
                     }
+                    // An App Intent that needs the interface — photographing
+                    // a flower — arrives down the same channel.
+                    AppIntentRequests.onOpenApp = { action in
+                        requestedAction = action
+                    }
                     // So a decision answered on the watch goes through the
                     // store the player is looking at rather than behind its
                     // back. See `WatchLink.store`.

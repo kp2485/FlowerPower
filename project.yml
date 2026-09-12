@@ -185,6 +185,13 @@ targets:
     platform: iOS
     sources:
       - FlowerPowerWidgets
+      # The App Intents cross the other way from `HiveActivityAttributes.swift`
+      # above, and for the same reason: the widget's decision buttons and the
+      # Control Centre control both name intent types by hand, so the types
+      # have to be in this target too. That is also why nothing in that file
+      # may depend on anything in the app — only on the package, which both
+      # targets already have.
+      - FlowerPower/Services/AppIntents.swift
     dependencies:
       - package: FlowerPowerCore
         product: FlowerPowerCore
