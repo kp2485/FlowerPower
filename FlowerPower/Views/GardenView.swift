@@ -182,12 +182,13 @@ private struct FlowerThumbnail: View {
                             .padding(5)
                             .background(.ultraThinMaterial, in: Circle())
                             .padding(4)
+                            .accessibilityHidden(true)
                     }
                 }
                 .overlay(alignment: .bottomLeading) {
                     if !patch.isInBloom {
                         Text("Out of season")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.caption2.weight(.medium))
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
                             .background(.ultraThinMaterial, in: Capsule())
@@ -210,7 +211,17 @@ private struct FlowerThumbnail: View {
         }
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(patch.speciesName), \(Int(patch.remainingFraction * 100)) percent forage left")
+        .accessibilityLabel(spokenName)
+        .accessibilityValue("\(Int(patch.remainingFraction * 100)) percent forage left")
+    }
+
+    /// The star and the "out of season" pill are the two things a tile says
+    /// with a badge rather than a word, so the label says them instead.
+    private var spokenName: String {
+        var parts = [patch.speciesName]
+        if patch.rarity != .common { parts.append(patch.rarity.displayName.lowercased()) }
+        if !patch.isInBloom { parts.append("out of season") }
+        return parts.joined(separator: ", ")
     }
 }
 
@@ -237,6 +248,7 @@ struct PhotoThumbnail: View {
                     .overlay {
                         Image(systemName: "photo")
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
             }
         }
@@ -277,6 +289,8 @@ private struct FlowerDetailView: View {
                     PhotoThumbnail(localIdentifier: patch.photoLocalIdentifier)
                         .aspectRatio(1, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .accessibilityElement()
+                        .accessibilityLabel("Your photograph of \(patch.speciesName)")
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(patch.speciesName)

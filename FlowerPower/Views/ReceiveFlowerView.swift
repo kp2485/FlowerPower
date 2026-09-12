@@ -23,6 +23,9 @@ struct ReceiveFlowerView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var outcome: GameStore.ImportOutcome?
+    /// A flower entering the garden is the same event as photographing one,
+    /// and worth the same tap. Counted, so nothing fires on appearance.
+    @State private var imports = 0
 
     private var alreadyHave: Bool { store.hasImported(share) }
 
@@ -70,6 +73,7 @@ struct ReceiveFlowerView: View {
             }
             .navigationTitle("A Flower For You")
             .navigationBarTitleDisplayMode(.inline)
+            .sensoryFeedback(.success, trigger: imports)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(outcome == nil ? "Not Now" : "Done") { dismiss() }
@@ -86,6 +90,7 @@ struct ReceiveFlowerView: View {
                 .scaledToFit()
                 .frame(maxHeight: 300)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
+                .accessibilityLabel("The photograph of \(share.displayName) you were sent")
         } else {
             RoundedRectangle(cornerRadius: 16)
                 .fill(.quaternary)
@@ -95,6 +100,8 @@ struct ReceiveFlowerView: View {
                         .font(.largeTitle)
                         .foregroundStyle(.secondary)
                 }
+                .accessibilityElement()
+                .accessibilityLabel("The photograph could not be shown")
         }
     }
 
@@ -164,7 +171,9 @@ struct ReceiveFlowerView: View {
         // failure here would leave a flower in the garden with nothing to
         // show for it.
         SharedImageStore.store(share.imageData, forShare: share.id)
-        outcome = store.importShared(share)
+        let result = store.importShared(share)
+        outcome = result
+        if case .added = result { imports += 1 }
 
         // A flower arriving with a name attached is a labelled photograph,
         // which is what the reference library is built from. Somebody else's

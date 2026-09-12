@@ -127,6 +127,7 @@ private struct CircularView: View {
         .tint(gaugeTint)
         .widgetAccentable()
         .accessibilityLabel(accessibilityText)
+        .accessibilityValue(accessibilityValue)
     }
 
     private var gaugeTint: Gradient {
@@ -135,10 +136,18 @@ private struct CircularView: View {
 
     private var accessibilityText: String {
         guard let summary else { return "No colony" }
+        // A decision is the one thing worth saying first; the gauge is the
+        // value behind it either way.
+        if let decision = summary.decision { return decision.title }
+        return summary.gauge.meaning.label
+    }
+
+    private var accessibilityValue: String {
+        guard let summary else { return "Open FlowerPower on iPhone" }
         if let decision = summary.decision {
-            return "\(decision.title). \(decision.detail)"
+            return "\(decision.detail). \(summary.gauge.meaning.label): \(summary.gauge.caption)"
         }
-        return "\(summary.gauge.meaning.label): \(summary.gauge.caption). \(summary.shortHeadline)"
+        return "\(summary.gauge.caption). \(summary.shortHeadline)"
     }
 }
 
@@ -157,6 +166,8 @@ private struct CornerView: View {
                 .tint(summary?.hasDecision == true ? WatchTheme.alarm : WatchTheme.honey)
             }
             .widgetAccentable()
+            .accessibilityLabel(summary?.gauge.meaning.label ?? "Hive")
+            .accessibilityValue(summary?.gauge.caption ?? "No colony")
     }
 }
 

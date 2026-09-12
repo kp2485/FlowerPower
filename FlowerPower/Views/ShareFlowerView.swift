@@ -41,6 +41,7 @@ struct ShareFlowerView: View {
                         PhotoThumbnail(localIdentifier: patch.photoLocalIdentifier)
                             .frame(width: 64, height: 64)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .accessibilityHidden(true)
 
                         VStack(alignment: .leading, spacing: 3) {
                             Text(patch.speciesName)
@@ -52,6 +53,7 @@ struct ShareFlowerView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .accessibilityElement(children: .combine)
                 }
 
                 Section("From") {
@@ -99,6 +101,7 @@ struct ShareFlowerView: View {
                         HStack {
                             Spacer()
                             ProgressView()
+                                .accessibilityLabel("Preparing the flower to send")
                             Spacer()
                         }
                     }

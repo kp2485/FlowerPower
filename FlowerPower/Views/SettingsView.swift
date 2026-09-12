@@ -116,9 +116,15 @@ struct SettingsView: View {
                         if difficulty.matches(store.currentConfig) {
                             Image(systemName: "checkmark")
                                 .foregroundStyle(Theme.honey)
+                                .accessibilityHidden(true)
                         }
                     }
                 }
+                // Which preset is in force was shown by a tick and said
+                // nowhere, so a screen reader heard three identical rows.
+                .accessibilityAddTraits(
+                    difficulty.matches(store.currentConfig) ? [.isSelected] : []
+                )
             }
         } header: {
             Text("Difficulty")

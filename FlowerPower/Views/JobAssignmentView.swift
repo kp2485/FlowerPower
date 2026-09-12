@@ -67,13 +67,17 @@ struct JobAssignmentView: View {
                             Image(systemName: Theme.symbol(for: job))
                                 .frame(width: 24)
                                 .foregroundStyle(Theme.worker)
+                                .accessibilityHidden(true)
                             Text(job.displayName)
                                 .font(.subheadline)
+                                .minimumScaleFactor(0.7)
                             Spacer()
                             Text("days \(job.adultAgeRange.lowerBound)–\(job.adultAgeRange.upperBound - 1)")
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
+                        .accessibilityElement(children: .combine)
                     }
                 } header: {
                     Text("The age ladder")
@@ -128,22 +132,28 @@ private struct JobRow: View {
                     Image(systemName: Theme.symbol(for: job))
                         .frame(width: 24)
                         .foregroundStyle(isEmphasised ? Theme.honey : Theme.worker)
+                        .accessibilityHidden(true)
 
                     Text(job.displayName)
                         .font(.subheadline)
                         .foregroundStyle(.primary)
+                        .minimumScaleFactor(0.7)
 
                     Spacer()
 
                     if isEmphasised {
+                        // The pin says the same thing as the selected trait
+                        // the row already carries.
                         Image(systemName: "pin.fill")
                             .font(.caption)
                             .foregroundStyle(Theme.honey)
+                            .accessibilityHidden(true)
                     }
 
                     Text("\(count)")
                         .font(.subheadline.weight(.medium).monospacedDigit())
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 GeometryReader { geometry in

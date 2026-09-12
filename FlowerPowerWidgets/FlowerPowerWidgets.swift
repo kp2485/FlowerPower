@@ -112,22 +112,31 @@ struct HiveWidgetView: View {
                     Image(systemName: summary.status.symbolName)
                 }
                 .gaugeStyle(.accessoryCircular)
+                // The ring's only content is a status glyph, so there is
+                // nothing here for a screen reader without saying it.
+                .accessibilityLabel(summary.gauge.meaning.label)
+                .accessibilityValue("\(summary.gauge.caption). \(summary.shortHeadline)")
             case .accessoryRectangular:
                 VStack(alignment: .leading) {
                     Label(summary.shortHeadline, systemImage: summary.status.symbolName)
                         .font(.headline)
                     Text(summary.gauge.caption).font(.caption)
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(summary.shortHeadline). \(summary.gauge.meaning.label): \(summary.gauge.caption)")
             default:
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Image(systemName: summary.status.symbolName)
                             .foregroundStyle(WidgetTheme.colour(for: summary.status))
+                            .accessibilityHidden(true)
                         Text(summary.status.displayName).font(.headline)
                         Spacer()
                         Image(systemName: WidgetTheme.symbol(for: summary.season))
                             .foregroundStyle(.secondary)
+                            .accessibilityLabel(summary.season.displayName)
                     }
+                    .accessibilityElement(children: .combine)
                     Text(summary.headline)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -155,7 +164,11 @@ struct HiveWidgetView: View {
                     } else {
                         HStack {
                             Label("\(summary.population)", systemImage: "hexagon.fill")
+                                .accessibilityLabel("Bees")
+                                .accessibilityValue("\(summary.population)")
                             Label("\(Int(summary.honey.rounded()))", systemImage: "drop.fill")
+                                .accessibilityLabel("Honey")
+                                .accessibilityValue("\(Int(summary.honey.rounded()))")
                         }
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
@@ -165,9 +178,11 @@ struct HiveWidgetView: View {
         } else {
             VStack {
                 Image(systemName: "hexagon")
+                    .accessibilityHidden(true)
                 Text("No colony yet").font(.caption)
             }
             .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
         }
     }
 }
@@ -182,6 +197,7 @@ struct HiveActivity: Widget {
                 Image(systemName: context.attributes.symbol)
                     .font(.title2)
                     .foregroundStyle(context.state.decisionOpen ? WidgetTheme.caution : WidgetTheme.honey)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(context.attributes.title).font(.headline)
                     Text(context.state.status).font(.subheadline).foregroundStyle(.secondary)
@@ -189,11 +205,13 @@ struct HiveActivity: Widget {
                         Text(context.state.posture).font(.caption).foregroundStyle(WidgetTheme.healthy)
                     }
                 }
+                .accessibilityElement(children: .combine)
                 Spacer()
                 if let progress = context.state.progress {
                     ProgressView(value: progress)
                         .progressViewStyle(.circular)
                         .frame(width: 32, height: 32)
+                        .accessibilityLabel("How far along it is")
                 }
             }
             .padding()
@@ -204,10 +222,12 @@ struct HiveActivity: Widget {
                     Image(systemName: context.attributes.symbol)
                         .font(.title2)
                         .foregroundStyle(WidgetTheme.honey)
+                        .accessibilityHidden(true)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text("\(context.state.daysRemaining)d")
                         .font(.headline.monospacedDigit())
+                        .accessibilityLabel(daysLabel(context.state.daysRemaining))
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.attributes.title).font(.headline)
@@ -217,10 +237,14 @@ struct HiveActivity: Widget {
                 }
             } compactLeading: {
                 Image(systemName: context.attributes.symbol)
+                    .accessibilityLabel(context.attributes.title)
             } compactTrailing: {
-                Text("\(context.state.daysRemaining)d").monospacedDigit()
+                Text("\(context.state.daysRemaining)d")
+                    .monospacedDigit()
+                    .accessibilityLabel(daysLabel(context.state.daysRemaining))
             } minimal: {
                 Image(systemName: context.attributes.symbol)
+                    .accessibilityLabel(context.attributes.title)
             }
         }
     }
@@ -247,6 +271,14 @@ struct PhotographFlowerControl: ControlWidget {
         .displayName("Photograph a Flower")
         .description("Opens FlowerPower on the camera, to add a flower to your garden.")
     }
+}
+
+/// "3d" is a countdown on a lock screen and an unreadable pair of characters
+/// to a screen reader. A free function rather than a method: the Dynamic
+/// Island builders are escaping closures and this way there is no `self` in
+/// them to argue about.
+private func daysLabel(_ days: Int) -> String {
+    days == 1 ? "1 day left" : "\(days) days left"
 }
 
 // MARK: - Theme, trimmed for the extension

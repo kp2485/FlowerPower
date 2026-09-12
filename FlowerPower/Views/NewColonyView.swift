@@ -42,6 +42,11 @@ struct NewColonyView: View {
 
     @State private var selection: HiveLocationType = .livingTreeCavity
 
+    /// Flipped once, on appearing, so the collapse gets a single error tap.
+    /// The trigger form never fires on its initial value, which is the point:
+    /// it is the change from false that plays, and it cannot play twice.
+    @State private var hasMourned = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -56,6 +61,10 @@ struct NewColonyView: View {
                         SiteRow(site: site, isSelected: site == selection)
                             .contentShape(Rectangle())
                             .onTapGesture { selection = site }
+                            // The row carries the button trait but its tap is
+                            // a gesture, and a gesture is not an action a
+                            // screen reader can reach on its own.
+                            .accessibilityAction { selection = site }
                     }
                 }
                 .padding()
@@ -75,6 +84,14 @@ struct NewColonyView: View {
                 .padding()
                 .background(.bar)
             }
+        }
+        .sensoryFeedback(.error, trigger: hasMourned)
+        // `onAppear` rather than `task`: this is a one-line main-actor write
+        // and the closure here is not @Sendable, so there is no hop to argue
+        // about. Setting it a second time changes nothing, so a reappearance
+        // cannot play it twice.
+        .onAppear {
+            if reason == .afterCollapse { hasMourned = true }
         }
     }
 

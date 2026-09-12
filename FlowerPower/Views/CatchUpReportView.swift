@@ -104,6 +104,7 @@ private struct HighlightsCard: View {
 
                     Spacer(minLength: 0)
                 }
+                .accessibilityElement(children: .combine)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -146,6 +147,7 @@ private struct PopulationChangeCard: View {
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
+                        .accessibilityElement(children: .combine)
                     }
                 }
             }
@@ -166,10 +168,13 @@ private struct Stat: View {
             Text("\(value)")
                 .font(.title3.weight(.semibold).monospacedDigit())
                 .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)

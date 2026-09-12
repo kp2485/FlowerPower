@@ -18,6 +18,9 @@ struct LineageView: View {
     @Environment(GameStore.self) private var store
     @State private var naming: QueenRecord?
     @State private var draftName = ""
+    /// Naming a queen is the one thing the player can do on this screen, so
+    /// it is worth feeling. Counted so a second naming lands too.
+    @State private var namings = 0
 
     private var lineage: Lineage { store.snapshot.lineage }
     private var today: Int { store.snapshot.day }
@@ -41,10 +44,12 @@ struct LineageView: View {
                         QueenRow(queen: queen, today: today, lineage: lineage)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityHint("Tap to name her")
                 }
             }
         }
         .navigationTitle("Lineage")
+        .sensoryFeedback(.success, trigger: namings)
         .sheet(item: $naming) { queen in
             NavigationStack {
                 Form {
@@ -66,6 +71,7 @@ struct LineageView: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
                             store.nameQueen(queen.number, draftName)
+                            namings += 1
                             naming = nil
                         }
                     }
@@ -86,6 +92,7 @@ private struct QueenRow: View {
             HStack {
                 Image(systemName: "crown.fill")
                     .foregroundStyle(queen.isReigning ? Theme.queen : .secondary)
+                    .accessibilityHidden(true)
                 Text(queen.title)
                     .font(.headline)
                 Spacer()
@@ -111,6 +118,7 @@ private struct QueenRow: View {
             }
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 
     private var parentage: String {

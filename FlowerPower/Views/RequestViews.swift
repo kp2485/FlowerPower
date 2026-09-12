@@ -36,6 +36,7 @@ struct AskForForageView: View {
                                 Text(family.commonName).font(.subheadline)
                                 Text(family.forageNote).font(.caption).foregroundStyle(.secondary)
                             }
+                            .accessibilityElement(children: .combine)
                         }
                     } else {
                         Text("Your garden has something workable in every family flowering now. Nothing to ask for.")
@@ -145,6 +146,7 @@ struct ReceiveRequestView: View {
                                     PhotoThumbnail(localIdentifier: patch.photoLocalIdentifier)
                                         .frame(width: 44, height: 44)
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        .accessibilityHidden(true)
                                     VStack(alignment: .leading) {
                                         Text(patch.speciesName).font(.subheadline)
                                         if let family = patch.family {
@@ -154,9 +156,11 @@ struct ReceiveRequestView: View {
                                     Spacer()
                                     Image(systemName: "square.and.arrow.up")
                                         .foregroundStyle(Theme.honey)
+                                        .accessibilityHidden(true)
                                 }
                             }
                             .buttonStyle(.plain)
+                            .accessibilityHint("Tap to send this flower")
                         }
                     }
                 } header: {

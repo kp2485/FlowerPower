@@ -116,6 +116,7 @@ struct ReceiveSwarmView: View {
                     Image(systemName: "bird.fill")
                         .font(.system(size: 56))
                         .foregroundStyle(Theme.queen)
+                        .accessibilityHidden(true)
 
                     VStack(spacing: 6) {
                         Text("A swarm for you")

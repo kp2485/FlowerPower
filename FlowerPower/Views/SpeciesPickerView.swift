@@ -109,6 +109,7 @@ struct SpeciesPickerView: View {
                     Image(systemName: "star.fill")
                         .foregroundStyle(Theme.queen)
                         .imageScale(.small)
+                        .accessibilityLabel("keystone")
                 }
             }
         }

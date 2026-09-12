@@ -117,12 +117,14 @@ private struct StatusHeader: View {
                 Label(snapshot.status.displayName, systemImage: snapshot.status.symbolName)
                     .font(.headline)
                     .foregroundStyle(Theme.colour(for: snapshot.status))
+                    .minimumScaleFactor(0.7)
 
                 Spacer()
 
                 Label(snapshot.season.displayName, systemImage: Theme.symbol(for: snapshot.season))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .minimumScaleFactor(0.7)
             }
 
             Text(snapshot.headline)
@@ -138,12 +140,14 @@ private struct StatusHeader: View {
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .minimumScaleFactor(0.7)
 
                 Spacer()
 
                 Text("Day \(snapshot.day)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.tertiary)
+                    .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -273,9 +277,12 @@ private struct ResourceTile: View {
             Image(systemName: Theme.symbol(for: kind))
                 .foregroundStyle(Theme.colour(for: kind))
                 .imageScale(.large)
+                .accessibilityHidden(true)
 
             Text(amount, format: .number.precision(.fractionLength(0)))
                 .font(.headline.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
 
             Text(kind.displayName)
                 .font(.caption2)
@@ -342,9 +349,13 @@ private struct CountPill: View {
         VStack(spacing: 2) {
             Text("\(value)")
                 .font(.title3.weight(.semibold).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
@@ -389,6 +400,8 @@ private struct BroodBar: View {
                     Text(segment.stage.displayName)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
             }
         }
@@ -430,8 +443,10 @@ private struct QueenSection: View {
                     Text("\(queen.ageDays) days old")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
+            .accessibilityElement(children: .combine)
 
             if queen.state == .laying || queen.state == .droneLayer {
                 MeterView(
@@ -541,6 +556,11 @@ private struct RoomRow: View {
     let nest: NestSummary
     @Environment(GameStore.self) private var store
 
+    /// Counts the times the player has opened the nest up, purely so the
+    /// haptic has something to fire on. A trigger value rather than a plain
+    /// flag, so it also fires the second time.
+    @State private var combAdded = 0
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
@@ -553,12 +573,14 @@ private struct RoomRow: View {
 
                 Button {
                     store.addComb()
+                    combAdded += 1
                 } label: {
                     Label("Open the Nest Up", systemImage: "plus.rectangle.on.rectangle")
                         .font(.subheadline.weight(.medium))
                 }
                 .buttonStyle(.bordered)
                 .tint(Theme.honey)
+                .sensoryFeedback(.impact(weight: .medium), trigger: combAdded)
             } else {
                 Label(
                     "The cavity is full and there is no more of it. A \(nest.siteType.displayName.lowercased()) gives what it gives.",
@@ -583,11 +605,16 @@ private struct ReadingView: View {
         VStack(spacing: 4) {
             Image(systemName: symbol)
                 .foregroundStyle(tint)
+                .accessibilityHidden(true)
             Text(value)
                 .font(.subheadline.weight(.semibold).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)

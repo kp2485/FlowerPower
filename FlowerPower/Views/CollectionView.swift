@@ -66,6 +66,7 @@ struct CollectionView: View {
                             .foregroundStyle(.tertiary)
                     }
                     .padding(.vertical, 2)
+                    .accessibilityElement(children: .combine)
                 }
             }
 
@@ -79,6 +80,7 @@ struct CollectionView: View {
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
+                        .accessibilityElement(children: .combine)
                     }
                 }
             }
@@ -108,12 +110,20 @@ struct CollectionView: View {
                     let covered = collection.seasonsCovered.contains(season)
                     Label(season.rawValue.capitalized, systemImage: Theme.symbol(for: season))
                         .font(.caption)
+                        .minimumScaleFactor(0.6)
                         .padding(.vertical, 6)
                         .frame(maxWidth: .infinity)
                         .background(covered ? Theme.honey.opacity(0.25) : Color.clear,
                                     in: RoundedRectangle(cornerRadius: 8))
                         .overlay(RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(covered ? Theme.honey : .secondary.opacity(0.4)))
+                        // Filled or outlined is the whole message of this row,
+                        // and it is carried by nothing but the colour.
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(season.rawValue.capitalized)
+                        .accessibilityValue(covered
+                                            ? "something in the garden flowers"
+                                            : "nothing in the garden flowers")
                 }
             }
             if !collection.seasonsMissing.isEmpty {
@@ -160,12 +170,14 @@ struct BloomPromptCard: View {
                             Image(systemName: "star.fill")
                                 .foregroundStyle(Theme.queen)
                                 .imageScale(.small)
+                                .accessibilityLabel("keystone")
                         }
                         Spacer()
                         Text(species.family.commonName)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
 

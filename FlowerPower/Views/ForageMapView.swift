@@ -25,6 +25,7 @@ struct ForageMapView: View {
 
     @State private var camera: MapCameraPosition = .automatic
     @State private var selectedPatch: PatchSummary?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var snapshot: ColonySnapshot { store.snapshot }
 
@@ -106,12 +107,18 @@ struct ForageMapView: View {
 
     private func centreOnHive() {
         guard let hiveCoordinate else { return }
-        withAnimation {
-            camera = .region(MKCoordinateRegion(
-                center: hiveCoordinate,
-                latitudinalMeters: 3_000,
-                longitudinalMeters: 3_000
-            ))
+        let region = MKCoordinateRegion(
+            center: hiveCoordinate,
+            latitudinalMeters: 3_000,
+            longitudinalMeters: 3_000
+        )
+        // The only animation in the app, and a flying map is exactly the kind
+        // of movement Reduce Motion is asked for. The camera still goes to
+        // the hive; it simply arrives there.
+        if reduceMotion {
+            camera = .region(region)
+        } else {
+            withAnimation { camera = .region(region) }
         }
     }
 }
@@ -128,6 +135,7 @@ private struct HiveMarker: View {
                 .foregroundStyle(Theme.wax)
         }
         .shadow(radius: 3)
+        .accessibilityElement()
         .accessibilityLabel("The hive")
     }
 }
@@ -164,9 +172,17 @@ private struct PatchMarker: View {
                 .foregroundStyle(.white)
         }
         .shadow(radius: 2)
-        .accessibilityLabel(
-            "\(patch.speciesName), \(Int(patch.remainingFraction * 100)) percent remaining"
-        )
+        .accessibilityElement()
+        .accessibilityLabel(spokenName)
+        .accessibilityValue("\(Int(patch.remainingFraction * 100)) percent remaining")
+    }
+
+    /// Out of bloom and out of range are drawn in grey and said nowhere else.
+    private var spokenName: String {
+        var parts = [patch.speciesName]
+        if !patch.isInBloom { parts.append("not in bloom") }
+        if !patch.isWithinRange { parts.append("beyond foraging range") }
+        return parts.joined(separator: ", ")
     }
 }
 

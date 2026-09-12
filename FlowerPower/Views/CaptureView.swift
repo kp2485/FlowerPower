@@ -32,6 +32,11 @@ struct CaptureView: View {
     /// model whether they are there.
     @State private var classifier: FlowerIdentifying?
 
+    /// Photographs banked this session. The picker gives the shutter its own
+    /// feedback; this is for the moment the flower becomes forage, which is
+    /// the part the game cares about.
+    @State private var recordings = 0
+
     enum Stage: Equatable {
         case choosing
         case identifying(UIImage)
@@ -97,6 +102,7 @@ struct CaptureView: View {
                 }
             }
         }
+        .sensoryFeedback(.success, trigger: recordings)
         .fullScreenCover(isPresented: $isUsingCamera) {
             CameraPicker(
                 onCapture: { image in
@@ -178,6 +184,8 @@ struct CaptureView: View {
                 takenAt: saved.takenAt
             )
 
+            recordings += 1
+
             stage = .result(CaptureResult(
                 image: image,
                 identification: identification,
@@ -205,6 +213,7 @@ private struct ChooserView: View {
             Image(systemName: "camera.macro")
                 .font(.system(size: 64))
                 .foregroundStyle(Theme.honey)
+                .accessibilityHidden(true)
 
             VStack(spacing: 8) {
                 Text("What have you found?")
@@ -270,6 +279,7 @@ private struct IdentifyingView: View {
                 .scaledToFit()
                 .frame(maxHeight: 300)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
+                .accessibilityLabel("The photograph you took")
 
             ProgressView("Looking at it…")
                 .tint(Theme.honey)
@@ -297,6 +307,7 @@ private struct ResultView: View {
                     .scaledToFit()
                     .frame(maxHeight: 280)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .accessibilityLabel("The photograph you took")
 
                 if let species = corrected ?? result.identification.species {
                     if corrected == nil, let rank = result.identification.rank, rank < .species {
@@ -404,6 +415,8 @@ private struct IdentifiedCard: View {
     var onPick: (FlowerSpecies, Double) -> Void
     var onNameItYourself: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -450,14 +463,13 @@ private struct IdentifiedCard: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
 
-                    HStack(spacing: 8) {
-                        ForEach(alternatives, id: \.species.id) { alternative in
-                            Button(alternative.species.commonName) {
-                                onPick(alternative.species, alternative.confidence)
-                            }
-                            .font(.caption)
-                            .buttonStyle(.bordered)
-                        }
+                    // Two or three flower names side by side stop fitting
+                    // somewhere around the first accessibility size, and a
+                    // runner-up the player cannot read is no use to them.
+                    if typeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 6) { alternativeButtons }
+                    } else {
+                        HStack(spacing: 8) { alternativeButtons }
                     }
                 }
             }
@@ -468,6 +480,17 @@ private struct IdentifiedCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+
+    @ViewBuilder
+    private var alternativeButtons: some View {
+        ForEach(alternatives, id: \.species.id) { alternative in
+            Button(alternative.species.commonName) {
+                onPick(alternative.species, alternative.confidence)
+            }
+            .font(.caption)
+            .buttonStyle(.bordered)
+        }
     }
 }
 
@@ -507,6 +530,7 @@ private struct RejectedView: View {
                 .frame(maxHeight: 240)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.caution, lineWidth: 2))
+                .accessibilityLabel("The photograph you took")
 
             ContentUnavailableView {
                 Label("No Flower Found", systemImage: "eye.slash")

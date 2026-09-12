@@ -47,6 +47,7 @@ struct AlmanacView: View {
                                         .font(.subheadline)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
+                                .accessibilityElement(children: .combine)
                             }
                         } header: {
                             Label(group.season.rawValue.capitalized, systemImage: Theme.symbol(for: group.season))

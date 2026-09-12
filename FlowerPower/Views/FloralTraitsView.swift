@@ -83,7 +83,9 @@ struct FloralTraitsView: View {
                      : "open")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .accessibilityElement(children: .combine)
 
             CorollaDiagram(
                 depth: traits.corollaDepthMillimetres,
@@ -181,6 +183,7 @@ private struct CorollaDiagram: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Corolla \(String(format: "%.1f", depth)) millimetres deep against a reach of \(String(format: "%.1f", reach)); \(Int(accessible * 100)) percent of the nectar is reachable")
+        .accessibilityLabel("The corolla against a honey bee's reach")
+        .accessibilityValue("\(String(format: "%.1f", depth)) millimetres deep against a reach of \(String(format: "%.1f", reach)); \(Int(accessible * 100)) percent of the nectar is reachable")
     }
 }

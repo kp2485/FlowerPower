@@ -72,7 +72,12 @@ private struct CombPanel: View {
             CombCanvas(contents: CombLayout.contents(for: snapshot))
                 .aspectRatio(1.15, contentMode: .fit)
                 .frame(maxWidth: .infinity)
-                .accessibilityLabel(accessibilityDescription)
+                // A Canvas draws no accessibility children of its own, so
+                // there was nothing for the label below to attach to. This
+                // makes the whole comb one element that reads as a sentence.
+                .accessibilityElement()
+                .accessibilityLabel("Comb")
+                .accessibilityValue(accessibilityDescription)
         }
         .card()
     }
@@ -80,7 +85,7 @@ private struct CombPanel: View {
     private var accessibilityDescription: String {
         let population = snapshot.population
         return """
-        Comb with \(snapshot.nest.builtCells) cells. \
+        \(snapshot.nest.builtCells) cells. \
         \(population.brood) brood in the centre, \
         stores around the edge, \
         \(snapshot.nest.freeCells) cells empty.
@@ -302,11 +307,14 @@ private struct JobBreakdown: View {
                         Image(systemName: Theme.symbol(for: job))
                             .frame(width: 22)
                             .foregroundStyle(Theme.worker)
+                            .accessibilityHidden(true)
                         Text(job.displayName)
                             .font(.subheadline)
+                            .minimumScaleFactor(0.7)
                         Spacer()
                         Text("\(count)")
                             .font(.subheadline.monospacedDigit().weight(.medium))
+                            .lineLimit(1)
                     }
                     .overlay(alignment: .bottomLeading) {
                         GeometryReader { geometry in

@@ -126,6 +126,10 @@ private struct StatusPage: View {
                 .tint(Gradient(colors: [WatchTheme.alarm, WatchTheme.caution, WatchTheme.healthy]))
                 .scaleEffect(1.25)
                 .padding(.vertical, 8)
+                // What the gauge measures changes with the season, and the
+                // only thing in the ring itself is a status glyph.
+                .accessibilityLabel(summary.gauge.meaning.label)
+                .accessibilityValue(summary.gauge.caption)
 
                 Text(summary.shortHeadline)
                     .font(.headline)
@@ -151,6 +155,7 @@ private struct StatusPage: View {
                         WatchTheme.colour(for: alert.severity).opacity(0.18),
                         in: RoundedRectangle(cornerRadius: 8)
                     )
+                    .accessibilityElement(children: .combine)
                 }
 
                 if isStale {
@@ -180,11 +185,13 @@ private struct ConditionsPage: View {
                 HStack(spacing: 14) {
                     WatchReading(
                         symbol: WatchTheme.symbol(for: summary.season),
+                        label: "Season",
                         value: summary.season.displayName,
                         tint: WatchTheme.honey
                     )
                     WatchReading(
                         symbol: "thermometer.medium",
+                        label: "Brood nest",
                         value: String(format: "%.0f°", summary.temperatureCelsius),
                         tint: abs(summary.temperatureCelsius - 35) < 2
                             ? WatchTheme.healthy
@@ -239,10 +246,13 @@ private struct WatchStatRow: View {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .minimumScaleFactor(0.7)
             Spacer()
             Text(value)
                 .font(.body.weight(.semibold).monospacedDigit())
                 .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
         .accessibilityElement(children: .combine)
     }
@@ -251,6 +261,9 @@ private struct WatchStatRow: View {
 private struct WatchReading: View {
 
     let symbol: String
+    /// Spoken only. On screen the symbol is the label, which works for a
+    /// thermometer and not at all for a screen reader.
+    let label: String
     let value: String
     let tint: Color
 
@@ -260,8 +273,13 @@ private struct WatchReading: View {
                 .foregroundStyle(tint)
             Text(value)
                 .font(.caption.weight(.medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
     }
 }
 
@@ -276,6 +294,7 @@ private struct WaitingView: View {
             Image(systemName: "hexagon")
                 .font(.largeTitle)
                 .foregroundStyle(WatchTheme.honey)
+                .accessibilityHidden(true)
             Text("No colony yet")
                 .font(.headline)
             Text("Open FlowerPower on your iPhone.")

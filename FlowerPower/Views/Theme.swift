@@ -175,6 +175,10 @@ struct MeterView: View {
                     Text(caption)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
+                        // The label wraps; the number must not, or a reading
+                        // at the accessibility sizes becomes "12 patri…".
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
             }
 

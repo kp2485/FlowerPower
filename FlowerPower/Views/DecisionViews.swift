@@ -22,11 +22,17 @@ struct ThreatDecisionCard: View {
     let snapshot: ColonySnapshot
     @Environment(GameStore.self) private var store
 
+    /// Answering a decision is the one thing on this screen the player
+    /// actually does, so it gets a tap. Counted rather than flagged so a
+    /// second answer feels like one too.
+    @State private var answers = 0
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: Theme.symbol(for: threat.predator))
                     .foregroundStyle(Theme.alarm)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(threat.predator.displayName) at the nest")
                         .font(.headline)
@@ -39,6 +45,7 @@ struct ThreatDecisionCard: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
+            .accessibilityElement(children: .combine)
 
             Text(explanation)
                 .font(.subheadline)
@@ -54,6 +61,7 @@ struct ThreatDecisionCard: View {
                     ForEach(threat.options.filter { $0 != .instinct }, id: \.self) { posture in
                         Button {
                             store.respond(to: threat, with: posture)
+                            answers += 1
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(posture.displayName).font(.subheadline.weight(.semibold))
@@ -71,6 +79,7 @@ struct ThreatDecisionCard: View {
             }
         }
         .card()
+        .sensoryFeedback(.success, trigger: answers)
     }
 
     private var remaining: String {
@@ -94,19 +103,23 @@ struct SwarmDecisionCard: View {
     let snapshot: ColonySnapshot
     @Environment(GameStore.self) private var store
     @State private var isRelocating = false
+    @State private var answers = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "arrow.triangle.branch")
                     .foregroundStyle(Theme.caution)
+                    .accessibilityHidden(true)
                 Text("The colony is preparing to swarm")
                     .font(.headline)
                 Spacer()
                 Text("\(swarm.daysRemaining(on: snapshot.day)) days")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .accessibilityElement(children: .combine)
 
             Text("Swarm cells are started. The old queen will leave with most of the flying bees, and what stays will rest on a virgin queen's mating flight. This is how colonies reproduce — and how most of them end.")
                 .font(.subheadline)
@@ -131,6 +144,7 @@ struct SwarmDecisionCard: View {
                 if snapshot.canAddComb, snapshot.canAffordComb {
                     Button {
                         store.addComb()
+                        answers += 1
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Open the Nest Up").font(.subheadline.weight(.semibold))
@@ -154,6 +168,7 @@ struct SwarmDecisionCard: View {
                 if snapshot.canSplit {
                     Button {
                         store.splitColony()
+                        answers += 1
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Divide Them Yourself").font(.subheadline.weight(.semibold))
@@ -181,6 +196,7 @@ struct SwarmDecisionCard: View {
 
                 Button {
                     store.discourageSwarm()
+                    answers += 1
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Make Room").font(.subheadline.weight(.semibold))
@@ -210,6 +226,7 @@ struct SwarmDecisionCard: View {
             }
         }
         .card()
+        .sensoryFeedback(.success, trigger: answers)
         .sheet(isPresented: $isRelocating) {
             NewColonyView(reason: .relocating) { site in
                 store.relocateHive(to: HiveLocation(coordinate: snapshot.nest.coordinate, type: site))
@@ -228,12 +245,14 @@ struct DepartedSwarmCard: View {
     @Environment(GameStore.self) private var store
     @State private var isChoosingSite = false
     @State private var isGifting = false
+    @State private var answers = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "bird.fill")
                     .foregroundStyle(Theme.queen)
+                    .accessibilityHidden(true)
                 Text("A swarm has left")
                     .font(.headline)
             }
@@ -253,17 +272,22 @@ struct DepartedSwarmCard: View {
             .tint(Theme.honey)
 
             HStack {
-                Button("Stay With the Colony") { store.letSwarmGo() }
-                    .buttonStyle(.bordered)
+                Button("Stay With the Colony") {
+                    store.letSwarmGo()
+                    answers += 1
+                }
+                .buttonStyle(.bordered)
                 Button("Give the Swarm Away") { isGifting = true }
                     .buttonStyle(.bordered)
             }
             .tint(Theme.honey)
         }
         .card()
+        .sensoryFeedback(.success, trigger: answers)
         .sheet(isPresented: $isChoosingSite) {
             NewColonyView(reason: .firstColony) { site in
                 store.followSwarm(to: HiveLocation(type: site))
+                answers += 1
                 isChoosingSite = false
             }
         }
@@ -279,12 +303,14 @@ struct EntranceDecisionCard: View {
 
     let snapshot: ColonySnapshot
     @Environment(GameStore.self) private var store
+    @State private var answers = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "door.left.hand.closed")
                     .foregroundStyle(Theme.propolis)
+                    .accessibilityHidden(true)
                 Text("Autumn: the entrance")
                     .font(.headline)
             }
@@ -295,14 +321,21 @@ struct EntranceDecisionCard: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
-                Button("Seal It") { store.decideEntrance(sealed: true) }
-                    .buttonStyle(.borderedProminent)
-                Button("Keep It Open") { store.decideEntrance(sealed: false) }
-                    .buttonStyle(.bordered)
+                Button("Seal It") {
+                    store.decideEntrance(sealed: true)
+                    answers += 1
+                }
+                .buttonStyle(.borderedProminent)
+                Button("Keep It Open") {
+                    store.decideEntrance(sealed: false)
+                    answers += 1
+                }
+                .buttonStyle(.bordered)
             }
             .tint(Theme.honey)
         }
         .card()
+        .sensoryFeedback(.success, trigger: answers)
     }
 }
 
@@ -313,17 +346,22 @@ struct HoneyDecisionCard: View {
     let snapshot: ColonySnapshot
     @Environment(GameStore.self) private var store
     @State private var amount: Double = 0
+    @State private var harvests = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: "drop.fill").foregroundStyle(Theme.honey)
+                Image(systemName: "drop.fill")
+                    .foregroundStyle(Theme.honey)
+                    .accessibilityHidden(true)
                 Text("The colony's surplus").font(.headline)
                 Spacer()
                 Text("\(Int(snapshot.honeyTaken.rounded())) taken so far")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .minimumScaleFactor(0.7)
             }
+            .accessibilityElement(children: .combine)
 
             Text("What the bees have put away beyond what they need for winter. Every unit taken is a unit they do not have if the spring is late — the cap is what they can spare, and it moves with the season.")
                 .font(.subheadline)
@@ -337,13 +375,17 @@ struct HoneyDecisionCard: View {
             } else {
                 Slider(value: $amount, in: 0...snapshot.harvestableHoney, step: 1)
                     .tint(Theme.honey)
+                    .accessibilityLabel("Honey to take")
+                    .accessibilityValue("\(Int(amount)) of \(Int(snapshot.harvestableHoney)) units")
                 HStack {
                     Text("\(Int(amount)) of \(Int(snapshot.harvestableHoney)) units")
                         .font(.caption.monospacedDigit())
+                        .minimumScaleFactor(0.7)
                     Spacer()
                     Button("Take") {
                         store.takeHoney(amount)
                         amount = 0
+                        harvests += 1
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.honey)
@@ -352,5 +394,6 @@ struct HoneyDecisionCard: View {
             }
         }
         .card()
+        .sensoryFeedback(.success, trigger: harvests)
     }
 }
