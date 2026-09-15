@@ -92,7 +92,6 @@ swift test --package-path FlowerPowerCore
 | `FlowerPowerCore/Sources/BeeSim` | The headless balance runner. |
 | `FlowerPower/` | The iOS app: views and services. |
 | `FlowerPowerWatch/` | The watch app and the complication. |
-| `FlowerPower/Legacy/` | The superseded 2023 model layer, excluded from every target. Delete it once the new app has run on device. |
 | `tools/` | Scripts that generate committed assets. Standard-library Python only, so they run on the development machine. |
 
 The rule that keeps this honest: **if it can live in the package, put it in the

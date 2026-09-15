@@ -744,8 +744,8 @@ would be needed first: it accepts either landing instead.
 strings — "Beyond foraging range", the `ForageTip` message, the old privacy
 paragraph — because command-line builds do not write the catalogues back;
 Xcode.app's next build will mark them stale. And `FlowerPower/Legacy/` still
-has an unrelated `coordinates: (x, y)` tuple of its own; it is excluded from
-every target, and item 3 in section 3 is what to do about it. The watch app,
+had an unrelated `coordinates: (x, y)` tuple of its own, until it was deleted
+later the same day — item 3 in section 3. The watch app,
 the widgets and the complication never touched location at all — grep returns
 nothing.
 
@@ -768,9 +768,12 @@ nothing.
    photographing a flower all the way into the garden; the watch receiving its
    first save by file transfer and answering its first siege; a widget button;
    "how are my bees" to Siri; exporting a backup and opening it.
-3. **Delete `FlowerPower/Legacy/`** once the new app has run. It has — on the
-   phone, on 2026-09-15 — so the condition is met and doing it is Kyle's call.
-   It is also the last `coordinates` in the repo, though an unrelated one.
+3. **Delete `FlowerPower/Legacy/`** once the new app has run. Done on
+   2026-09-15, after it was read one last time for the world design in
+   `docs/WORLD.md`: the 2023 layer's `BiomeModel` was a schema that was never
+   instantiated, its coordinates were a tuple nothing read, and the two lines
+   of its design document about a terrain grid and fog of war are quoted
+   there. Everything else it had is in git at `1ed62b2` and before.
 
 ### Then
 
