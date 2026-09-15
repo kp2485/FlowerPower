@@ -33,7 +33,7 @@ import os
 enum NotificationActions {
 
     private static let logger = Logger(
-        subsystem: "com.kylepeterson.flowerpower",
+        subsystem: "com.linwoodtechnologies.flowerpower",
         category: "notifications"
     )
 

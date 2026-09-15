@@ -30,7 +30,7 @@ import os
 enum AppTips {
 
     private static let logger = Logger(
-        subsystem: "com.kylepeterson.flowerpower",
+        subsystem: "com.linwoodtechnologies.flowerpower",
         category: "tips"
     )
 

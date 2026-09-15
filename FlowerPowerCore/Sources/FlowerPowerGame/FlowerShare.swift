@@ -52,7 +52,7 @@ public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
     /// Filename extension and uniform type identifier. Must match the document
     /// type declared in `project.yml`.
     public static let fileExtension = "flower"
-    public static let contentType = "com.kylepeterson.flowerpower.flower"
+    public static let contentType = "com.linwoodtechnologies.flowerpower.flower"
 
     /// A gift, or a request for one.
     public enum Kind: String, Codable, Sendable {

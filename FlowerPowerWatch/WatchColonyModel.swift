@@ -44,7 +44,7 @@ final class WatchColonyModel: NSObject {
     @ObservationIgnored private let decoder = JSONDecoder()
     @ObservationIgnored private let persistence = GamePersistence()
     @ObservationIgnored private let logger = Logger(
-        subsystem: "com.kylepeterson.flowerpower.watch",
+        subsystem: "com.linwoodtechnologies.flowerpower.watch",
         category: "colony"
     )
 

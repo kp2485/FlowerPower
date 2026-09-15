@@ -31,10 +31,10 @@ import os
 enum BackgroundRefresh {
 
     /// Must match `BGTaskSchedulerPermittedIdentifiers` in project.yml.
-    static let taskIdentifier = "com.kylepeterson.flowerpower.refresh"
+    static let taskIdentifier = "com.linwoodtechnologies.flowerpower.refresh"
 
     private static let logger = Logger(
-        subsystem: "com.kylepeterson.flowerpower",
+        subsystem: "com.linwoodtechnologies.flowerpower",
         category: "background"
     )
 

@@ -87,7 +87,7 @@ struct HiveWidgetProvider: TimelineProvider {
 
 struct HiveWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "com.kylepeterson.flowerpower.hive", provider: HiveWidgetProvider()) { entry in
+        StaticConfiguration(kind: "com.linwoodtechnologies.flowerpower.hive", provider: HiveWidgetProvider()) { entry in
             HiveWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
@@ -263,7 +263,7 @@ struct HiveActivity: Widget {
 struct PhotographFlowerControl: ControlWidget {
 
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: "com.kylepeterson.flowerpower.photograph") {
+        StaticControlConfiguration(kind: "com.linwoodtechnologies.flowerpower.photograph") {
             ControlWidgetButton(action: PhotographFlowerIntent()) {
                 Label("Photograph a Flower", systemImage: "camera.macro")
             }

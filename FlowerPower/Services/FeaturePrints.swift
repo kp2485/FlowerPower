@@ -39,7 +39,7 @@ import os
 enum FeaturePrints {
 
     private static let logger = Logger(
-        subsystem: "com.kylepeterson.flowerpower",
+        subsystem: "com.linwoodtechnologies.flowerpower",
         category: "featurePrints"
     )
 
@@ -144,7 +144,7 @@ actor FeaturePrintStore {
     static let shared = FeaturePrintStore()
 
     private let logger = Logger(
-        subsystem: "com.kylepeterson.flowerpower",
+        subsystem: "com.linwoodtechnologies.flowerpower",
         category: "featurePrints"
     )
 

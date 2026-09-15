@@ -29,7 +29,7 @@ import os
 enum SharedImageStore {
 
     private static let logger = Logger(
-        subsystem: "com.kylepeterson.flowerpower",
+        subsystem: "com.linwoodtechnologies.flowerpower",
         category: "sharedImages"
     )
 

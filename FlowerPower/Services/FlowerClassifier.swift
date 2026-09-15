@@ -135,7 +135,7 @@ public struct FlowerClassifier: FlowerIdentifying {
     nonisolated(unsafe) private let model: VNCoreMLModel?
     private let library: FeaturePrintLibrary?
     private let onDevice: TaxonomicClassifier?
-    private let logger = Logger(subsystem: "com.kylepeterson.flowerpower", category: "classifier")
+    private let logger = Logger(subsystem: "com.linwoodtechnologies.flowerpower", category: "classifier")
 
     /// Internal, not public, because `TaxonomicClassifier` is. Nothing outside
     /// the app module could call it anyway.

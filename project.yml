@@ -27,7 +27,7 @@
 name: FlowerPower
 
 options:
-  bundleIdPrefix: com.kylepeterson
+  bundleIdPrefix: com.linwoodtechnologies
   deploymentTarget:
     iOS: "27.0"
     watchOS: "27.0"
@@ -99,7 +99,7 @@ targets:
       path: FlowerPower/FlowerPower.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.kylepeterson.flowerpower
+          - group.com.linwoodtechnologies.flowerpower
     info:
       path: FlowerPower/Info.plist
       properties:
@@ -133,7 +133,7 @@ targets:
           - fetch
           - processing
         BGTaskSchedulerPermittedIdentifiers:
-          - com.kylepeterson.flowerpower.refresh
+          - com.linwoodtechnologies.flowerpower.refresh
 
         # A flower one player sends another. Declared as an exported type
         # because this app defines it, and opened rather than merely viewed so
@@ -144,7 +144,7 @@ targets:
         # `FlowerShare`; a mismatch is silent, and shows up as taps on shared
         # flowers doing nothing at all.
         UTExportedTypeDeclarations:
-          - UTTypeIdentifier: com.kylepeterson.flowerpower.flower
+          - UTTypeIdentifier: com.linwoodtechnologies.flowerpower.flower
             UTTypeDescription: FlowerPower Flower
             UTTypeConformsTo:
               - public.data
@@ -154,7 +154,7 @@ targets:
                 - flower
               public.mime-type:
                 - application/vnd.flowerpower.flower+json
-          - UTTypeIdentifier: com.kylepeterson.flowerpower.swarm
+          - UTTypeIdentifier: com.linwoodtechnologies.flowerpower.swarm
             UTTypeDescription: FlowerPower Swarm
             UTTypeConformsTo:
               - public.data
@@ -173,7 +173,7 @@ targets:
           # Exported rather than imported for the same reason as the others —
           # this app defines the format — and `LSHandlerRank: Owner` below is
           # what makes a backup in Files or a message open here.
-          - UTTypeIdentifier: com.kylepeterson.flowerpower.save
+          - UTTypeIdentifier: com.linwoodtechnologies.flowerpower.save
             UTTypeDescription: FlowerPower Colony Backup
             UTTypeConformsTo:
               - public.data
@@ -188,17 +188,17 @@ targets:
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
             LSItemContentTypes:
-              - com.kylepeterson.flowerpower.flower
+              - com.linwoodtechnologies.flowerpower.flower
           - CFBundleTypeName: FlowerPower Swarm
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
             LSItemContentTypes:
-              - com.kylepeterson.flowerpower.swarm
+              - com.linwoodtechnologies.flowerpower.swarm
           - CFBundleTypeName: FlowerPower Colony Backup
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
             LSItemContentTypes:
-              - com.kylepeterson.flowerpower.save
+              - com.linwoodtechnologies.flowerpower.save
         # Opened where it lies rather than copied in. `ContentView.open(_:)`
         # reads the file once, at once, under security-scoped access, and never
         # holds the URL — which is all opening in place asks. Declaring NO
@@ -211,7 +211,7 @@ targets:
         NSSupportsLiveActivities: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower
+        PRODUCT_BUNDLE_IDENTIFIER: com.linwoodtechnologies.flowerpower
         PRODUCT_NAME: FlowerPower
         ENABLE_PREVIEWS: YES
         DEVELOPMENT_ASSET_PATHS: '"FlowerPower/Preview Content"'
@@ -241,7 +241,7 @@ targets:
       path: FlowerPowerWidgets/FlowerPowerWidgets.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.kylepeterson.flowerpower
+          - group.com.linwoodtechnologies.flowerpower
     info:
       path: FlowerPowerWidgets/Info.plist
       properties:
@@ -250,7 +250,7 @@ targets:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.widgets
+        PRODUCT_BUNDLE_IDENTIFIER: com.linwoodtechnologies.flowerpower.widgets
         PRODUCT_NAME: FlowerPowerWidgets
 
   # The watch. No camera, so it cannot do the thing the game is about; what it
@@ -280,13 +280,13 @@ targets:
       path: FlowerPowerWatch/FlowerPowerWatch.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.kylepeterson.flowerpower
+          - group.com.linwoodtechnologies.flowerpower
     info:
       path: FlowerPowerWatch/Info.plist
       properties:
         CFBundleDisplayName: FlowerPower
         WKApplication: true
-        WKCompanionAppBundleIdentifier: com.kylepeterson.flowerpower
+        WKCompanionAppBundleIdentifier: com.linwoodtechnologies.flowerpower
         WKRunsIndependentlyOfCompanionApp: false
         # The watch keeps its own copy of the save and can catch the colony up
         # itself, so it has something true to show out of range of the phone.
@@ -294,7 +294,7 @@ targets:
           - self-care
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: com.linwoodtechnologies.flowerpower.watchkitapp
         PRODUCT_NAME: FlowerPower
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # The watch has its own asset catalogue now, carrying the same icon
@@ -330,7 +330,7 @@ targets:
       path: FlowerPowerWatch/FlowerPowerWatchWidget.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.kylepeterson.flowerpower
+          - group.com.linwoodtechnologies.flowerpower
     info:
       path: FlowerPowerWatch/WidgetInfo.plist
       properties:
@@ -339,7 +339,7 @@ targets:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.watchkitapp.widget
+        PRODUCT_BUNDLE_IDENTIFIER: com.linwoodtechnologies.flowerpower.watchkitapp.widget
         PRODUCT_NAME: FlowerPowerWatchWidget
 
   # ------------------------------------------------------------------------
@@ -356,7 +356,7 @@ targets:
         product: FlowerPowerGame
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.linwoodtechnologies.flowerpower.tests
         # The project-wide NO above is about the four shipping targets, whose
         # plists are written out here. A test bundle's is boilerplate, and
         # without one of either kind it cannot be signed — which is what the
@@ -371,7 +371,7 @@ targets:
       - target: FlowerPower
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: com.linwoodtechnologies.flowerpower.uitests
         GENERATE_INFOPLIST_FILE: YES
 
 # ---------------------------------------------------------------------------

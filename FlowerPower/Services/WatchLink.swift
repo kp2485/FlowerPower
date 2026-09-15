@@ -48,7 +48,7 @@ import os
 /// flagged. Everything mutable now lives in `Throttle`.
 final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
 
-    private let logger = Logger(subsystem: "com.kylepeterson.flowerpower", category: "watch")
+    private let logger = Logger(subsystem: "com.linwoodtechnologies.flowerpower", category: "watch")
     private let encoder = JSONEncoder()
 
     private static let minimumInterval: TimeInterval = 15 * 60

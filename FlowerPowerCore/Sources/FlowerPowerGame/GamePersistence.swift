@@ -68,7 +68,7 @@ public struct GamePersistence: GamePersisting {
     /// Shared between the app, the watch app and the widget extension on a
     /// single device. Must match the App Group capability enabled on each
     /// target in Xcode — see `project.yml`.
-    public static let appGroupIdentifier = "group.com.kylepeterson.flowerpower"
+    public static let appGroupIdentifier = "group.com.linwoodtechnologies.flowerpower"
 
     public static let fileName = "colony.json"
 

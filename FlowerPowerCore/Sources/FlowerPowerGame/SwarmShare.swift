@@ -25,7 +25,7 @@ public struct SwarmShare: Codable, Equatable, Sendable, Identifiable {
 
     public static let currentVersion = 1
     public static let fileExtension = "swarm"
-    public static let contentType = "com.kylepeterson.flowerpower.swarm"
+    public static let contentType = "com.linwoodtechnologies.flowerpower.swarm"
 
     /// A prime swarm from a strong colony is a few hundred bees in this
     /// model's scale. Anything past this is not a swarm.

@@ -96,7 +96,7 @@ struct FlowerAssessment {
 struct TaxonomicClassifier {
 
     private let logger = Logger(
-        subsystem: "com.kylepeterson.flowerpower",
+        subsystem: "com.linwoodtechnologies.flowerpower",
         category: "taxonomy"
     )
 

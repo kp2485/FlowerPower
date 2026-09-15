@@ -50,7 +50,7 @@ public struct SaveArchive: Codable, Equatable, Sendable, Identifiable {
     /// type declared in `project.yml`; a mismatch is silent and shows up as
     /// backups that will not open.
     public static let fileExtension = "flowerhive"
-    public static let typeIdentifier = "com.kylepeterson.flowerpower.save"
+    public static let typeIdentifier = "com.linwoodtechnologies.flowerpower.save"
 
     /// A save is JSON and grows with the colony — every bee, every patch, the
     /// whole lineage. A large one is a few hundred kilobytes; this is far past
