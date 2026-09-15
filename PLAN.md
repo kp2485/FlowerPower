@@ -5,11 +5,14 @@ built out into a whole app on 2026-09-12, first built on a Mac on 2026-09-14,
 built against the iOS 27 SDK it was written for on 2026-09-15, and stripped of
 location entirely later the same day — the map, the coordinates and the
 permission — as unnecessary and off-putting, after the first run on a phone.
-The engine's full suite runs on Windows and on macOS. The Xcode side compiles
-with Xcode 27, its tests pass on an iOS 27 simulator, and it has been signed
-and installed on an iPhone on iOS 27 — though most of what it does there is
-still to be walked. See "The first Mac build", "Xcode 27" and "location
-removed" below.
+Phase 1 of the world — the ground, `docs/WORLD.md` — was built the same day, so
+that the distance location was supposed to supply comes from a generated hex
+world instead: the garden is a ring of cells at 200 m around the nest, and a
+flower is planted in one of them. The engine's full suite runs on Windows and
+on macOS. The Xcode side compiles with Xcode 27, its tests pass on an iOS 27
+simulator, and it has been signed and installed on an iPhone on iOS 27 — though
+most of what it does there is still to be walked. See "The first Mac build",
+"Xcode 27", "location removed" and "the ground" below.
 
 ---
 
@@ -19,17 +22,20 @@ removed" below.
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76); 240 XCTest + 282 Swift Testing, 0 failures (2026-09-15, after geography was removed), with `beesim` byte-identical across that change |
-| Xcode targets | All four compile, and the test targets (Xcode 26.5, 2026-09-14; Xcode 27 against the iOS 27 SDK, 2026-09-15, one warning left — see "Xcode 27"). 10 unit tests and 4 UI test runs pass on an iOS 27 simulator. Three tabs since 2026-09-15: Colony, Nest, Garden |
+| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76); 240 XCTest + 282 Swift Testing, 0 failures (2026-09-15, after geography was removed), with `beesim` byte-identical across that change; 572 in total, 0 failures (2026-09-15, after the world's Phase 1 — 522 → 572), with `beesim` byte-identical across that change too when the world is off |
+| Xcode targets | All four compile, and the test targets (Xcode 26.5, 2026-09-14; Xcode 27 against the iOS 27 SDK, 2026-09-15, one warning left — see "Xcode 27"). 10 unit tests and 5 UI test runs pass on an iOS 27 simulator. Four tabs since 2026-09-15: Colony, Nest, World, Garden |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
 | Balance, standard preset | 89% first year, 66% second, 2.49 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06; reproduced byte for byte on 2026-09-12 after the record-keeping systems were added) |
 | Balance, other presets | Gentle 92% / 60%, harsh 64% / 14% (200 colonies, 2026-09-12). Gentle is *worse* at two years: better-fed colonies swarm more |
+| Balance, distance | Every number above was measured at `beesim`'s default 400 m, which is the recorded 89% / 66% baseline. The app's own flowers sat at the engine's nominal 800 m, which measures 86% / 54%. The garden the world plants them in now measures 86% / 64% (200 colonies, 2026-09-15). See "the ground" in section 2 |
 | `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale` |
 
 #### The balance baseline, and why the numbers moved
 
-Twice, for two different reasons, and it is worth keeping them apart.
+Twice, for two different reasons, and it is worth keeping them apart — and a
+third time on 2026-09-15, when it turned out the numbers had never been
+measured where the game was actually being played.
 
 **The measurement changed first.** The previously recorded baseline — 75% first
 year, 37% second — was taken before the determinism fix above and in a debug
@@ -48,10 +54,25 @@ and none of the second, which is the 89%/66% in the table above. That is the
 whole ledger: 79/36 measured properly, 92/66 after two bugs, 89/66 once the
 colony pays for being roused.
 
+**Then, on 2026-09-15, the measurement's distance turned out never to have been
+the app's distance.** `beesim`'s `--distance` defaults to 400 m, so every number
+in the ledger above — 79/36, 92/66, 89/66, the presets, the policy tables, the
+alarm comparison — was taken with the trial colony's flowers 400 m from the
+nest. A flower in the app has always sat at `FlowerPatch.nominalDistance`, which
+is 800 m. Measured there, the same build is 86% first year and 54% second: ten
+points under what this document has been quoting, and it has been true since the
+day a patch got a distance at all. Nothing about the colony changed again — this
+is the first kind of move, not the second. The app's flowers were simply further
+away than the trials' flowers, and nobody had put the two numbers side by side.
+The world's garden puts them at 200 m and a ring or two out, which measures 86%
+and 64%; the four-row table is under "the ground" in section 2, and where the
+baseline should now sit is in section 3.
+
 Every balance number in this document is now from `beesim --trials 200 --days
-730 --patches 9 --restock 45` on a release build, and every one of them
-reproduces byte for byte. Anything quoted at 60 trials says so, and should be
-treated as indicative: a 60-colony sample moves five points on nothing.
+730 --patches 9 --restock 45` on a release build, at that command's default
+400 m unless a distance is named, and every one of them reproduces byte for
+byte. Anything quoted at 60 trials says so, and should be treated as
+indicative: a 60-colony sample moves five points on nothing.
 
 ### Not verified, and cannot be here
 
@@ -749,6 +770,166 @@ later the same day — item 3 in section 3. The watch app,
 the widgets and the complication never touched location at all — grep returns
 nothing.
 
+### 2026-09-15 — the ground (world, phase 1)
+
+`docs/WORLD.md`, written earlier the same day, answers the question the removal
+of location left open — where a patch's distance should come from, if not from
+where the player was standing — with a generated hex world around the hive.
+Phase 1 of it, "the ground", is built in the package: the hex lattice and its
+chunks, the generator, terrain on `World`, patches with cells, and a garden ring
+around the nest that a photograph is planted into. No fog, no scouts, no wild
+forage; the map is the garden as a place, and distance finally moves.
+
+**Measured first, on the clean tree before anything was written.** Release
+build, 200 colonies, `--patches 9 --restock 45`:
+
+| `--distance` | year 1 | year 2 | swarms / 2 yr | autumn stores | winter cluster |
+|---|---|---|---|---|---|
+| 200 m | 86% | 66% | 2.99 | 749 | 362 |
+| 400 m | 89% | 66% | 2.49 | 612 | 313 |
+| 800 m | 86% | 54% | 1.19 | 392 | 172 |
+| `--world` (the garden) | 86% | 64% | 2.77 | 672 | 331 |
+
+Two findings, and both are worth stating plainly.
+
+**One: the trials were never measured where the game was played.** `beesim`'s
+`--distance` defaults to 400 m, so the 89%/66% this document has quoted since
+2026-09-06 is the 400 m row — while a flower in the app sat at the engine's
+nominal 800 m, which is the 86%/54% row. Real colonies in the app have been
+living ten points under the recorded baseline since the day a patch got a
+distance, and nothing in the app was ever at 400 m. The ledger in section 1 now
+says so. Nothing about the colony changed; the app's flowers were further away
+than the trials' flowers, and the two numbers had never been put side by side.
+
+**Two: closer flowers buy stores and swarms, not survival.** 200 m against
+400 m is the same 66% at two years, with half a swarm more per colony per two
+years and 137 more units of autumn stores — and three points *worse* in the
+first year. That is the abundance-breeds-swarms effect `docs/WORLD.md`
+section 10 predicted before any of this was built, at about the size it
+predicted, and it is the same shape as the gentle preset being worse at two
+years than the standard one. The garden lands between the 200 and 400 rows and
+nearer 400 for an arithmetic reason rather than a balance one: nine patches plus
+restocks overflow ring 1, which is six cells at 200 m, into ring 2, which is
+twelve at 400 m, so the colony's effective distance is a mix of the two.
+
+**With the world off the engine is byte-identical**, which is the check the
+geography removal set the pattern for: the three `--distance` runs re-run after
+the change diff to nothing. **With the world on it is deterministic**: `--world`
+twice, diff nothing. That first comparison looked like a difference and was not
+— `swift run` interleaves SwiftPM's build lines into stdout, so two identical
+runs differ in their first few lines. Build once with `swift build -c release
+--product beesim` and run `FlowerPowerCore/.build/release/beesim` directly, and
+the logs diff clean. It is a working rule in section 4 now, and a habit in
+SETUP.md.
+
+**What was built, all of it additive, with no save-format version moved:**
+
+- **`Core/Hex.swift`.** `HexCoordinate` — axial `q`, `r`, `cellMetres = 200`,
+  distance, neighbours and rings in a fixed clockwise order, and a total order
+  by `r` then `q` so every walk of the lattice is the same walk everywhere. And
+  `ChunkCoordinate`: a hexagon of radius 3, 37 cells, on lattice basis vectors
+  (7, −3) and (3, 4) whose determinant is 37, which is what makes the tiling
+  exact. A test walks a 49×49 patch of cells and asserts each one lands in
+  exactly one chunk.
+- **`Core/Biome.swift`.** The seven biomes of `docs/WORLD.md` section 4, each
+  with a `displayName`, a `summary` and its `species` as catalogue ids; a test
+  resolves every id, so a renamed species is a test failure rather than a biome
+  that quietly grows nothing.
+- **`Core/WorldGenerator.swift`.** Three integer-hash value-noise fields —
+  wetness, openness, settlement — over chunk coordinates, with biome read off
+  them exactly as section 5 describes, and `Chunk { coordinate, biome, name,
+  centre }` with per-biome name parts. Pure, deterministic, and with no
+  `Hasher`, `Date` or `UUID` anywhere near it, which is the rule the whole
+  engine already keeps. Pinned by literal values at seed 2026: the home chunk is
+  *Mill Carr*, riverbank, with *the Gardens at Thornbury* beside it, and all
+  seven biomes appear across a 41×41 sweep.
+- **`Core/Terrain.swift`, and `World.terrain: Terrain?`** decoded with
+  `decodeIfPresent`. It holds the seed, the home chunk, `discovered` (the home
+  chunk and its six neighbours at founding) and `gardenRings`, which starts at
+  1. Nothing regenerable is stored.
+- **The garden.** `FlowerPatch.cell: HexCoordinate?`, optional and synthesised
+  `Codable`. `registerPhotograph` and `importSharedFlower` take `at cell:
+  HexCoordinate? = nil` and otherwise place the patch themselves, in the first
+  free cell in ring order; a faded patch releases its cell, a full ring opens
+  the next, and the `tenFlowers` and `tenFamilies` milestones the game already
+  awards open rings 2 and 3. `Simulation.plant(_:at:)` moves a patch and refuses
+  an occupied cell — the first way there has ever been to move a patch after
+  creation.
+- **Presentation.** `PatchSummary.cell`, and `ColonySnapshot.terrain:
+  TerrainSummary?` — the home chunk, its six neighbours, `gardenRings`, the
+  `garden` as `[GardenCell]` in ring order, and `emptyCells`. `WatchSummary` is
+  unchanged, which is `docs/WORLD.md` section 12's answer: the watch shows
+  nothing of the map.
+- **`beesim`** gains `--world` and `--world-seed <n>`, and `--list` names the
+  home biome when the world is on.
+
+**Migration of an old save, and why it runs where it does.**
+`Simulation.adoptTerrainIfMissing()` derives a world seed from the saved RNG
+state through `SeededRandom.derivedSeed()` and plants every unfaded patch into
+the garden in ring order. It is called from `GamePersistence.load()` and
+`decodeTransfer(_:)` rather than from `GameStore`, and that is the whole point:
+the widget, the complication, the App Intents, `WatchLink` and
+`BackgroundRefresh` all open the save directly, and terrain adopted only in the
+store would mean the widget showing a different colony from the phone. It is not
+written back on read — the next ordinary save records it, and until then the
+same bytes derive the same world on every read, which is the property the
+generator was built to have.
+
+**`identifyPatch` fixed**, which `docs/WORLD.md` section 9 listed as a thing to
+fix *before* the world starts creating patches in bulk. It rebuilt a patch and
+dropped `registeredOnDay`, the origin and `sharedBy`, so a late identification
+made a flower fresh again; it now preserves those, and `cell`, and restores
+`capacityScale` for a shared patch. A failing test came first. The other two
+items on that list — forage space handed out in insertion order rather than
+quality order, and winter's zero forage multiplier against the three species
+that bloom in winter — are still open.
+
+**Three deviations from `docs/WORLD.md`, each deliberate and each recorded
+there.** `newGame` always creates terrain, where section 9 had it arriving only
+under `--world`: a colony with no terrain is a colony whose flowers are all at
+800 m, and there is no reason to ship two worlds. An explicit `distanceMetres:`
+suppresses placement entirely — a caller naming a distance is saying where the
+flower is, which is what keeps a `beesim` sweep at one distance and is exactly
+what made the world-off runs byte-identical. And the migration skips faded
+patches, because the free-cell search ignores them and two faded patches would
+otherwise be handed the same cell.
+
+**Tests: 522 → 572, 0 failures.** `HexTests` 16, `WorldGeneratorTests` 13,
+`GardenTests` 17, and three migration tests in `GamePersistenceTests`. Two
+existing tests were renamed rather than deleted, to assert the new truth: that a
+registered patch is planted in the garden, with a new sibling holding the old
+nominal-800 behaviour for a colony that has no terrain.
+
+**The app half is being built in parallel**, by another agent, on disjoint
+files: a World tab in the Forage tab's old slot — Colony, Nest, World, Garden —
+drawing the home chunk and its six neighbours on a `Canvas` with the garden's
+cells and plantings and the nest on it, a VoiceOver representation of the same,
+and a "planted 200 m from the nest" line on the capture result and on the flower
+detail. None of it has been seen here, and nothing about it is verified.
+
+Built, the same day. `WorldView` is the third tab, `circle.hexagongrid.fill`,
+titled by the home chunk's name with the biome's summary under it and a
+garden line ("6 of 6 cells planted — ring 2 opens at ten flowers", the
+milestone names read from `Milestone.title` so they cannot drift from the
+badges). The map is a `Canvas`: the seven chunks' 259 cells as pointy-top
+hexagons in seven new `Theme` colours kept in the family of the season bands,
+the garden's open rings outlined in wax, planted cells as a pollen dot whose
+opacity follows vigour, the nest as a honey hexagon, fog to the frame's edge,
+and a low-opacity season tint over all of it. Hit-testing inverts the
+pointy-top formula and rounds in cube space, in one helper checked over all
+259 cells; a planted cell opens the same `FlowerDetailView` the Garden uses,
+an empty one opens the camera, a neighbouring chunk shows its name and biome
+in a card. `Canvas` is invisible to VoiceOver, so the map's
+`accessibilityRepresentation` is a list: home, six neighbours by compass
+direction ("Hazel Rise to the south-east, woodland"), each planted cell as
+"species, ring N, 200 metres from the nest, 45 percent left", and one button
+for the empty cells that opens the camera. The capture result now ends
+"Planted in your garden, 200 m from the nest." and the flower detail carries
+"In the garden · 200 m from the nest, ring 1". No pan or zoom yet: a cell is
+about 23 pt across on a phone, under the 44 pt a finger wants, so a zoom or
+a snap-to-nearest-cell tolerance is the first Phase 2 follow-up. The UI test
+that walks the first run now asserts four tabs and taps into World.
+
 ---
 
 ## 3. What is next
@@ -780,8 +961,10 @@ nothing.
 Items 4, 5 and 6 — second-year survival, something to do about swarming, and
 winter — were done on 2026-09-06 and are written up under "Done since" below.
 The numbering of what is left is unchanged so it still matches what you knew it
-as. Everything remaining needs a Mac, a device, real photographs or a trained
-model, so none of it could be started here.
+as. **Item 12 is the next thing to do**, and it is last in the list only because
+the numbers are ages rather than priorities: it is package work and needs none
+of a Mac, a device, real photographs or a trained model. Everything from 7 to 11
+needs one of those, so none of it could be started here.
 
 7. **Curate reference photographs.** Still the cheapest real win for devices
    without Apple Intelligence: the feature-print classifier works but ships
@@ -802,6 +985,39 @@ model, so none of it could be started here.
 11. **App icon.** A generated placeholder is in the appiconset now
    (`tools/make_app_icon.py`) so the build does not fail on an empty set. It
    is not a design; replace it.
+12. **Phase 2 of the world — the country**, and the next thing to do.
+    `docs/WORLD.md` section 11: wild patches placed per cell from the biome's
+    species list at `origin: .wild` and a `capacityScale` well under the
+    photographed 1.0; the fog, and chunks becoming known because a forager
+    worked one; scouts as a decision, in the shape the five existing decisions
+    take; and biome multipliers into the two hooks that document's section 4
+    names — `ThreatSystem.encounterChance` and the pathogen arrival lookup —
+    and nowhere else. Phase 1 deliberately did none of it, so that the numbers
+    it moved could be measured alone. Four things to measure, from section 10
+    of that document, in its order:
+
+    - **Wild forage alone.** `--world --patches 0`, per biome. The design's
+      target is 40% first-year survival: enough that a colony in a real
+      hedgerow does not starve because nobody photographed anything, and far
+      enough below the garden's 86% that the photograph still carries the
+      game. Wild `capacityScale` and wild patch density are the two levers.
+      Today a colony with no photographs survives at 0%, which is why this
+      document calls photography load-bearing, and that number is the one this
+      changes.
+    - **Wild forage plus the garden.** `--world --patches 9 --restock 45`
+      against the 86%/64% Phase 1 measured. Well above it means wild forage is
+      too rich. More than the garden's 2.77 swarms per colony per two years is
+      the abundance-breeds-swarms effect again, and the design wants some of
+      it; how much is the same question as the two-year cliff below.
+    - **Biomes differ, and by the right amount.** A survival-by-biome table.
+      The village should winter best and be robbed most, the moor should be a
+      gamble that pays in autumn, the wood should be safe and hungry. Under
+      ten points of separation and the multipliers are too timid to be worth
+      having.
+    - **Scouting is worth its cost, and only just.** `--policy scout` against
+      instinct, as every decision has been measured. Two or three points is
+      right; ten means a colony that never scouts is being punished for the
+      player's absence.
 
 ### Done since
 
@@ -1043,17 +1259,27 @@ about them matters most.
   should sit for an idle game.
 - Whether the catch-up ceiling of 180 simulated days — a fortnight of real
   absence — is generous enough. Beyond it, time is skipped rather than lived.
-- **Whether a patch's distance should ever vary again.** `distanceMetres` still
-  prices every foraging trip and `maximumForagingRange` still bounds it, but
-  with coordinates gone every patch sits at the nominal 800 m — which, as the
-  2026-09-15 entry says, it always did anyway. Nothing is broken and the
-  balance was measured there. It is a live lever that cannot move, though, and
-  if distance is ever to mean something to a player it has to come from
-  somewhere other than where they were standing: the site, the species, or a
-  draw when the photograph is taken. Whether it is worth having at all is the
-  first question. `docs/WORLD.md`, written the same day, proposes the answer:
-  a generated hex world around the hive, in which the garden is at 200 m and
-  the moor at five kilometres, and the lever finally moves.
+- **~~Whether a patch's distance should ever vary again.~~ Decided the same
+  day: it varies now.** A photographed flower is planted in a cell of the
+  garden, and the cell's hex distance from the nest times 200 m is its
+  `distanceMetres` — 200 m in the first ring of six cells, 400 m in the second
+  ring of twelve, 600 m in the third, with the rings opened by the `tenFlowers`
+  and `tenFamilies` milestones. `Simulation.plant(_:at:)` moves a patch between
+  cells. The lever moves; where it should be set is the next bullet.
+
+- **Where the baseline should now sit.** The garden's 86% first year and 64%
+  second is what the game actually plays at as of 2026-09-15, and it is not the
+  89%/66% this document has quoted for nine days — which was a 400 m
+  measurement the app never matched. Three ways to go, and it is a calibration
+  call rather than a bug, in the same family as "the colony is now healthier
+  than the realism target" above. Accept 86/64 and requote everything to it,
+  which is honest and cheap. Or tune the garden — fewer rings, or the first ring
+  further out — until it meets the old quote, which is tuning the world to
+  protect a number rather than to model anything. Or leave the world where it is
+  and take the difference out of `predatorStrength`, `pathogenArrivalMultiplier`
+  or forage density, which are the levers that bullet already names. Nothing
+  should be tuned until it is decided what the game is aiming at, and Phase 2's
+  wild forage will move all of it again.
 
 ---
 
@@ -1070,7 +1296,12 @@ about them matters most.
   noise on top of seed variance. The fix is `PathogenLoad.ordered` and
   `ResourcePool.ordered`, which iterate `allCases` rather than hash order;
   `OrderingTests` holds the line, and the end-to-end check is two runs and a
-  diff.
+  diff. **Diff the built binary's output, not `swift run`'s.** `swift run`
+  interleaves SwiftPM's build lines into stdout, so two identical runs differ in
+  their first few lines and a byte-identity check reports a change that is not
+  there. Build once with `swift build -c release --product beesim`, then run
+  `FlowerPowerCore/.build/release/beesim`. That is how the world's Phase 1 was
+  shown to leave the engine untouched with the world off.
 
 - **Measure in a release build.** `swift build -c release --product beesim`.
   A 60-colony two-year run takes 14 seconds against more than ten minutes in

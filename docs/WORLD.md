@@ -8,8 +8,11 @@ left in PLAN.md — *whether a patch's distance should ever vary again, and
 where it would come from if not from where the player was standing.* This is
 where.
 
-Nothing here is built. Every number that is not marked as the engine's own is
-a starting point to be measured, in the manner PLAN.md section 4 describes.
+**Phase 1, "the ground", was built the same day** — see section 11, and PLAN.md
+under "the ground" for the record of it. Everything from Phase 2 on is still a
+design. Every number that is not marked as the engine's own, or as measured, is
+a starting point to be measured in the manner PLAN.md section 4 describes; the
+first of them has been, and it is under section 10 item 1.
 
 ---
 
@@ -42,6 +45,13 @@ survival. None of it has ever varied, because the only proposed source of
 distance was GPS and the hive never received a coordinate. A world in which
 the garden is at 200 m and the heather is at five kilometres is a world in
 which the numbers already in the engine start to mean something.
+
+*Two corrections, 2026-09-15.* The 89%/66% was measured at 400 m, not at the
+nominal 800 m the app used — `beesim --distance` defaults to 400 — so the app's
+own flowers were at 0.67 and the trials' were at 0.80, and the recorded baseline
+was never the app's. And the lever has been pulled: Phase 1 plants a photograph
+in a cell of the garden, and the cell's distance from the nest is the patch's
+`distanceMetres`. Section 10 item 1 has the measurement.
 
 **More forage does not mean more survival.** This is the finding that sits
 under the whole balance (`SimulationConfig.sharedPatchYield`'s comment,
@@ -327,9 +337,12 @@ in it needs an Apple framework.
   directions, exactly as `registeredOnDay` and `storedOrigin` arrived.
   `PatchOrigin` gains `.wild`.
 - **`Simulation.plant(_:at:)`** sets a patch's cell and recomputes its
-  `distanceMetres`; today there is no way to move a patch after creation and
-  there must be one. `registerPhotograph` takes an optional cell and derives
-  distance from it when given.
+  `distanceMetres`. Written 2026-09-15, and it is the first way there has ever
+  been to move a patch after creation; it refuses an occupied cell.
+  `registerPhotograph` takes an optional cell and derives distance from it when
+  given, and places the patch itself in the first free cell in ring order when
+  not — unless an explicit `distanceMetres:` is passed, which suppresses
+  placement.
 - **`WorldGenerator`**: `HexCoordinate` (axial q, r, with distance and
   neighbours), `Chunk`, `Biome`, `Feature`, `Site`, three value-noise fields,
   and `chunk(at:)`, pure and deterministic. Tested for determinism the way
@@ -355,12 +368,17 @@ in it needs an Apple framework.
   the existing `--patches` and `--restock` supply; and `--policy scout`.
 
 Three things the survey turned up that should be fixed *before* the world
-starts creating patches in bulk: `identifyPatch` rebuilds a patch and drops
-its `registeredOnDay`, `origin` and `sharedBy`, so a late identification
-makes a flower fresh again; forage space is handed out in patch insertion
-order rather than quality order when the colony is honey-bound, which a world
-that inserts wild patches ahead of the garden would turn into a visible bias;
-and the winter bloom question above.
+starts creating patches in bulk:
+
+- ~~`identifyPatch` rebuilds a patch and drops its `registeredOnDay`, `origin`
+  and `sharedBy`, so a late identification makes a flower fresh again.~~
+  **Fixed 2026-09-15**, in Phase 1, with a failing test first. It now preserves
+  those three and `cell`, and restores `capacityScale` for a shared patch.
+- Forage space is handed out in patch insertion order rather than quality order
+  when the colony is honey-bound, which a world that inserts wild patches ahead
+  of the garden would turn into a visible bias. **Still open**, and it is
+  Phase 2 that makes it matter.
+- The winter bloom question above. **Still open.**
 
 ## 10. What to measure, and the order to measure it in
 
@@ -369,6 +387,40 @@ and the winter bloom question above.
    feed the colony a third better, before any wild forage. Run the standard
    `beesim` with `--distance 200` and see what 89/66 becomes; that is the new
    baseline, and everything below is measured against it.
+
+   **Measured 2026-09-15**, on the clean tree before Phase 1 was written.
+   Release build, 200 colonies, `--patches 9 --restock 45`:
+
+   | `--distance` | year 1 | year 2 | swarms / 2 yr | autumn stores | winter cluster |
+   |---|---|---|---|---|---|
+   | 200 m | 86% | 66% | 2.99 | 749 | 362 |
+   | 400 m | 89% | 66% | 2.49 | 612 | 313 |
+   | 800 m | 86% | 54% | 1.19 | 392 | 172 |
+   | `--world` (the garden) | 86% | 64% | 2.77 | 672 | 331 |
+
+   Two findings came out of it. **The first is about the tool, not the world**:
+   `beesim`'s `--distance` defaults to 400 m, so PLAN.md's recorded 89%/66%
+   baseline was always a 400 m measurement — while a flower in the app sat at
+   the nominal 800 m and therefore at 86%/54%. Nothing in the app was ever at
+   400 m. The prediction at the head of this document, that every flower has sat
+   at 0.67 distance efficiency, was right about the app and wrong about the
+   trials.
+
+   **The second is the one this section was written to catch.** Closer flowers
+   buy stores and swarms, not survival: 200 m against 400 m is the same 66% at
+   two years, with +0.5 swarms per colony per two years and +137 autumn stores,
+   and three points *worse* in the first year. That is the
+   abundance-breeds-swarms effect of section 1, at about the size section 1
+   predicted, arriving before any wild forage exists. The garden lands between
+   the 200 and 400 rows and nearer 400, for an arithmetic reason: nine patches
+   plus restocks overflow ring 1 (six cells at 200 m) into ring 2 (twelve at
+   400 m), so a colony's effective distance is a mix.
+
+   So the new baseline is **86% first year and 64% second**, and that is what
+   items 2 to 5 below are measured against. Whether it is the baseline the game
+   should have is a calibration call, and it is in PLAN.md section 3 under "Not
+   decided".
+
 2. **Wild forage alone.** `beesim --world --patches 0`: survival with no
    photographs, per biome. Target 40% first year; set wild `capacityScale`
    and density to reach it.
@@ -391,12 +443,38 @@ and the winter bloom question above.
 
 ## 11. Phases
 
-**Phase 1 — the ground.** `HexCoordinate`, the generator, `Terrain` on
-`World`, patches with cells, the garden ring, distance live, the World tab
-drawing the home chunk and its six neighbours, migration of the existing
-save, `beesim --world`, and the re-taken baseline. No fog, no scouts, no
-wild forage yet — the map shows the garden as a place. This is the phase
-that changes the numbers and it should be measured alone.
+**Phase 1 — the ground. Built 2026-09-15**, the day this document was written.
+`HexCoordinate`, the generator, `Terrain` on `World`, patches with cells, the
+garden ring, distance live, the World tab drawing the home chunk and its six
+neighbours, migration of the existing save, `beesim --world`, and the re-taken
+baseline. No fog, no scouts, no wild forage yet — the map shows the garden as a
+place. This is the phase that changes the numbers and it was measured alone: the
+table under item 1 above was taken on the clean tree first, the engine is
+byte-identical with the world off, and `--world` run twice diffs to nothing. The
+package half is done and tested; the World tab is the app half and is not
+verified here. PLAN.md's "the ground" entry is the full record.
+
+Four deviations from this document, each deliberate:
+
+- **`newGame` always creates terrain**, where section 9 above had it arriving
+  only under `--world`. A colony without terrain is a colony whose flowers are
+  all at 800 m, and there is no reason to ship two worlds.
+- **An explicit `distanceMetres:` suppresses garden placement entirely.** A
+  caller naming a distance is saying where the flower is. This is what keeps a
+  `beesim` sweep at one distance, and it is what made the world-off runs
+  byte-identical.
+- **Migration skips faded patches.** The free-cell search ignores them, so two
+  faded patches would otherwise be handed the same cell.
+- **Migration lives in persistence, not in the store.**
+  `Simulation.adoptTerrainIfMissing()` is called from `GamePersistence.load()`
+  and `decodeTransfer(_:)`, because the widget, the complication, the App
+  Intents, `WatchLink` and `BackgroundRefresh` all open the save directly and
+  would otherwise show a different colony from the phone.
+
+And one thing the measurement found that has nothing to do with the world:
+**`beesim`'s default `--distance` is 400 m, not the nominal 800 m the app
+uses**, so every balance number recorded since 2026-09-06 was taken a ring
+closer than the game was played. See item 1 above and PLAN.md section 1.
 
 **Phase 2 — the country.** Wild patches, the fog, discovery by foragers,
 scouts as a decision, biome multipliers on threats and disease, chunk names,

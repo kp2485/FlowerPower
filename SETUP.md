@@ -87,7 +87,7 @@ swift test --package-path FlowerPowerCore
 
 | | |
 |---|---|
-| `FlowerPowerCore/Sources/FlowerPowerCore` | The simulation. No UI, no Apple-only frameworks, no I/O. |
+| `FlowerPowerCore/Sources/FlowerPowerCore` | The simulation, and since 2026-09-15 the hex world under it — `Core/Hex.swift`, `Core/Biome.swift`, `Core/WorldGenerator.swift`, all pure functions of a seed. No UI, no Apple-only frameworks, no I/O. |
 | `FlowerPowerCore/Sources/FlowerPowerGame` | `GameStore`, `GamePersistence`, `ColonyNews`. Foundation and Observation only, so it compiles and is tested off-Mac. |
 | `FlowerPowerCore/Sources/BeeSim` | The headless balance runner. |
 | `FlowerPower/` | The iOS app: views and services. |
@@ -273,7 +273,39 @@ Sweeps any listed constant without a rebuild. An unknown key is a hard error,
 deliberately: a silently ignored override produces a sweep whose rows all
 secretly used the same value.
 
+```bash
+... beesim --trials 200 --days 730 --patches 9 --restock 45 --world
+... beesim --world --world-seed 2026 --list
+```
+
+`--world` gives the trial colony the generated world of
+[docs/WORLD.md](docs/WORLD.md) — a home chunk, and a garden of hex cells around
+the nest that photographed patches are planted into, at 200 m in the first ring
+and 400 m in the second — instead of putting every patch at one distance.
+`--world-seed` picks which world; without it every run is the same one. With the
+world on, `--list` also names the home biome.
+
+`--world` is the only way to measure the game as the app actually plays it,
+because the garden's patches are not all at one distance: they fill ring 1 at
+200 m and spill into ring 2 at 400 m. **`--distance` defaults to 400 m, which is
+not a distance the app has ever used** — every balance number recorded before
+2026-09-15 was taken there, and the app's own flowers were at 800 m. If a
+measurement is meant to be about the game rather than about one lever, use
+`--world`; if it is meant to isolate distance, name `--distance` and it will
+suppress garden placement. See PLAN.md, "the ground".
+
 Habits worth keeping:
+
+- **Diff the built binary's output, not `swift run`'s.** `swift run` interleaves
+  SwiftPM's build lines into stdout, so two identical runs differ in their first
+  few lines and a byte-identity check reports a change that is not there. When
+  the output is going to be diffed, build once and run the binary:
+
+  ```bash
+  swift build --package-path FlowerPowerCore -c release --product beesim
+  FlowerPowerCore/.build/release/beesim --trials 200 --days 730 \
+      --patches 9 --restock 45
+  ```
 
 - **Run the same command twice and diff the output before believing either.**
   The engine is deterministic across processes and byte-identical run to run,
