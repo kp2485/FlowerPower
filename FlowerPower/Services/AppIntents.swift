@@ -179,8 +179,13 @@ enum AppIntentRequests {
 
 struct HoldEntranceIntent: AppIntent {
     static var title: LocalizedStringResource { "Hold the Entrance" }
+    /// Each of these repeats `HivePosture.detail` word for word rather than
+    /// reading it. The App Intents metadata step extracts titles and
+    /// descriptions at build time without running any code, and it fails the
+    /// build on an interpolated one — which is what the first Mac build found.
+    /// Change the engine's sentence and this one together.
     static var description: IntentDescription {
-        IntentDescription("\(HivePosture.holdEntrance.detail)")
+        IntentDescription("Every bee that can sting meets the attacker at the door. Fewer foragers out, and defenders die doing it.")
     }
     static var openAppWhenRun: Bool { false }
 
@@ -193,7 +198,7 @@ struct HoldEntranceIntent: AppIntent {
 struct NarrowEntranceIntent: AppIntent {
     static var title: LocalizedStringResource { "Narrow the Entrance" }
     static var description: IntentDescription {
-        IntentDescription("\(HivePosture.narrowEntrance.detail)")
+        IntentDescription("Propolis narrows the entrance to a slot. Hard to force, hard to rob, slow to fly through.")
     }
     static var openAppWhenRun: Bool { false }
 
@@ -215,7 +220,7 @@ struct NarrowEntranceIntent: AppIntent {
 struct KeepForagersHomeIntent: AppIntent {
     static var title: LocalizedStringResource { "Keep the Foragers Home" }
     static var description: IntentDescription {
-        IntentDescription("\(HivePosture.foragersHome.detail)")
+        IntentDescription("Nobody goes out. Nothing for an ambusher to take, and nothing coming in.")
     }
     static var openAppWhenRun: Bool { false }
 
@@ -228,7 +233,7 @@ struct KeepForagersHomeIntent: AppIntent {
 struct SendInCleanersIntent: AppIntent {
     static var title: LocalizedStringResource { "Send in the Cleaners" }
     static var description: IntentDescription {
-        IntentDescription("\(HivePosture.cleanersOut.detail)")
+        IntentDescription("Cleaners hunt the comb for moth and beetle larvae, at the expense of everything else.")
     }
     static var openAppWhenRun: Bool { false }
 
@@ -247,7 +252,7 @@ struct MakeRoomIntent: AppIntent {
         // The best answer to a swarm there is: 76% two-year survival against
         // 66% for doing nothing, 62% for opening the nest up and 56% for
         // dividing. See `NotificationActions.register`.
-        IntentDescription("\(HivePosture.makeRoom.detail)")
+        IntentDescription("Builders draw comb and foragers hold back, to ease the crowding that sends a swarm out.")
     }
 
     static var openAppWhenRun: Bool { false }

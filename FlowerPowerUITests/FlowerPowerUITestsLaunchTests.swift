@@ -16,7 +16,7 @@
 //  the foreground when the picture was taken. An attachment of a crashed
 //  app's last frame would otherwise pass silently.
 //
-//  Never run. See SETUP.md.
+//  First run on 2026-09-14, and passed in both light and dark. See SETUP.md.
 //
 
 import XCTest
@@ -31,6 +31,7 @@ final class FlowerPowerUITestsLaunchTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
         app.launch()

@@ -300,21 +300,26 @@ private struct WaitingView: View {
 
     var onRetry: () -> Void
 
+    /// In a scroll view because it does not fit otherwise. Held to the
+    /// screen's height, the caption was cut to "Open FlowerPower on you…" on
+    /// the first run — on an Ultra, the largest watch there is.
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "hexagon")
-                .font(.largeTitle)
-                .foregroundStyle(WatchTheme.honey)
-                .accessibilityHidden(true)
-            Text("No colony yet")
-                .font(.headline)
-            Text("Open FlowerPower on your iPhone.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Retry", action: onRetry)
-                .buttonStyle(.bordered)
+        ScrollView {
+            VStack(spacing: 10) {
+                Image(systemName: "hexagon")
+                    .font(.largeTitle)
+                    .foregroundStyle(WatchTheme.honey)
+                    .accessibilityHidden(true)
+                Text("No colony yet")
+                    .font(.headline)
+                Text("Open FlowerPower on your iPhone.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Retry", action: onRetry)
+                    .buttonStyle(.bordered)
+            }
+            .padding()
         }
-        .padding()
     }
 }

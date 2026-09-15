@@ -1,5 +1,5 @@
 //
-//  Tips.swift
+//  AppTips.swift
 //  FlowerPower
 //
 //  The five things the introduction cannot say.
@@ -15,10 +15,11 @@
 //  to have all of them ignored is to write a sixth about something the player
 //  could have worked out.
 //
-//  A note on the name. This enum is called `Tips` because that is what it is,
-//  which means it shadows TipKit's own `Tips` inside this module — so the one
-//  call that needs TipKit's version spells it `TipKit.Tips.configure`. Worth
-//  the small awkwardness: every call site in the app reads `Tips.forage`.
+//  A note on the name. This enum was called `Tips` until the first Mac build,
+//  which is what it is, but it shadowed TipKit's own `Tips` inside the module
+//  — and TipKit's `@Parameter` macro expands to an unqualified
+//  `Tips.Parameter`, which then resolved here and failed. Qualifying our own
+//  call sites could not fix code a macro writes, so the enum gave way.
 //
 
 import Foundation
@@ -26,7 +27,7 @@ import SwiftUI
 import TipKit
 import os
 
-enum Tips {
+enum AppTips {
 
     private static let logger = Logger(
         subsystem: "com.kylepeterson.flowerpower",
@@ -57,7 +58,7 @@ enum Tips {
     /// spacing them out does not lose any of them.
     static func configure() {
         do {
-            try TipKit.Tips.configure([
+            try Tips.configure([
                 .displayFrequency(.daily),
                 .datastoreLocation(.applicationDefault)
             ])
@@ -105,8 +106,9 @@ struct GardenTip: Tip {
 
 /// The only tip with a rule on it, and the rule exists to settle an ordering.
 ///
-/// The gear is drawn over all four tabs, so without this it is eligible on the
-/// very first screen — competing with the camera tip, which is the one that has
+/// The gear is in all four tabs' navigation bars (`SettingsButton`), so
+/// without this it is eligible on the very first screen — in the same bar as
+/// the camera button, competing with the camera tip, which is the one that has
 /// to land, and winning in whatever order TipKit happens to consider them.
 /// Waiting until there is a flower in the garden puts it second by
 /// construction, and is a better trigger anyway: "everything else is here" is

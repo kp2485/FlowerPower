@@ -37,13 +37,16 @@ enum LiveActivities {
 
         // End anything no longer happening.
         for activity in running where wanted[activity.attributes.kind] == nil {
-            Task { await activity.end(nil, dismissalPolicy: .default) }
+            let id = activity.id
+            Task { await end(id) }
         }
 
         // Update or start the rest.
         for (kind, item) in wanted {
             if let activity = running.first(where: { $0.attributes.kind == kind }) {
-                Task { await activity.update(.init(state: item.state, staleDate: nil)) }
+                let id = activity.id
+                let state = item.state
+                Task { await update(id, to: state) }
             } else {
                 do {
                     _ = try Activity.request(
@@ -56,6 +59,29 @@ enum LiveActivities {
                 }
             }
         }
+    }
+
+    // MARK: - Off the main actor
+
+    /// `Activity` is not `Sendable`, and ending or updating one runs off the
+    /// main actor, so an activity found in `reconcile` cannot be carried into
+    /// either. Its identifier can, and the activity is found again on this
+    /// side — where it never crosses an isolation boundary at all.
+    @concurrent
+    private nonisolated static func end(_ id: String) async {
+        guard let activity = Activity<HiveActivityAttributes>.activities
+            .first(where: { $0.id == id }) else { return }
+        await activity.end(nil, dismissalPolicy: .default)
+    }
+
+    @concurrent
+    private nonisolated static func update(
+        _ id: String,
+        to state: HiveActivityAttributes.ContentState
+    ) async {
+        guard let activity = Activity<HiveActivityAttributes>.activities
+            .first(where: { $0.id == id }) else { return }
+        await activity.update(.init(state: state, staleDate: nil))
     }
 
     private struct Item {

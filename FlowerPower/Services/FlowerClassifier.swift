@@ -137,7 +137,9 @@ public struct FlowerClassifier: FlowerIdentifying {
     private let onDevice: TaxonomicClassifier?
     private let logger = Logger(subsystem: "com.kylepeterson.flowerpower", category: "classifier")
 
-    public init(
+    /// Internal, not public, because `TaxonomicClassifier` is. Nothing outside
+    /// the app module could call it anyway.
+    init(
         model: VNCoreMLModel? = nil,
         library: FeaturePrintLibrary? = nil,
         onDevice: TaxonomicClassifier? = nil
@@ -179,8 +181,8 @@ public struct FlowerClassifier: FlowerIdentifying {
         else { return .notAFlower }
 
         // Stage two, best available answer first.
-        if let onDevice, let placed = try? await onDevice.place(UIImage(cgImage: image)),
-           let placement = placed, placement.confidence >= Self.placementThreshold {
+        if let onDevice, let placement = try? await onDevice.place(UIImage(cgImage: image)),
+           placement.confidence >= Self.placementThreshold {
             return identification(for: placement.taxon, confidence: placement.confidence)
         }
 

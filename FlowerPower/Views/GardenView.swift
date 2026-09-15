@@ -54,6 +54,9 @@ struct GardenView: View {
             }
             .navigationTitle("Garden")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    SettingsButton()
+                }
                 // The guide to everything, as against the garden of what has
                 // been found. It belongs next to the camera button: this is
                 // the screen somebody opens before going out.
@@ -77,7 +80,7 @@ struct GardenView: View {
     private var gardenGrid: some View {
         ScrollView {
             VStack(spacing: 16) {
-                TipView(Tips.garden)
+                TipView(AppTips.garden)
                 SeasonalAdviceCard(season: snapshot.season)
 
                 Picker("Filter", selection: $filter) {

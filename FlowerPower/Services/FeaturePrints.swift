@@ -52,8 +52,8 @@ enum FeaturePrints {
         orientation: CGImagePropertyOrientation = .up
     ) async throws -> FeaturePrint? {
 
-        var request = GenerateImageFeaturePrintRequest()
-        request.revision = revision
+        // The revision is fixed at construction; it is a `let` on the request.
+        var request = GenerateImageFeaturePrintRequest(revision)
         // Flowers are the subject and usually centred. Squashing the whole
         // frame to a square would distort the thing being measured.
         request.cropAndScaleAction = .centerCrop
@@ -150,7 +150,7 @@ actor FeaturePrintStore {
 
     private var stored: FeaturePrintLibrary
 
-    private var url: URL {
+    private static var url: URL {
         let base = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -158,9 +158,16 @@ actor FeaturePrintStore {
         return base.appendingPathComponent("flower-references.json")
     }
 
+    /// Both halves are read before `stored` is set, because a synchronous
+    /// actor initialiser is not isolated to the actor and may not call its
+    /// methods. Nothing else can see the actor yet, so there is nothing to
+    /// isolate from.
     init() {
-        stored = Self.bundledLibrary()
-        loadLearned()
+        var library = Self.bundledLibrary()
+        for reference in Self.learnedReferences() {
+            library.add(reference)
+        }
+        stored = library
     }
 
     var library: FeaturePrintLibrary { stored }
@@ -183,15 +190,12 @@ actor FeaturePrintStore {
         return decoded
     }
 
-    private func loadLearned() {
+    private static func learnedReferences() -> [SpeciesReference] {
         guard
             let data = try? Data(contentsOf: url),
             let learned = try? JSONDecoder().decode([SpeciesReference].self, from: data)
-        else { return }
-
-        for reference in learned {
-            stored.add(reference)
-        }
+        else { return [] }
+        return learned
     }
 
     private func save() {
@@ -200,7 +204,7 @@ actor FeaturePrintStore {
         let learned = stored.references.filter { $0.source != .bundled }
 
         do {
-            try JSONEncoder().encode(learned).write(to: url, options: .atomic)
+            try JSONEncoder().encode(learned).write(to: Self.url, options: .atomic)
         } catch {
             logger.error("could not keep flower references: \(error.localizedDescription)")
         }

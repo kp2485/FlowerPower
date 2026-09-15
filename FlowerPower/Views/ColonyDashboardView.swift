@@ -105,11 +105,14 @@ struct ColonyDashboardView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Colony")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    SettingsButton()
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: onPhotograph) {
                         Label("Photograph a Flower", systemImage: "camera.fill")
                     }
-                    .popoverTip(Tips.photograph)
+                    .popoverTip(AppTips.photograph)
                 }
             }
         }

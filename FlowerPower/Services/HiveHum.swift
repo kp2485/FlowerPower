@@ -106,7 +106,14 @@ final class HiveHum {
         // isolated and cannot capture something that is.
         let tone = self.tone
 
-        let node = AVAudioSourceNode { _, _, frameCount, audioBufferList -> OSStatus in
+        // `@Sendable` is what makes the sentence above true. Without it a
+        // closure written in this main-actor method is inferred main-actor
+        // isolated, the SDK's block type is not marked `@Sendable` so nothing
+        // objects at compile time, and the Swift 6 runtime traps on the
+        // audio thread at the first render. That was the first run with the
+        // hum on, 2026-09-14 — and since the setting persists and the hum
+        // starts at launch, it was a crash on every launch after it.
+        let node = AVAudioSourceNode { @Sendable _, _, frameCount, audioBufferList -> OSStatus in
             let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
 
             for frame in 0..<Int(frameCount) {

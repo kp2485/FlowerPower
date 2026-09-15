@@ -175,19 +175,12 @@ struct ContentView: View {
                 .tag(Tab.garden)
         }
         .tint(Theme.honey)
-        .overlay(alignment: .topTrailing) {
-            Button {
-                isShowingSettings = true
-            } label: {
-                Image(systemName: "gearshape.fill")
-                    .padding(10)
-                    .background(.regularMaterial, in: Circle())
-            }
-            .tint(Theme.honey)
-            .padding(.trailing, 16)
-            .accessibilityLabel("Settings")
-            .popoverTip(Tips.settings)
-        }
+        // Each tab puts a `SettingsButton` in its own navigation bar. This
+        // used to be one gear floated over the whole TabView at the top
+        // trailing corner — which is exactly where every tab keeps its own
+        // main action, so on the first Mac run the gear sat on top of the
+        // camera button and hid the one thing the game asks the player to do.
+        .environment(\.showSettings, { isShowingSettings = true })
         .sheet(isPresented: $isCapturing) {
             CaptureView()
         }
@@ -247,6 +240,36 @@ struct ContentView: View {
             get: { store.pendingReport != nil },
             set: { if !$0 { store.dismissReport() } }
         )
+    }
+}
+
+// MARK: - Settings, from every tab
+
+/// The way into Settings, placed by each tab in its own navigation bar next
+/// to that tab's own action, so the two cannot land on top of each other.
+///
+/// All four carry the Settings tip. TipKit shows a tip at one anchor at a
+/// time, and the rule on `SettingsTip` still holds it back until there is a
+/// flower in the garden.
+struct SettingsButton: View {
+
+    @Environment(\.showSettings) private var showSettings
+
+    var body: some View {
+        Button("Settings", systemImage: "gearshape.fill", action: showSettings)
+            .popoverTip(AppTips.settings)
+    }
+}
+
+private struct ShowSettingsKey: EnvironmentKey {
+    static let defaultValue: @MainActor () -> Void = {}
+}
+
+extension EnvironmentValues {
+    /// Opens Settings. Set by `ContentView`, which owns the sheet.
+    var showSettings: @MainActor () -> Void {
+        get { self[ShowSettingsKey.self] }
+        set { self[ShowSettingsKey.self] = newValue }
     }
 }
 

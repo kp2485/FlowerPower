@@ -49,9 +49,12 @@ struct ForageMapView: View {
             // Over the map rather than on the toolbar button, which is
             // disabled until the hive has a coordinate — and a popover
             // anchored to a disabled control is a tip nobody sees.
-            .overlay(alignment: .bottom) { TipView(Tips.forage).padding() }
+            .overlay(alignment: .bottom) { TipView(AppTips.forage).padding() }
             .navigationTitle("Forage")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    SettingsButton()
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Centre on Hive", systemImage: "location.fill") {
                         centreOnHive()

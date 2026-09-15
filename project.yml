@@ -199,6 +199,13 @@ targets:
             LSHandlerRank: Owner
             LSItemContentTypes:
               - com.kylepeterson.flowerpower.save
+        # Opened where it lies rather than copied in. `ContentView.open(_:)`
+        # reads the file once, at once, under security-scoped access, and never
+        # holds the URL — which is all opening in place asks. Declaring NO
+        # would have the system copy every file into Documents/Inbox first, and
+        # nothing in the app ever empties it. Undeclared, it was a build
+        # warning on the first Mac build.
+        LSSupportsOpeningDocumentsInPlace: true
 
         # Live Activities for a siege, a swarm gathering and a mating flight.
         NSSupportsLiveActivities: true
@@ -350,6 +357,11 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.tests
+        # The project-wide NO above is about the four shipping targets, whose
+        # plists are written out here. A test bundle's is boilerplate, and
+        # without one of either kind it cannot be signed — which is what the
+        # first build-for-testing on a Mac said.
+        GENERATE_INFOPLIST_FILE: YES
 
   FlowerPowerUITests:
     type: bundle.ui-testing
@@ -360,6 +372,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kylepeterson.flowerpower.uitests
+        GENERATE_INFOPLIST_FILE: YES
 
 # ---------------------------------------------------------------------------
 

@@ -50,7 +50,7 @@ struct FlowerPowerApp: App {
         UNUserNotificationCenter.current().delegate = notifications
 
         // Contextual tips. Must be configured before any `TipView` is drawn.
-        Tips.configure()
+        AppTips.configure()
     }
 
     var body: some Scene {

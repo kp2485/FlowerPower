@@ -65,8 +65,15 @@ final class WatchColonyModel: NSObject {
         WCSession.default.activate()
     }
 
-    fileprivate func apply(_ payload: [String: Any]) {
-        guard let data = payload["summary"] as? Data else { return }
+    /// The summary out of a message, taken while still on WatchConnectivity's
+    /// queue. `[String: Any]` is not `Sendable` and cannot cross to the main
+    /// actor; the `Data` inside it can.
+    fileprivate nonisolated static func summaryData(in payload: [String: Any]) -> Data? {
+        payload["summary"] as? Data
+    }
+
+    fileprivate func apply(summary data: Data?) {
+        guard let data else { return }
 
         do {
             let decoded = try decoder.decode(WatchSummary.self, from: data)
@@ -122,7 +129,7 @@ final class WatchColonyModel: NSObject {
             summary = computed
             lastUpdated = Date()
             // Computed here, not sent by the phone, so it is flagged as such.
-            // `apply(_:)` clears it the moment the phone is heard from.
+            // `apply(summary:)` clears it the moment the phone is heard from.
             isStale = true
 
         } catch {
@@ -167,7 +174,7 @@ final class WatchColonyModel: NSObject {
             summary = store.watchSummary()
             lastUpdated = Date()
             // Worked out here rather than sent by the phone, which is what
-            // `isStale` means. `apply(_:)` clears it when the phone is next
+            // `isStale` means. `apply(summary:)` clears it when the phone is next
             // heard from.
             isStale = true
 
@@ -203,8 +210,10 @@ final class WatchColonyModel: NSObject {
             return
         }
 
-        session.sendMessage(payload, replyHandler: nil) { [weak self] error in
-            self?.logger.error("could not send a decision: \(error.localizedDescription)")
+        // `@Sendable`, like both handlers in `refresh()`: see there for why.
+        session.sendMessage(payload, replyHandler: nil) { @Sendable [weak self] error in
+            let reason = error.localizedDescription
+            Task { @MainActor in self?.logger.error("could not send a decision: \(reason)") }
             // Reachable and it still failed, so fall back to the queue rather
             // than losing the tap. A failed send could in principle have
             // arrived anyway, so this can deliver the same answer twice —
@@ -218,14 +227,28 @@ final class WatchColonyModel: NSObject {
         }
     }
 
+    /// Both handlers are marked `@Sendable`, and that is what stops the watch
+    /// app crashing every time the phone answers.
+    ///
+    /// Written inside a main-actor method, a closure is inferred to be
+    /// main-actor-isolated unless it says otherwise — and WatchConnectivity
+    /// calls these on its own operation queue. The SDK does not mark the
+    /// parameters `@Sendable`, so the compiler has nothing to object to, and
+    /// the Swift 6 runtime traps on the isolation check instead
+    /// (`_dispatch_assert_queue_fail` in `closure #1 in refresh()`). Found on
+    /// the first run of the watch app, 2026-09-14: it crashed within a second
+    /// of every reply. `@Sendable` makes them nonisolated; anything that
+    /// touches the model hops to the main actor explicitly.
     func refresh() {
         loadFromSharedContainer()
 
         guard WCSession.isSupported(), WCSession.default.isReachable else { return }
-        WCSession.default.sendMessage(["request": "summary"], replyHandler: { [weak self] reply in
-            Task { @MainActor in self?.apply(reply) }
-        }, errorHandler: { [weak self] error in
-            self?.logger.error("refresh failed: \(error.localizedDescription)")
+        WCSession.default.sendMessage(["request": "summary"], replyHandler: { @Sendable [weak self] reply in
+            let data = Self.summaryData(in: reply)
+            Task { @MainActor in self?.apply(summary: data) }
+        }, errorHandler: { @Sendable [weak self] error in
+            let reason = error.localizedDescription
+            Task { @MainActor in self?.logger.error("refresh failed: \(reason)") }
         })
     }
 }
@@ -241,11 +264,13 @@ extension WatchColonyModel: WCSessionDelegate {
     ) {}
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        Task { @MainActor in apply(message) }
+        let data = Self.summaryData(in: message)
+        Task { @MainActor in apply(summary: data) }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
-        Task { @MainActor in apply(userInfo) }
+        let data = Self.summaryData(in: userInfo)
+        Task { @MainActor in apply(summary: data) }
     }
 
     /// The phone's copy of the colony.
