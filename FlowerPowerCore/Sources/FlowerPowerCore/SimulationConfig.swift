@@ -350,10 +350,6 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// also a poor gift, and the point of sharing is to genuinely feed
     /// somebody's bees.
     ///
-    /// The real difference between a shared flower and one you found is not
-    /// yield but *distance*, and the engine already handles that: a share
-    /// carrying a coordinate is placed relative to the recipient's own hive,
-    /// and may be out of foraging range entirely.
     public var sharedPatchYield: Double = 1.0
 
     /// Days a photographed patch holds full strength before it starts to go.

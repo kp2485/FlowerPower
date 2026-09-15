@@ -22,7 +22,7 @@ struct LongGameTests {
             speciesName: species?.commonName ?? resolved?.scientificName ?? "Unknown",
             isIdentified: resolved != nil,
             rarity: species?.rarity ?? .common,
-            coordinate: nil, distanceMetres: 500,
+            distanceMetres: 500,
             isInBloom: inBloom, isWithinRange: true,
             remainingFraction: 1, foragersWorkingIt: 0, discoveredAt: epoch,
             vigour: 1, origin: .photographed, sharedBy: nil,
@@ -116,7 +116,7 @@ struct LongGameTests {
             simulation.registerPhotograph(
                 photoLocalIdentifier: "p\(index)",
                 species: FlowerCatalogue.all[index], confidence: 0.9,
-                coordinate: nil, takenAt: epoch, distanceMetres: 500
+                takenAt: epoch, distanceMetres: 500
             )
         }
         for _ in 0..<days { _ = simulation.stepDay() }

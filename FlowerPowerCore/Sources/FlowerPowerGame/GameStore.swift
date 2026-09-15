@@ -182,14 +182,12 @@ public final class GameStore {
         localIdentifier: String,
         species: FlowerSpecies?,
         confidence: Double,
-        coordinate: GeoPoint?,
         takenAt: Date
     ) -> EntityID {
         let patch = simulation.registerPhotograph(
             photoLocalIdentifier: localIdentifier,
             species: species,
             confidence: confidence,
-            coordinate: coordinate,
             takenAt: takenAt
         )
         refresh()
@@ -202,11 +200,6 @@ public final class GameStore {
         to patch: EntityID
     ) {
         simulation.identifyPatch(patch, as: species, confidence: confidence)
-        refresh()
-    }
-
-    public func setPatchLocation(_ patch: EntityID, coordinate: GeoPoint?) {
-        simulation.setPatchLocation(patch, coordinate: coordinate)
         refresh()
     }
 
@@ -408,20 +401,13 @@ public final class GameStore {
     /// the engine has no idea what a photograph is — it stores an identifier
     /// and nothing else. The app loads and downscales the picture and hands
     /// the bytes in.
-    ///
-    /// - Parameter location: how precisely to say where it was found.
-    ///   Defaults to not saying at all. See `FlowerShare` for why that is the
-    ///   default rather than a setting somebody has to find.
     public func share(
         patch id: EntityID,
         imageData: Data,
         from senderName: String?,
-        note: String? = nil,
-        location: LocationSharing = .none
+        note: String? = nil
     ) -> FlowerShare? {
         guard let patch = simulation.patches.first(where: { $0.id == id }) else { return nil }
-
-        let coordinate = location.apply(to: patch.coordinate)
 
         // Validated on the way out as well as on the way in, so an empty name
         // typed and then deleted travels as no name rather than as "".
@@ -431,8 +417,6 @@ public final class GameStore {
             takenAt: patch.discoveredAt,
             sharedBy: senderName,
             note: note,
-            latitude: coordinate?.latitude,
-            longitude: coordinate?.longitude,
             imageData: imageData
         ).validated()
     }
@@ -454,7 +438,6 @@ public final class GameStore {
             photoLocalIdentifier: share.localIdentifier,
             species: share.species,
             confidence: share.confidence,
-            coordinate: share.coordinate,
             takenAt: share.takenAt,
             sharedBy: share.sharedBy
         ) else {
@@ -671,10 +654,7 @@ extension GameStore {
     ) -> GameStore {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         var simulation = Simulation.newGame(
-            at: HiveLocation(
-                coordinate: GeoPoint(latitude: 51.5072, longitude: -0.1276),
-                type: .livingTreeCavity
-            ),
+            at: HiveLocation(type: .livingTreeCavity),
             startingAt: start,
             seed: 42
         )
@@ -693,10 +673,6 @@ extension GameStore {
                 photoLocalIdentifier: "preview-\(index)",
                 species: index % 4 == 3 ? nil : species[index % species.count],
                 confidence: 0.6 + Double(index % 4) * 0.1,
-                coordinate: GeoPoint(
-                    latitude: 51.5072 + Double(index % 5) * 0.002,
-                    longitude: -0.1276 + Double(index % 3) * 0.003
-                ),
                 takenAt: start
             )
         }

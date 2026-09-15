@@ -130,7 +130,6 @@ final class PatchFadingTests: XCTestCase {
             photoLocalIdentifier: "today",
             species: Fixture.clover,
             confidence: 1,
-            coordinate: nil,
             takenAt: epoch
         )
 
@@ -146,7 +145,6 @@ final class PatchFadingTests: XCTestCase {
                 photoLocalIdentifier: "p\(index)",
                 species: FlowerCatalogue.all[index % FlowerCatalogue.all.count],
                 confidence: 0.9,
-                coordinate: nil,
                 takenAt: epoch,
                 distanceMetres: 500
             )

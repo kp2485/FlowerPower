@@ -38,7 +38,6 @@ struct MilestoneTests {
                 photoLocalIdentifier: "p\(index)",
                 species: Fixture.palette[index % Fixture.palette.count],
                 identificationConfidence: 0.9,
-                coordinate: nil,
                 distanceMetres: 400,
                 discoveredAt: epoch,
                 registeredOnDay: 0
@@ -200,7 +199,6 @@ struct MilestoneTests {
             photoLocalIdentifier: "mystery",
             species: nil,
             identificationConfidence: 0,
-            coordinate: nil,
             distanceMetres: 400,
             discoveredAt: epoch,
             registeredOnDay: 0

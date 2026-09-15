@@ -170,7 +170,6 @@ final class GameStoreTests: XCTestCase {
             localIdentifier: "photo-1",
             species: FlowerCatalogue.all.first,
             confidence: 0.9,
-            coordinate: GeoPoint(latitude: 51.5, longitude: -0.12),
             takenAt: epoch
         )
 
@@ -192,7 +191,6 @@ final class GameStoreTests: XCTestCase {
             localIdentifier: "photo-1",
             species: nil,
             confidence: 0,
-            coordinate: nil,
             takenAt: epoch
         )
         let unidentified = try XCTUnwrap(store.snapshot.patches.first { $0.id == id })
@@ -330,7 +328,6 @@ final class GameStoreTests: XCTestCase {
                 localIdentifier: "photo-\(index)",
                 species: FlowerCatalogue.all[index],
                 confidence: 0.9,
-                coordinate: GeoPoint(latitude: 51.5, longitude: -0.12),
                 takenAt: epoch
             )
         }
@@ -354,7 +351,7 @@ final class GameStoreTests: XCTestCase {
         let (store, _) = makeStore()
         store.recordPhotograph(
             localIdentifier: "photo-1", species: FlowerCatalogue.all.first,
-            confidence: 0.9, coordinate: nil, takenAt: epoch
+            confidence: 0.9, takenAt: epoch
         )
 
         store.startNewGame(at: HiveLocation(type: .cave))
@@ -367,7 +364,7 @@ final class GameStoreTests: XCTestCase {
         let (store, _) = makeStore()
         store.recordPhotograph(
             localIdentifier: "photo-1", species: FlowerCatalogue.all.first,
-            confidence: 0.9, coordinate: nil, takenAt: epoch
+            confidence: 0.9, takenAt: epoch
         )
 
         store.startNewGame(at: HiveLocation(type: .cave), keepingFlowers: false)

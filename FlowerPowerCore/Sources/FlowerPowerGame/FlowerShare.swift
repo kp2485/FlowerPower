@@ -14,18 +14,15 @@
 //  Two things here are not conveniences, and both concern the fact that this
 //  data crosses between people.
 //
-//  Location is off by default
-//  --------------------------
-//  A flower photograph's coordinate is where a person was standing. Often
-//  that is their garden, which is to say their home address. The game reads
-//  EXIF location to place patches on the map and to work out how far the bees
-//  fly, so the coordinate is right there and it would be easy to include it.
-//  It is not included unless the sender asks for it, and even then the default
-//  is rounded to about a kilometre. Sending a flower to a group chat should
-//  never be a way to tell everyone in it where you live.
-//
-//  The image is re-encoded rather than forwarded, which drops the original
-//  EXIF wholesale — including the location, the timestamp, and the device.
+//  A share says what the flower is, not where it is
+//  -----------------------------------------------
+//  Every field is about the plant: which species, how confident the
+//  identification was, when it was photographed, a name to thank and a line to
+//  read. There is nothing about the place, and there is nothing to strip,
+//  because the app never learns it. The picture travels re-encoded rather than
+//  forwarded, so the original EXIF — where, when, on what — does not travel
+//  with it either. Sending a flower to a group chat is not a way to tell
+//  everyone in it where you were standing.
 //
 //  Everything received is untrusted
 //  --------------------------------
@@ -43,6 +40,12 @@ public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
 
     /// Bumped when the shape changes incompatibly. A file from the future is
     /// refused with something a person can read rather than a decode error.
+    ///
+    /// "Incompatibly" is the whole of the test. Adding or removing an *optional*
+    /// field is compatible in both directions — the synthesised decoder ignores
+    /// keys it does not know and tolerates ones that are absent — so a file
+    /// written by either build still opens in the other, and bumping for it
+    /// would refuse flowers that are perfectly readable.
     public static let currentVersion = 1
 
     /// The largest image this will carry, before base64. Comfortably more than
@@ -83,9 +86,6 @@ public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
     public var sharedBy: String?
     /// A line from the sender, shown on import.
     public var note: String?
-    /// Present only when the sender opted in. See the note at the top.
-    public var latitude: Double?
-    public var longitude: Double?
     /// JPEG bytes.
     public var imageData: Data
 
@@ -97,8 +97,6 @@ public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
         takenAt: Date,
         sharedBy: String?,
         note: String? = nil,
-        latitude: Double? = nil,
-        longitude: Double? = nil,
         imageData: Data
     ) {
         self.version = version
@@ -108,14 +106,7 @@ public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
         self.takenAt = takenAt
         self.sharedBy = sharedBy
         self.note = note
-        self.latitude = latitude
-        self.longitude = longitude
         self.imageData = imageData
-    }
-
-    public var coordinate: GeoPoint? {
-        guard let latitude, let longitude else { return nil }
-        return GeoPoint(latitude: latitude, longitude: longitude)
     }
 
     public var isRequest: Bool { kind == .request }
@@ -160,64 +151,6 @@ public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
     /// in the player's own library.
     public static func isSharedIdentifier(_ identifier: String) -> Bool {
         identifier.hasPrefix("shared:")
-    }
-}
-
-// MARK: - How precisely to say where it was
-
-public enum LocationSharing: String, CaseIterable, Sendable, Identifiable {
-
-    /// Send no location at all. The recipient's bees fly a nominal distance
-    /// and the flower does not appear on their map.
-    case none
-    /// Rounded to roughly a kilometre — enough to say which part of town,
-    /// not enough to say which house.
-    case approximate
-    /// Exactly where the photograph was taken.
-    case exact
-
-    public var id: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .none: return "Don't Share Location"
-        case .approximate: return "Approximate Area"
-        case .exact: return "Exact Spot"
-        }
-    }
-
-    public var detail: String {
-        switch self {
-        case .none:
-            return "The flower still feeds their bees, at a guessed distance."
-        case .approximate:
-            return "Rounded to about a kilometre. Enough to find the meadow, not your door."
-        case .exact:
-            return "Where you were standing. Only for places you would tell anyone about."
-        }
-    }
-
-    /// Degrees to round to. 0.01 degrees of latitude is about 1.1 km, and of
-    /// longitude rather less depending on how far north you are — which is
-    /// fine, because the point is deliberate imprecision.
-    private static let approximateGrid = 0.01
-
-    public func apply(to coordinate: GeoPoint?) -> GeoPoint? {
-        guard let coordinate else { return nil }
-
-        switch self {
-        case .none:
-            return nil
-        case .exact:
-            return coordinate
-        case .approximate:
-            return GeoPoint(
-                latitude: (coordinate.latitude / Self.approximateGrid).rounded()
-                    * Self.approximateGrid,
-                longitude: (coordinate.longitude / Self.approximateGrid).rounded()
-                    * Self.approximateGrid
-            )
-        }
     }
 }
 
@@ -313,18 +246,6 @@ extension FlowerShare {
         copy.sharedBy = sharedBy.map(Self.trimmedForDisplay).flatMap { $0.isEmpty ? nil : $0 }
         copy.note = note.map(Self.trimmedForDisplay).flatMap { $0.isEmpty ? nil : $0 }
 
-        // A coordinate off the globe is meaningless, and a distance computed
-        // from one would be too.
-        if let latitude, let longitude,
-           latitude.isFinite, longitude.isFinite,
-           (-90...90).contains(latitude), (-180...180).contains(longitude) {
-            copy.latitude = latitude
-            copy.longitude = longitude
-        } else {
-            copy.latitude = nil
-            copy.longitude = nil
-        }
-
         // A share that arrives claiming to be from the future would make a
         // patch that is somehow not yet discovered.
         if takenAt > Date().addingTimeInterval(60 * 60 * 24) {
@@ -341,8 +262,6 @@ extension FlowerShare {
             var seen = Set<PlantFamily>()
             copy.wanted = (wanted ?? []).filter { seen.insert($0).inserted }.prefix(8).map { $0 }
             copy.imageData = Data()
-            copy.latitude = nil
-            copy.longitude = nil
         } else {
             copy.wanted = nil
             copy.season = nil

@@ -9,36 +9,6 @@
 
 import Foundation
 
-// MARK: - Geography
-
-public struct GeoPoint: Codable, Hashable, Sendable {
-
-    public var latitude: Double
-    public var longitude: Double
-
-    public init(latitude: Double, longitude: Double) {
-        self.latitude = latitude
-        self.longitude = longitude
-    }
-
-    /// Great-circle distance in metres. Haversine is ample at foraging range,
-    /// and avoids pulling CoreLocation into the engine — which would cost us
-    /// the ability to test it off-device.
-    public func distance(to other: GeoPoint) -> Double {
-        let earthRadius = 6_371_000.0
-        let phi1 = latitude * .pi / 180
-        let phi2 = other.latitude * .pi / 180
-        let deltaPhi = (other.latitude - latitude) * .pi / 180
-        let deltaLambda = (other.longitude - longitude) * .pi / 180
-
-        let a = sin(deltaPhi / 2) * sin(deltaPhi / 2)
-            + cos(phi1) * cos(phi2) * sin(deltaLambda / 2) * sin(deltaLambda / 2)
-        let c = 2 * atan2(sqrt(a), sqrt(max(0, 1 - a)))
-
-        return earthRadius * c
-    }
-}
-
 // MARK: - Species
 
 public enum FlowerRarity: String, Codable, CaseIterable, Sendable {
@@ -221,7 +191,7 @@ public enum PatchOrigin: String, Codable, Sendable, CaseIterable {
     case shared
 }
 
-/// One photographed flower, which becomes a depleting forage patch on the map.
+/// One photographed flower, which becomes a depleting forage patch.
 public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
 
     public let id: EntityID
@@ -236,13 +206,10 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
     /// Classifier confidence in 0...1, which scales the patch's yield.
     public var identificationConfidence: Double
 
-    /// From photo EXIF, when the user has granted location. Optional
-    /// throughout: the game must be playable with location denied.
-    public var coordinate: GeoPoint?
-
-    /// Distance from the hive in metres, resolved when the patch is registered.
-    /// Falls back to a nominal mid-range distance when there is no location, so
-    /// denying location permission costs accuracy but never breaks the game.
+    /// How far the bees must fly to work it, in metres. Every patch stands at
+    /// the nominal distance unless a caller says otherwise, which is what makes
+    /// the flower itself — its species, its richness, how much is left — the
+    /// thing that decides whether working it is worth the trip.
     public var distanceMetres: Double
 
     public let discoveredAt: Date
@@ -285,7 +252,6 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         photoLocalIdentifier: String,
         species: FlowerSpecies? = nil,
         identificationConfidence: Double = 0,
-        coordinate: GeoPoint? = nil,
         distanceMetres: Double = FlowerPatch.nominalDistance,
         discoveredAt: Date,
         registeredOnDay: Int? = nil,
@@ -297,7 +263,6 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         self.photoLocalIdentifier = photoLocalIdentifier
         self.species = species
         self.identificationConfidence = identificationConfidence
-        self.coordinate = coordinate
         self.distanceMetres = max(0, distanceMetres)
         self.discoveredAt = discoveredAt
         self.registeredOnDay = registeredOnDay
@@ -324,7 +289,8 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
     /// Total forage a plain common flower holds when full.
     public static let baseCapacity: Double = 120
 
-    /// Assumed distance when a photo carries no location.
+    /// The distance every patch stands at unless a caller says otherwise: a
+    /// middling flight, neither next to the nest nor at the edge of the range.
     public static let nominalDistance: Double = 800
 
     /// Honey bees forage within about a five-mile radius, but the economics

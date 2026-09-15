@@ -7,20 +7,17 @@
 //  The simulation keeps its own calendar — a colony founded in September
 //  starts in simulated spring — but a player going for a walk is in the real
 //  one. This works from the real date and the hemisphere, and from nothing
-//  more: not the player's location, which the game does not need and does not
-//  ask for beyond what a photograph already carries.
+//  more: the game never learns where the player is, and does not need to.
 //
 
 import Foundation
 import FlowerPowerCore
 
+/// Which half of the year the player's flowers keep. Chosen in settings, which
+/// is one tap and answers the only geographic question the game ever has.
 public enum Hemisphere: String, Codable, Sendable {
     case northern
     case southern
-
-    public static func containing(latitude: Double) -> Hemisphere {
-        latitude < 0 ? .southern : .northern
-    }
 }
 
 public enum RealSeason {

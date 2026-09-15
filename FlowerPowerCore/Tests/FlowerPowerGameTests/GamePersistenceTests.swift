@@ -29,10 +29,7 @@ final class GamePersistenceTests: XCTestCase {
 
     private func makeSimulation(days: Int = 30, seed: UInt64 = 4242) -> Simulation {
         var simulation = Simulation.newGame(
-            at: HiveLocation(
-                coordinate: GeoPoint(latitude: 51.5072, longitude: -0.1276),
-                type: .livingTreeCavity
-            ),
+            at: HiveLocation(type: .livingTreeCavity),
             startingAt: Date(timeIntervalSince1970: 1_700_000_000),
             seed: seed
         )
@@ -40,7 +37,6 @@ final class GamePersistenceTests: XCTestCase {
             photoLocalIdentifier: "p1",
             species: FlowerCatalogue.all.first,
             confidence: 0.8,
-            coordinate: GeoPoint(latitude: 51.51, longitude: -0.12),
             takenAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
         for _ in 0..<days { _ = simulation.stepDay() }
@@ -104,6 +100,55 @@ final class GamePersistenceTests: XCTestCase {
 
         try persistence.save(makeSimulation(days: 1))
         XCTAssertNotNil(try persistence.load())
+    }
+
+    // MARK: - Saves written by an older build
+
+    /// A colony saved when patches and the nest carried a coordinate must open.
+    ///
+    /// This is the one failure mode that cannot be apologised for: `GameStore`
+    /// treats an unreadable save as no save, so a decode error here would
+    /// silently delete somebody's colony. Swift's synthesised decoder ignores
+    /// keys it does not recognise, which is what makes dropping an optional
+    /// field safe — and this is the test that says so rather than a comment
+    /// claiming it.
+    ///
+    /// The fixture is built from a live colony and then salted with the keys an
+    /// older build wrote, so it stays a real save rather than a hand-typed one
+    /// that drifts out of date.
+    func testASaveWrittenWhenFlowersCarriedCoordinatesStillOpens() throws {
+        let original = makeSimulation(days: 5)
+        let json = try JSONSerialization.jsonObject(
+            with: GamePersistence.encodeForTransfer(original)
+        )
+        var document = try XCTUnwrap(json as? [String: Any])
+        var world = try XCTUnwrap(document["world"] as? [String: Any])
+        var hive = try XCTUnwrap(world["hive"] as? [String: Any])
+        var location = try XCTUnwrap(hive["location"] as? [String: Any])
+        let point: [String: Any] = ["latitude": 51.5072, "longitude": -0.1276]
+
+        location["coordinate"] = point
+        hive["location"] = location
+        world["hive"] = hive
+        world["patches"] = try XCTUnwrap(world["patches"] as? [[String: Any]]).map {
+            var patch = $0
+            patch["coordinate"] = point
+            return patch
+        }
+        document["world"] = world
+
+        let older = try JSONSerialization.data(withJSONObject: document)
+        let restored = try GamePersistence.decodeTransfer(older)
+
+        XCTAssertEqual(
+            restored, original,
+            "a coordinate nothing reads any more must be ignored, not fatal"
+        )
+        XCTAssertEqual(restored.patches.count, original.patches.count)
+        XCTAssertEqual(
+            restored.patches.first?.distanceMetres, FlowerPatch.nominalDistance,
+            "the distance the bees fly comes from the patch, not from a key that is gone"
+        )
     }
 
     // MARK: - Crossing between devices

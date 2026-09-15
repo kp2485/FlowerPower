@@ -24,7 +24,7 @@ struct FieldGuideTests {
             speciesName: species.commonName,
             isIdentified: true,
             rarity: species.rarity,
-            coordinate: nil, distanceMetres: 500,
+            distanceMetres: 500,
             isInBloom: true, isWithinRange: true,
             remainingFraction: 1, foragersWorkingIt: 0, discoveredAt: epoch,
             vigour: 1, origin: .photographed, sharedBy: nil,

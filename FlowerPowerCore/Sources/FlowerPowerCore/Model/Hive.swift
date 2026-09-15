@@ -162,13 +162,17 @@ public enum HiveLocationType: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// Where the colony is living: the kind of cavity, and nothing else.
+///
+/// A wrapper around a single enum looks redundant until you notice how much of
+/// the engine reads `hive.location.type` — insulation, defensibility, how many
+/// cells the site holds, whether there is room to extend. The site is a thing
+/// the colony has, not a field it carries.
 public struct HiveLocation: Codable, Equatable, Sendable {
 
-    public var coordinate: GeoPoint?
     public var type: HiveLocationType
 
-    public init(coordinate: GeoPoint? = nil, type: HiveLocationType) {
-        self.coordinate = coordinate
+    public init(type: HiveLocationType) {
         self.type = type
     }
 }

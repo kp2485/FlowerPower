@@ -180,7 +180,6 @@ enum Trials {
                             photoLocalIdentifier: "\(tag)-\(index)",
                             species: palette[index % palette.count],
                             confidence: 0.9,
-                            coordinate: nil,
                             takenAt: start,
                             sharedBy: "a friend",
                             distanceMetres: distance
@@ -190,7 +189,6 @@ enum Trials {
                             photoLocalIdentifier: "\(tag)-\(index)",
                             species: palette[index % palette.count],
                             confidence: 0.9,
-                            coordinate: nil,
                             takenAt: start,
                             distanceMetres: distance
                         )

@@ -22,10 +22,7 @@ struct SaveArchiveTests {
 
     private func makeSimulation(days: Int = 40, seed: UInt64 = 9_191) -> Simulation {
         var simulation = Simulation.newGame(
-            at: HiveLocation(
-                coordinate: GeoPoint(latitude: 51.5072, longitude: -0.1276),
-                type: .livingTreeCavity
-            ),
+            at: HiveLocation(type: .livingTreeCavity),
             startingAt: epoch,
             seed: seed
         )
@@ -33,14 +30,12 @@ struct SaveArchiveTests {
             photoLocalIdentifier: "clover",
             species: FlowerCatalogue.whiteClover,
             confidence: 0.9,
-            coordinate: GeoPoint(latitude: 51.5080, longitude: -0.1280),
             takenAt: epoch
         )
         simulation.registerPhotograph(
             photoLocalIdentifier: "borage",
             species: FlowerCatalogue.borage,
             confidence: 0.7,
-            coordinate: nil,
             takenAt: epoch
         )
         for _ in 0..<days { _ = simulation.stepDay() }

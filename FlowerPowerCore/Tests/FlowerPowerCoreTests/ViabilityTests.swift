@@ -29,7 +29,6 @@ final class ViabilityTests: XCTestCase {
                     photoLocalIdentifier: "\(tag)-\(index)",
                     species: Fixture.palette[index % Fixture.palette.count],
                     confidence: 0.9,
-                    coordinate: nil,
                     takenAt: epoch,
                     distanceMetres: 400
                 )
@@ -161,7 +160,7 @@ final class ViabilityTests: XCTestCase {
             simulation.registerPhotograph(
                 photoLocalIdentifier: "e-\(index)",
                 species: Fixture.palette[index % Fixture.palette.count],
-                confidence: 0.9, coordinate: nil, takenAt: epoch,
+                confidence: 0.9, takenAt: epoch,
                 distanceMetres: 400
             )
         }
@@ -179,7 +178,7 @@ final class ViabilityTests: XCTestCase {
                     simulation.registerPhotograph(
                         photoLocalIdentifier: "er\(day)-\(index)",
                         species: Fixture.palette[index % Fixture.palette.count],
-                        confidence: 0.9, coordinate: nil, takenAt: epoch,
+                        confidence: 0.9, takenAt: epoch,
                         distanceMetres: 400
                     )
                 }
@@ -228,7 +227,6 @@ final class ViabilityTests: XCTestCase {
                 photoLocalIdentifier: "q-\(index)",
                 species: Fixture.palette[index % Fixture.palette.count],
                 confidence: 0.9,
-                coordinate: nil,
                 takenAt: epoch,
                 distanceMetres: 400
             )
@@ -246,7 +244,6 @@ final class ViabilityTests: XCTestCase {
                         photoLocalIdentifier: "r\(day)-\(index)",
                         species: Fixture.palette[index % Fixture.palette.count],
                         confidence: 0.9,
-                        coordinate: nil,
                         takenAt: epoch,
                         distanceMetres: 400
                     )
@@ -365,7 +362,6 @@ final class ViabilityTests: XCTestCase {
                 photoLocalIdentifier: "\(tag)-\(index)",
                 species: Fixture.palette[index % Fixture.palette.count],
                 confidence: 0.9,
-                coordinate: nil,
                 takenAt: epoch,
                 distanceMetres: 400
             )

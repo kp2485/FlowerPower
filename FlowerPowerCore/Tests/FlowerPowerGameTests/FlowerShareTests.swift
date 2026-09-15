@@ -4,11 +4,9 @@ import FlowerPowerCore
 
 /// Flowers crossing between people.
 ///
-/// Two halves worth testing for different reasons. The privacy half, because
-/// a photograph's coordinate is where a person was standing and the failure
-/// mode is telling a group chat where somebody lives. The untrusted-input
-/// half, because a `.flower` file arrives from outside the app and nothing
-/// about it is guaranteed.
+/// Worth testing because a `.flower` file arrives from outside the app and
+/// nothing about it is guaranteed: it may be truncated, hand-edited, or built
+/// to be hostile.
 final class FlowerShareTests: XCTestCase {
 
     private let epoch = Date(timeIntervalSince1970: 1_700_000_000)
@@ -17,8 +15,6 @@ final class FlowerShareTests: XCTestCase {
     private func share(
         speciesID: String? = "white_clover",
         confidence: Double = 0.9,
-        latitude: Double? = nil,
-        longitude: Double? = nil,
         sharedBy: String? = "Alex",
         note: String? = nil
     ) -> FlowerShare {
@@ -28,8 +24,6 @@ final class FlowerShareTests: XCTestCase {
             takenAt: epoch,
             sharedBy: sharedBy,
             note: note,
-            latitude: latitude,
-            longitude: longitude,
             imageData: image
         )
     }
@@ -83,47 +77,33 @@ final class FlowerShareTests: XCTestCase {
         XCTAssertThrowsError(try FlowerShare.decoded(from: huge.encoded()))
     }
 
-    // MARK: - Location
-
-    /// The default, and the one that matters most.
-    func testLocationIsNotSharedUnlessAsked() {
-        let point = GeoPoint(latitude: 51.507_351, longitude: -0.127_758)
-        XCTAssertNil(LocationSharing.none.apply(to: point))
-    }
-
-    func testApproximateLocationIsRoundedToAboutAKilometre() throws {
-        let home = GeoPoint(latitude: 51.507_351, longitude: -0.127_758)
-        let rounded = try XCTUnwrap(LocationSharing.approximate.apply(to: home))
-
-        XCTAssertNotEqual(rounded.latitude, home.latitude)
-        XCTAssertEqual(rounded.latitude, 51.51, accuracy: 0.0001)
-        XCTAssertEqual(rounded.longitude, -0.13, accuracy: 0.0001)
-
-        // Roughly a kilometre of slop, and never more than a couple.
-        XCTAssertLessThan(rounded.distance(to: home), 2_000)
-    }
-
-    /// Two photographs taken in the same street must round to the same point,
-    /// or the rounding tells you more than it appears to.
-    func testNearbyPointsRoundTogether() throws {
-        let first = try XCTUnwrap(LocationSharing.approximate.apply(
-            to: GeoPoint(latitude: 51.5071, longitude: -0.1277)
-        ))
-        let second = try XCTUnwrap(LocationSharing.approximate.apply(
-            to: GeoPoint(latitude: 51.5073, longitude: -0.1279)
-        ))
-        XCTAssertEqual(first, second)
-    }
-
-    func testExactLocationIsPassedThroughUnchanged() {
-        let point = GeoPoint(latitude: 51.507_351, longitude: -0.127_758)
-        XCTAssertEqual(LocationSharing.exact.apply(to: point), point)
-    }
-
-    func testNoLocationToShareStaysNoLocation() {
-        for setting in LocationSharing.allCases {
-            XCTAssertNil(setting.apply(to: nil))
+    /// A `.flower` file sits in a message thread for ever, so one written by a
+    /// build that carried `latitude` and `longitude` will still be tapped years
+    /// from now. It must open, and open as the flower it is. The format version
+    /// is deliberately not bumped for this: the synthesised decoder ignores keys
+    /// it does not know, so a flower from either build reads in the other, and
+    /// refusing it over a field nobody needs would throw away a gift.
+    func testAShareCarryingTheOldLocationKeysStillOpens() throws {
+        let fixture = """
+        {
+          "version": 1,
+          "id": "0F1B7C1E-0000-0000-0000-00000000ABCD",
+          "speciesID": "white_clover",
+          "confidence": 0.9,
+          "takenAt": "2023-11-14T22:13:20Z",
+          "sharedBy": "Alex",
+          "latitude": 51.507351,
+          "longitude": -0.127758,
+          "imageData": "\(image.base64EncodedString())"
         }
+        """
+
+        let restored = try FlowerShare.decoded(from: Data(fixture.utf8))
+
+        XCTAssertEqual(restored.id, "0F1B7C1E-0000-0000-0000-00000000ABCD")
+        XCTAssertEqual(restored.speciesID, "white_clover")
+        XCTAssertEqual(restored.sharedBy, "Alex")
+        XCTAssertEqual(restored.imageData, image)
     }
 
     // MARK: - Untrusted input
@@ -153,16 +133,6 @@ final class FlowerShareTests: XCTestCase {
         XCTAssertNil(validated.speciesID)
         XCTAssertNil(validated.species)
         XCTAssertEqual(validated.displayName, "An unidentified flower")
-    }
-
-    func testACoordinateOffTheGlobeIsDropped() {
-        XCTAssertNil(share(latitude: 999, longitude: 0).validated().coordinate)
-        XCTAssertNil(share(latitude: 0, longitude: 500).validated().coordinate)
-        XCTAssertNil(share(latitude: .nan, longitude: .nan).validated().coordinate)
-    }
-
-    func testHalfACoordinateIsNoCoordinate() {
-        XCTAssertNil(share(latitude: 51.5, longitude: nil).validated().coordinate)
     }
 
     /// Text from another person lands in a label. It should not be able to

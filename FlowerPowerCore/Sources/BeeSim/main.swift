@@ -167,7 +167,6 @@ func stockPatches(_ count: Int, tag: String) {
                 photoLocalIdentifier: "\(tag)-\(index)",
                 species: palette[index % palette.count],
                 confidence: 0.9,
-                coordinate: nil,
                 takenAt: start,
                 sharedBy: "a friend",
                 distanceMetres: options.distance
@@ -177,7 +176,6 @@ func stockPatches(_ count: Int, tag: String) {
                 photoLocalIdentifier: "\(tag)-\(index)",
                 species: palette[index % palette.count],
                 confidence: 0.9,
-                coordinate: nil,
                 takenAt: start,
                 distanceMetres: options.distance
             )

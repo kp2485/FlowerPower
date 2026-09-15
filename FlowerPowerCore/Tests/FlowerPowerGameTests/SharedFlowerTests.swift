@@ -14,10 +14,7 @@ final class SharedFlowerTests: XCTestCase {
     ) -> GameStore {
         GameStore(
             simulation: Simulation.newGame(
-                at: HiveLocation(
-                    coordinate: GeoPoint(latitude: 51.5072, longitude: -0.1276),
-                    type: .livingTreeCavity
-                ),
+                at: HiveLocation(type: .livingTreeCavity),
                 startingAt: epoch,
                 seed: 77
             ),
@@ -28,9 +25,7 @@ final class SharedFlowerTests: XCTestCase {
 
     private func incoming(
         id: String = UUID().uuidString,
-        speciesID: String? = "white_clover",
-        latitude: Double? = nil,
-        longitude: Double? = nil
+        speciesID: String? = "white_clover"
     ) -> FlowerShare {
         FlowerShare(
             id: id,
@@ -38,8 +33,6 @@ final class SharedFlowerTests: XCTestCase {
             confidence: 0.9,
             takenAt: epoch,
             sharedBy: "Alex",
-            latitude: latitude,
-            longitude: longitude,
             imageData: image
         )
     }
@@ -110,7 +103,6 @@ final class SharedFlowerTests: XCTestCase {
             localIdentifier: "mine",
             species: FlowerCatalogue.species(withID: "white_clover"),
             confidence: 0.9,
-            coordinate: nil,
             takenAt: epoch
         )
         store.importShared(incoming(id: "theirs"))
@@ -140,66 +132,37 @@ final class SharedFlowerTests: XCTestCase {
         )
     }
 
-    /// Without a coordinate the bees fly a nominal distance rather than
-    /// refusing to work it, which is what keeps location optional everywhere.
-    func testAFlowerSharedWithoutALocationIsStillWorkable() async throws {
+    /// A received flower is a flower the recipient's bees can work: it stands
+    /// at the nominal distance, the same as one they photographed themselves.
+    func testAnImportedFlowerIsWithinForagingRange() async throws {
         let store = makeStore()
         store.importShared(incoming())
 
         let patch = try XCTUnwrap(store.snapshot.patches.first)
-        XCTAssertNil(patch.coordinate)
         XCTAssertTrue(patch.isWithinRange)
         XCTAssertEqual(patch.distanceMetres, FlowerPatch.nominalDistance, accuracy: 1)
     }
 
-    func testAFlowerSharedWithALocationIsPlacedRelativeToYourOwnHive() async throws {
-        let store = makeStore()
-        // About a kilometre north of the hive.
-        store.importShared(incoming(latitude: 51.5162, longitude: -0.1276))
-
-        let patch = try XCTUnwrap(store.snapshot.patches.first)
-        XCTAssertNotNil(patch.coordinate)
-        XCTAssertEqual(patch.distanceMetres, 1_000, accuracy: 200)
-    }
-
     // MARK: - Sending
 
-    func testSharingAPatchDoesNotIncludeLocationByDefault() async throws {
+    /// A share says what the flower is. Everything on it is about the plant —
+    /// the species, the confidence, when it was photographed, who to thank —
+    /// and sending one to a group chat says nothing about where the sender was.
+    func testASharePackagesTheFlowerAndNothingAboutThePlace() async throws {
         let store = makeStore()
         let id = store.recordPhotograph(
             localIdentifier: "mine",
             species: FlowerCatalogue.species(withID: "heather"),
             confidence: 0.8,
-            coordinate: GeoPoint(latitude: 51.507_351, longitude: -0.127_758),
             takenAt: epoch
         )
 
         let share = try XCTUnwrap(store.share(patch: id, imageData: image, from: "Kyle"))
 
-        XCTAssertNil(
-            share.coordinate,
-            "a photograph's coordinate is where a person was standing; it does "
-            + "not travel unless they ask for it"
-        )
         XCTAssertEqual(share.speciesID, "heather")
         XCTAssertEqual(share.sharedBy, "Kyle")
-    }
-
-    func testSharingCanIncludeAnApproximateLocation() async throws {
-        let store = makeStore()
-        let exact = GeoPoint(latitude: 51.507_351, longitude: -0.127_758)
-        let id = store.recordPhotograph(
-            localIdentifier: "mine", species: nil, confidence: 0,
-            coordinate: exact, takenAt: epoch
-        )
-
-        let share = try XCTUnwrap(store.share(
-            patch: id, imageData: image, from: "Kyle", location: .approximate
-        ))
-        let sent = try XCTUnwrap(share.coordinate)
-
-        XCTAssertNotEqual(sent, exact)
-        XCTAssertLessThan(sent.distance(to: exact), 2_000)
+        XCTAssertEqual(share.takenAt, epoch)
+        XCTAssertEqual(share.imageData, image)
     }
 
     func testSharingAPatchThatIsNotThereGivesNothing() async {
@@ -216,7 +179,6 @@ final class SharedFlowerTests: XCTestCase {
             localIdentifier: "mine",
             species: FlowerCatalogue.species(withID: "bramble"),
             confidence: 0.75,
-            coordinate: nil,
             takenAt: epoch
         )
 

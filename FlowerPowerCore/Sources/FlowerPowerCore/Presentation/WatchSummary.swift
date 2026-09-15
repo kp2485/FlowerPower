@@ -3,7 +3,7 @@
 //  FlowerPowerCore
 //
 //  The watch has a different job from the phone. The phone is where you
-//  photograph flowers, browse the map and study the comb. The watch is where
+//  photograph flowers, browse the garden and study the comb. The watch is where
 //  you find out, in the second and a half you look at it, whether the colony
 //  needs you.
 //

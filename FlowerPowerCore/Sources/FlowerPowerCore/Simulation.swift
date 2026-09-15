@@ -52,9 +52,9 @@ public struct Simulation: Codable, Equatable, Sendable {
     ///   When a colony dies the player keeps their garden. Those are
     ///   photographs they went out and took, of real places, and confiscating
     ///   them because a queen failed to mate would punish the wrong thing
-    ///   entirely — it would also delete the record the map and the garden are
-    ///   built from. The flowers are still growing where they always were; it
-    ///   is the bees that are gone.
+    ///   entirely — it would also delete the record the garden is built from.
+    ///   The flowers are still growing where they always were; it is the bees
+    ///   that are gone.
     ///
     ///   They are re-registered rather than copied, so they take fresh
     ///   identifiers from this simulation's generator. Reusing the old ones
@@ -87,12 +87,10 @@ public struct Simulation: Codable, Equatable, Sendable {
                 photoLocalIdentifier: patch.photoLocalIdentifier,
                 species: patch.species,
                 confidence: patch.identificationConfidence,
-                coordinate: patch.coordinate,
                 takenAt: patch.discoveredAt,
-                // Coordinates are resolved against the *new* hive, which may
-                // be somewhere else entirely; only fall back to the stored
-                // distance when there is nothing to resolve against.
-                distanceMetres: patch.coordinate == nil ? patch.distanceMetres : nil
+                // The flowers are where they were; it is the colony that has
+                // started again, so each patch keeps the distance it had.
+                distanceMetres: patch.distanceMetres
             )
         }
 
@@ -228,36 +226,26 @@ public struct Simulation: Codable, Equatable, Sendable {
 
     // MARK: - Player actions
 
-    /// Registers a photographed flower as a new forage patch. Distance is
-    /// resolved against the hive if both have coordinates.
-    /// - Parameter distanceMetres: overrides the distance that would otherwise
-    ///   be derived from the coordinates. Needed when a photo carries no
-    ///   location — the player can still tell us roughly how far it was.
+    /// Registers a photographed flower as a new forage patch.
+    ///
+    /// - Parameter distanceMetres: how far the bees must fly. Left off, the
+    ///   patch stands at `FlowerPatch.nominalDistance`: the game knows what was
+    ///   photographed, not where, and a middling flight is the honest assumption
+    ///   rather than one dressed up as a measurement.
     @discardableResult
     public mutating func registerPhotograph(
         photoLocalIdentifier: String,
         species: FlowerSpecies?,
         confidence: Double,
-        coordinate: GeoPoint?,
         takenAt: Date,
         distanceMetres: Double? = nil
     ) -> FlowerPatch {
-        let distance: Double
-        if let distanceMetres {
-            distance = distanceMetres
-        } else if let coordinate, let hiveCoordinate = world.hive.location.coordinate {
-            distance = coordinate.distance(to: hiveCoordinate)
-        } else {
-            distance = FlowerPatch.nominalDistance
-        }
-
         let patch = FlowerPatch(
             id: ids.next(),
             photoLocalIdentifier: photoLocalIdentifier,
             species: species,
             identificationConfidence: confidence,
-            coordinate: coordinate,
-            distanceMetres: distance,
+            distanceMetres: distanceMetres ?? FlowerPatch.nominalDistance,
             discoveredAt: takenAt,
             registeredOnDay: clock.day
         )
@@ -280,10 +268,9 @@ public struct Simulation: Codable, Equatable, Sendable {
     ///     same one twice does nothing and returns `nil`. A share arrives in a
     ///     message that stays in the thread for ever, so the tap that imports
     ///     it can happen any number of times.
-    ///   - distanceMetres: how far the recipient's bees must fly. Shares
-    ///     usually carry no coordinate — see `FlowerShare` on why sending one
-    ///     is a privacy decision — so this is normally the nominal distance
-    ///     rather than anything derived from where the photograph was taken.
+    ///   - distanceMetres: how far the recipient's bees must fly. A share says
+    ///     what the flower is and nothing about where it was, so this is
+    ///     normally left off and the patch stands at the nominal distance.
     /// - Returns: the new patch, or `nil` if this flower was already imported.
     @discardableResult
     public mutating func importSharedFlower(
@@ -291,29 +278,18 @@ public struct Simulation: Codable, Equatable, Sendable {
         photoLocalIdentifier: String,
         species: FlowerSpecies?,
         confidence: Double,
-        coordinate: GeoPoint?,
         takenAt: Date,
         sharedBy: String?,
         distanceMetres: Double? = nil
     ) -> FlowerPatch? {
         guard !world.importedShares.contains(shareID) else { return nil }
 
-        let distance: Double
-        if let distanceMetres {
-            distance = distanceMetres
-        } else if let coordinate, let hiveCoordinate = world.hive.location.coordinate {
-            distance = coordinate.distance(to: hiveCoordinate)
-        } else {
-            distance = FlowerPatch.nominalDistance
-        }
-
         let patch = FlowerPatch(
             id: ids.next(),
             photoLocalIdentifier: photoLocalIdentifier,
             species: species,
             identificationConfidence: confidence,
-            coordinate: coordinate,
-            distanceMetres: distance,
+            distanceMetres: distanceMetres ?? FlowerPatch.nominalDistance,
             discoveredAt: takenAt,
             registeredOnDay: clock.day,
             origin: .shared,
@@ -352,7 +328,6 @@ public struct Simulation: Codable, Equatable, Sendable {
             photoLocalIdentifier: existing.photoLocalIdentifier,
             species: species,
             identificationConfidence: confidence,
-            coordinate: existing.coordinate,
             distanceMetres: existing.distanceMetres,
             discoveredAt: existing.discoveredAt
         )
@@ -360,24 +335,6 @@ public struct Simulation: Codable, Equatable, Sendable {
         replacement.remainingPollen = max(0, replacement.pollenCapacity - workedPollen)
 
         world.patches[index] = replacement
-    }
-
-    /// Corrects a patch's location after the fact — when a photo carried no
-    /// EXIF, or the player pins it on the map themselves.
-    public mutating func setPatchLocation(
-        _ id: EntityID,
-        coordinate: GeoPoint?,
-        distanceMetres: Double? = nil
-    ) {
-        guard let index = world.patches.firstIndex(where: { $0.id == id }) else { return }
-
-        world.patches[index].coordinate = coordinate
-
-        if let distanceMetres {
-            world.patches[index].distanceMetres = max(0, distanceMetres)
-        } else if let coordinate, let hiveCoordinate = world.hive.location.coordinate {
-            world.patches[index].distanceMetres = coordinate.distance(to: hiveCoordinate)
-        }
     }
 
     /// Pins a bee to a job, as the design doc's job sliders require.
@@ -450,14 +407,6 @@ public struct Simulation: Codable, Equatable, Sendable {
         world.entranceSealed = false
         world.posture = .instinct
         world.postureUntilDay = nil
-
-        // Distances to every known patch change with the hive.
-        for index in world.patches.indices {
-            if let patchCoordinate = world.patches[index].coordinate,
-               let hiveCoordinate = location.coordinate {
-                world.patches[index].distanceMetres = patchCoordinate.distance(to: hiveCoordinate)
-            }
-        }
 
         world.almanac.chronicle(
             [.absconded(beesLost: lost)], day: clock.day,

@@ -78,7 +78,6 @@ enum Fixture {
                 photoLocalIdentifier: "photo-\(index)",
                 species: clover,
                 confidence: 0.9,
-                coordinate: nil,
                 takenAt: epoch
             )
             simulation.setDistance(distance, forPatchAt: index)
@@ -95,8 +94,8 @@ enum Fixture {
 
 extension Simulation {
 
-    /// Test hook: patches registered without coordinates default to the nominal
-    /// distance, and several tests need to control it precisely.
+    /// Test hook: a registered patch stands at the nominal distance, and
+    /// several tests need to control it precisely.
     mutating func setDistance(_ metres: Double, forPatchAt index: Int) {
         guard world.patches.indices.contains(index) else { return }
         world.patches[index].distanceMetres = metres

@@ -247,10 +247,7 @@ extension SaveArchive {
     public static func preview(daysToRun: Int = 45) -> SaveArchive {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         var simulation = Simulation.newGame(
-            at: HiveLocation(
-                coordinate: GeoPoint(latitude: 51.5072, longitude: -0.1276),
-                type: .livingTreeCavity
-            ),
+            at: HiveLocation(type: .livingTreeCavity),
             startingAt: start,
             seed: 42
         )
@@ -259,7 +256,6 @@ extension SaveArchive {
                 photoLocalIdentifier: "preview-\(index)",
                 species: FlowerCatalogue.whiteClover,
                 confidence: 0.8,
-                coordinate: nil,
                 takenAt: start
             )
         }

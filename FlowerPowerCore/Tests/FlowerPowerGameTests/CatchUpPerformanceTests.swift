@@ -23,10 +23,7 @@ final class CatchUpPerformanceTests: XCTestCase {
 
     private func colony(patches: Int = 8) -> Simulation {
         var simulation = Simulation.newGame(
-            at: HiveLocation(
-                coordinate: GeoPoint(latitude: 51.5072, longitude: -0.1276),
-                type: .livingTreeCavity
-            ),
+            at: HiveLocation(type: .livingTreeCavity),
             startingAt: epoch,
             seed: 31
         )
@@ -36,8 +33,6 @@ final class CatchUpPerformanceTests: XCTestCase {
                 photoLocalIdentifier: "bench-\(index)",
                 species: species[index % species.count],
                 confidence: 0.8,
-                coordinate: GeoPoint(latitude: 51.507 + Double(index) * 0.001,
-                                     longitude: -0.127),
                 takenAt: epoch
             )
         }

@@ -85,7 +85,6 @@ final class ForagingTests: XCTestCase {
             photoLocalIdentifier: "late",
             species: nil,
             confidence: 0,
-            coordinate: nil,
             takenAt: epoch
         )
         let before = patch.nectarCapacity
@@ -130,36 +129,21 @@ final class ForagingTests: XCTestCase {
         XCTAssertEqual(outOfRange.forageQuality(onDay: 0, config: .standard), 0)
     }
 
-    func testHiveRelocationRecomputesPatchDistances() {
-        var simulation = Simulation.newGame(
-            at: HiveLocation(coordinate: GeoPoint(latitude: 51.50, longitude: -0.12), type: .nestbox),
-            startingAt: epoch
-        )
-        simulation.registerPhotograph(
+    /// A registered patch stands at the nominal distance. It is the one number
+    /// every foraging cost is scaled against, so a change to it would move the
+    /// whole balance and ought to be deliberate.
+    func testARegisteredPatchStandsAtTheNominalDistance() {
+        var simulation = Fixture.barrenSimulation()
+        let patch = simulation.registerPhotograph(
             photoLocalIdentifier: "p",
             species: Fixture.clover,
             confidence: 1,
-            coordinate: GeoPoint(latitude: 51.51, longitude: -0.12),
             takenAt: epoch
         )
-        let originalDistance = simulation.patches[0].distanceMetres
-        XCTAssertGreaterThan(originalDistance, 500)
 
-        // Move the hive right next to the flowers.
-        simulation.relocate(to: HiveLocation(
-            coordinate: GeoPoint(latitude: 51.51, longitude: -0.12),
-            type: .nestbox
-        ))
-
-        XCTAssertLessThan(simulation.patches[0].distanceMetres, 50)
-    }
-
-    func testGeoDistanceIsRoughlyCorrect() {
-        // One degree of latitude is about 111 km.
-        let a = GeoPoint(latitude: 0, longitude: 0)
-        let b = GeoPoint(latitude: 1, longitude: 0)
-        XCTAssertEqual(a.distance(to: b), 111_195, accuracy: 500)
-        XCTAssertEqual(a.distance(to: a), 0, accuracy: 0.001)
+        XCTAssertEqual(patch.distanceMetres, FlowerPatch.nominalDistance)
+        XCTAssertEqual(FlowerPatch.nominalDistance, 800)
+        XCTAssertTrue(patch.isWithinRange)
     }
 
     // MARK: - The waggle dance
@@ -175,11 +159,11 @@ final class ForagingTests: XCTestCase {
 
         simulation.registerPhotograph(
             photoLocalIdentifier: "near", species: Fixture.clover,
-            confidence: 1.0, coordinate: nil, takenAt: epoch
+            confidence: 1.0, takenAt: epoch
         )
         simulation.registerPhotograph(
             photoLocalIdentifier: "far", species: Fixture.clover,
-            confidence: 1.0, coordinate: nil, takenAt: epoch
+            confidence: 1.0, takenAt: epoch
         )
         simulation.setDistance(150, forPatchAt: 0)
         simulation.setDistance(5_000, forPatchAt: 1)
@@ -227,11 +211,11 @@ final class ForagingTests: XCTestCase {
 
         simulation.registerPhotograph(
             photoLocalIdentifier: "rich", species: Fixture.heather,
-            confidence: 1.0, coordinate: nil, takenAt: epoch
+            confidence: 1.0, takenAt: epoch
         )
         simulation.registerPhotograph(
             photoLocalIdentifier: "plain", species: Fixture.clover,
-            confidence: 1.0, coordinate: nil, takenAt: epoch
+            confidence: 1.0, takenAt: epoch
         )
         simulation.setDistance(400, forPatchAt: 0)
         simulation.setDistance(400, forPatchAt: 1)
@@ -266,7 +250,7 @@ final class ForagingTests: XCTestCase {
         var simulation = Fixture.barrenSimulation()
         simulation.registerPhotograph(
             photoLocalIdentifier: "crocus", species: Fixture.crocus,
-            confidence: 1, coordinate: nil, takenAt: epoch
+            confidence: 1, takenAt: epoch
         )
         simulation.setDistance(200, forPatchAt: 0)
 

@@ -173,9 +173,6 @@ public struct StoresSummary: Codable, Equatable, Sendable {
 
 public struct NestSummary: Codable, Equatable, Sendable {
     public let siteType: HiveLocationType
-    /// Where the hive stands, when the player has placed it. The map needs this
-    /// to centre itself and to draw the foraging range.
-    public let coordinate: GeoPoint?
     public let builtCells: Int
     public let capacity: Int
     public let freeCells: Int
@@ -242,10 +239,9 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
     public let speciesName: String
     public let isIdentified: Bool
     public let rarity: FlowerRarity
-    public let coordinate: GeoPoint?
     public let distanceMetres: Double
     /// Whether the bees can work it *right now*: in season, still there, and
-    /// not stripped. This is the flag the garden and the map colour by.
+    /// not stripped. This is the flag the garden colours by.
     public let isInBloom: Bool
     public let isWithinRange: Bool
     /// 0...1 of its standing capacity.
@@ -273,7 +269,7 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
 
     public init(
         id: EntityID, photoLocalIdentifier: String, speciesName: String,
-        isIdentified: Bool, rarity: FlowerRarity, coordinate: GeoPoint?,
+        isIdentified: Bool, rarity: FlowerRarity,
         distanceMetres: Double, isInBloom: Bool, isWithinRange: Bool,
         remainingFraction: Double, foragersWorkingIt: Int, discoveredAt: Date,
         vigour: Double, origin: PatchOrigin, sharedBy: String?,
@@ -284,7 +280,6 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
         self.speciesName = speciesName
         self.isIdentified = isIdentified
         self.rarity = rarity
-        self.coordinate = coordinate
         self.distanceMetres = distanceMetres
         self.isInBloom = isInBloom
         self.isWithinRange = isWithinRange
@@ -526,7 +521,6 @@ extension Simulation {
         let hive = world.hive
         return NestSummary(
             siteType: hive.location.type,
-            coordinate: hive.location.coordinate,
             builtCells: hive.comb.builtCells,
             capacity: hive.comb.capacity,
             freeCells: hive.freeCells,
@@ -595,7 +589,6 @@ extension Simulation {
                 speciesName: patch.resolvedSpecies.commonName,
                 isIdentified: patch.isIdentified,
                 rarity: patch.resolvedSpecies.rarity,
-                coordinate: patch.coordinate,
                 distanceMetres: patch.distanceMetres,
                 isInBloom: patch.isInBloom(during: season) && vigour > 0,
                 isWithinRange: patch.isWithinRange,
