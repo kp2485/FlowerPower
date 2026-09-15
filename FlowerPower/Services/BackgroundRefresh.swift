@@ -61,9 +61,11 @@ enum BackgroundRefresh {
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: interval)
 
-        do {
-            try BGTaskScheduler.shared.submit(request)
-        } catch {
+        // iOS 27 replaced the throwing `submit(_:)` with this, which reports
+        // errors it could not before. The handler is called "on an arbitrary
+        // queue", hence `@Sendable` — see the working rule in PLAN.md.
+        BGTaskScheduler.shared.submitTaskRequest(request) { @Sendable error in
+            guard let error else { return }
             // Submission fails in the simulator and when the player has
             // background refresh switched off. Neither is worth surfacing:
             // the game is completely playable without this.

@@ -141,10 +141,11 @@ final class HiveHum {
         }
 
         engine.attach(node)
-        engine.connect(node, to: engine.mainMixerNode, format: format)
         source = node
 
         do {
+            // Throws as of iOS 27, which deprecated the silent `connect`.
+            try engine.connectNode(node, to: engine.mainMixerNode, format: format)
             try AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true)
             try engine.start()
