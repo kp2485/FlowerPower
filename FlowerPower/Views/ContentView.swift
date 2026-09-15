@@ -2,11 +2,12 @@
 //  ContentView.swift
 //  FlowerPower
 //
-//  Three places, matching the three things a player does: check on the colony,
-//  look inside the nest, and go photograph more flowers for it.
+//  Four places, matching the four things a player does: check on the colony,
+//  look inside the nest, look at the ground around it, and go photograph more
+//  flowers for it.
 //
 //  Plus one that is not a tab. When the colony is gone there is nothing to
-//  look at in any of the three, so the whole interface gives way to choosing
+//  look at in any of the four, so the whole interface gives way to choosing
 //  where the next swarm settles. A dead colony used to leave the player on a
 //  dashboard whose numbers had stopped moving, with no explanation and no way
 //  to start again.
@@ -42,7 +43,7 @@ struct ContentView: View {
     @AppStorage("hiveHum") private var humEnabled = false
 
     enum Tab: Hashable {
-        case colony, nest, garden
+        case colony, nest, world, garden
     }
 
     var body: some View {
@@ -166,6 +167,16 @@ struct ContentView: View {
                 .tabItem { Label("Nest", systemImage: "hexagon.fill") }
                 .tag(Tab.nest)
 
+            // Between the nest and the garden, because that is where it sits
+            // in the game: the nest is the inside, the world is the outside,
+            // and the garden is the record of what has been carried between
+            // them. The symbol is a cluster of cells rather than the Nest's
+            // single filled hexagon — the same shape seen from above, and a
+            // great deal more of it.
+            WorldView(onPhotograph: { isCapturing = true })
+                .tabItem { Label("World", systemImage: "circle.hexagongrid.fill") }
+                .tag(Tab.world)
+
             GardenView(onPhotograph: { isCapturing = true })
                 .tabItem { Label("Garden", systemImage: "photo.on.rectangle.angled") }
                 .tag(Tab.garden)
@@ -244,7 +255,7 @@ struct ContentView: View {
 /// The way into Settings, placed by each tab in its own navigation bar next
 /// to that tab's own action, so the two cannot land on top of each other.
 ///
-/// All three carry the Settings tip. TipKit shows a tip at one anchor at a
+/// All four carry the Settings tip. TipKit shows a tip at one anchor at a
 /// time, and the rule on `SettingsTip` still holds it back until there is a
 /// flower in the garden.
 struct SettingsButton: View {

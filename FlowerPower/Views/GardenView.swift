@@ -270,7 +270,10 @@ struct PhotoThumbnail: View {
 
 // MARK: - Detail and sharing
 
-private struct FlowerDetailView: View {
+/// One flower, at length. Not private: the World map opens the same sheet for
+/// the same patch, and a flower tapped on the map and a flower tapped in the
+/// garden should not be two different descriptions of it.
+struct FlowerDetailView: View {
 
     let patch: PatchSummary
     @Environment(\.dismiss) private var dismiss
@@ -383,6 +386,27 @@ private struct PatchStateCard: View {
 
             LabeledContent("Bees working it", value: "\(patch.foragersWorkingIt)")
                 .font(.subheadline)
+
+            // Where it stands. Distance was taken off this screen the day
+            // location came out of the app, and rightly: every patch sat at
+            // the same nominal 800 m, so the number said nothing. It says
+            // something again — a flower in the first ring is worked at a
+            // distance efficiency of 0.89 against 0.67, and the player can
+            // see which of their flowers are the close ones.
+            if let cell = patch.cell {
+                let ring = HexCoordinate.origin.distance(to: cell)
+                let metres = Int(Double(ring) * HexCoordinate.cellMetres)
+
+                Label(
+                    "In the garden · \(metres) m from the nest, ring \(ring)",
+                    systemImage: "mappin.and.ellipse"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                // The middle dot is a typographic join, not a word.
+                .accessibilityLabel("In the garden, \(metres) metres from the nest, ring \(ring)")
+            }
 
             if !patch.isInBloom {
                 Label("Not in bloom this season", systemImage: "calendar.badge.exclamationmark")

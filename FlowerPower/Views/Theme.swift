@@ -77,6 +77,36 @@ enum Theme {
         }
     }
 
+    /// The seven kinds of country, for the World map.
+    ///
+    /// In the same family as the season bands above and for the same reason:
+    /// these are the ground, and the things that matter — a flower in its
+    /// cell, the nest, the wax outline of a plantable cell — are drawn on top
+    /// of them. Anything saturated enough to be pretty on its own would drown
+    /// the data. They are also kept far apart from one another in hue rather
+    /// than in brightness, so that the map still separates for a player who
+    /// cannot tell a green from a red.
+    static func colour(for biome: Biome) -> Color {
+        switch biome {
+        case .meadow: return Color(red: 0.66, green: 0.76, blue: 0.50)
+        case .hedgerow: return Color(red: 0.47, green: 0.63, blue: 0.42)
+        case .woodland: return Color(red: 0.31, green: 0.48, blue: 0.37)
+        case .riverbank: return Color(red: 0.51, green: 0.71, blue: 0.70)
+        // Pale straw rather than gold: a rape field must not be mistaken for
+        // honey, which on this map means something the colony has stored.
+        case .farmland: return Color(red: 0.87, green: 0.81, blue: 0.56)
+        case .village: return Color(red: 0.78, green: 0.56, blue: 0.45)
+        case .heath: return Color(red: 0.64, green: 0.54, blue: 0.68)
+        }
+    }
+
+    /// Ground no bee has been over, and everything past the edge of the world.
+    ///
+    /// The colour of old wax paper: a map that stops rather than a darkness
+    /// that hides something. Nothing is drawn on it, so it is the one colour
+    /// here that is allowed to be plain.
+    static let fog = Color(red: 0.94, green: 0.91, blue: 0.83)
+
     static func colour(for severity: SimEvent.Severity) -> Color {
         switch severity {
         case .critical: return alarm

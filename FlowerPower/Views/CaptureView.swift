@@ -346,6 +346,10 @@ private struct ResultView: View {
     var onCorrect: (FlowerSpecies, Double) -> Void
     var onDone: () -> Void
 
+    /// Only to find out where the flower was planted: the engine chooses the
+    /// cell, and this screen is the one place the player finds out which.
+    @Environment(GameStore.self) private var store
+
     @State private var isNaming = false
     /// What the player has settled on, so the card reflects a correction
     /// immediately rather than waiting for the next snapshot.
@@ -360,6 +364,17 @@ private struct ResultView: View {
                     .frame(maxHeight: 280)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .accessibilityLabel("The photograph you took")
+
+                // Where it went. The flower is already banked by the time this
+                // screen appears, and it is banked *somewhere* now — a cell of
+                // the garden at a real distance, which is the number the
+                // foraging economics are priced in.
+                if let metres = plantedMetres {
+                    Text("Planted in your garden, \(metres) m from the nest.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Planted in your garden, \(metres) metres from the nest.")
+                }
 
                 if let species = corrected ?? result.identification.species {
                     if corrected == nil, let rank = result.identification.rank, rank < .species {
@@ -403,6 +418,23 @@ private struct ResultView: View {
     private func correct(to species: FlowerSpecies, confidence: Double) {
         corrected = species
         onCorrect(species, confidence)
+    }
+
+    /// How far the bees will fly to this one, or nil for a patch with no cell
+    /// — a colony whose save has no terrain, where the line would be a claim
+    /// about a garden that does not exist.
+    private var plantedMetres: Int? {
+        let snapshot = store.snapshot
+        guard let patch = snapshot.patches.first(where: { $0.id == result.patchID }),
+              let cell = patch.cell
+        else { return nil }
+
+        // Through the garden, which is the authority on what a cell is worth;
+        // the cell's own distance from the origin is the same number, and is
+        // the fallback rather than the first answer for that reason.
+        let metres = snapshot.terrain?.garden.first { $0.cell == cell }?.distanceMetres
+            ?? cell.metresFromOrigin
+        return Int(metres)
     }
 }
 

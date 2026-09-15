@@ -104,10 +104,17 @@ final class FlowerPowerUITests: XCTestCase {
 
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 10), "No tab bar appeared.")
-        for tab in ["Colony", "Nest", "Garden"] {
+        for tab in ["Colony", "Nest", "World", "Garden"] {
             XCTAssertTrue(tabBar.buttons[tab].exists, "The \(tab) tab is missing.")
         }
         XCTAssertFalse(tabBar.buttons["Forage"].exists, "The Forage tab was removed with the map.")
+
+        // The World tab draws the generated ground; it must at least select
+        // and stay standing with a colony that has no flowers yet.
+        tabBar.buttons["World"].tap()
+        XCTAssertTrue(tabBar.buttons["World"].isSelected)
+        XCTAssertEqual(app.state, .runningForeground)
+        tabBar.buttons["Colony"].tap()
 
         app.buttons["Photograph a Flower"].tap()
         let choose = app.buttons["Choose a Photo"]

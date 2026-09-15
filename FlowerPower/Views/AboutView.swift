@@ -56,7 +56,7 @@ struct AboutView: View {
             }
 
             Section {
-                Text("The app never asks for or reads your location. Your photographs stay on your device and in your own photo library. Flowers and swarms travel between players as files through the share sheet — there is no server and no account, and nothing leaves the device except the file you hand to somebody.")
+                Text("The app never asks for or reads your location. The country on the World map is generated from a number, not taken from anywhere real — the ground around the nest is invented, and the app has no idea where you are standing. Your photographs stay on your device and in your own photo library. Flowers and swarms travel between players as files through the share sheet — there is no server and no account, and nothing leaves the device except the file you hand to somebody.")
             } header: {
                 Text("Your photographs")
             }
