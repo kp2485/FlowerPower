@@ -109,6 +109,10 @@ enum PhotoLibrary {
 
     /// Saves a freshly captured image and returns its metadata.
     ///
+    /// A photo chosen from the library is not saved again — it is used as it
+    /// is — unless the app cannot read it, which is when `CaptureView` falls
+    /// back to a copy through here. See `CaptureView.libraryPhoto`.
+    ///
     /// - Parameter location: attached explicitly. A photo taken through
     ///   `AVCapture` carries no location of its own — that has to be supplied
     ///   from CoreLocation, and only when the player has granted it.

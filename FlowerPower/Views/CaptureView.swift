@@ -7,8 +7,9 @@
 //
 //  The flow is deliberately forgiving. Identification runs after the shot is
 //  already banked, so a slow classifier never blocks the player, and a flower it
-//  cannot name still feeds the colony. The only thing that stops a capture is
-//  the image plainly not being a flower at all.
+//  cannot name still feeds the colony. Two things stop a capture: the image
+//  plainly not being a flower at all, and a photograph from the library that
+//  is already in the garden.
 //
 
 import SwiftUI
@@ -107,7 +108,7 @@ struct CaptureView: View {
             CameraPicker(
                 onCapture: { image in
                     isUsingCamera = false
-                    Task { @MainActor in await handle(image) }
+                    Task { @MainActor in await handle(image, from: .camera) }
                 },
                 onCancel: { isUsingCamera = false }
             )
@@ -129,8 +130,29 @@ struct CaptureView: View {
 
     // MARK: - Flow
 
+    /// Where a photograph came from, which decides what is recorded for it.
+    private enum Source {
+        /// Just taken: saved to the library, stamped with where the player is.
+        case camera
+        /// Chosen from the library: already there, and already knowing when
+        /// and where it was taken. `nil` if the picker did not say which it
+        /// was, which with the shared library it should.
+        case library(String?)
+    }
+
     @MainActor
     private func handle(_ item: PhotosPickerItem) async {
+        // Before anything slower: a photograph already in the garden is not a
+        // second patch. Every pick used to be saved as a new copy, so the same
+        // photo chosen twice was two patches; now that the original is used,
+        // the second pick can be recognised — and it is, before the model
+        // spends ten seconds identifying it.
+        if let identifier = item.itemIdentifier,
+           store.snapshot.patches.contains(where: { $0.photoLocalIdentifier == identifier }) {
+            stage = .failed("That photograph is already in your garden.")
+            return
+        }
+
         do {
             guard
                 let data = try await item.loadTransferable(type: Data.self),
@@ -139,7 +161,7 @@ struct CaptureView: View {
                 stage = .failed("That image could not be read.")
                 return
             }
-            await handle(image)
+            await handle(image, from: .library(item.itemIdentifier))
         } catch {
             stage = .failed(error.localizedDescription)
         }
@@ -149,7 +171,7 @@ struct CaptureView: View {
     /// library picker. The two differ only in where the pixels came from —
     /// and in whether the photo already knows where it was taken.
     @MainActor
-    private func handle(_ image: UIImage) async {
+    private func handle(_ image: UIImage, from source: Source) async {
         do {
             stage = .identifying(image)
 
@@ -171,10 +193,16 @@ struct CaptureView: View {
                 return
             }
 
-            // Bank the photo — including its location, if the player has
-            // granted it and we have a recent fix.
-            let location = locationProvider.currentLocation
-            let saved = try await PhotoLibrary.save(image, location: location)
+            let saved: PhotoLibrary.PhotoMetadata
+            switch source {
+            case .camera:
+                // Bank the photo — including its location, if the player has
+                // granted it and we have a recent fix.
+                let location = locationProvider.currentLocation
+                saved = try await PhotoLibrary.save(image, location: location)
+            case .library(let identifier):
+                saved = try await libraryPhoto(image, identifier: identifier)
+            }
 
             let patchID = store.recordPhotograph(
                 localIdentifier: saved.localIdentifier,
@@ -196,6 +224,38 @@ struct CaptureView: View {
         } catch {
             stage = .failed(error.localizedDescription)
         }
+    }
+
+    /// A photograph chosen from the library, as it already is: its own date
+    /// and place, and no second copy of it in the camera roll.
+    ///
+    /// This used to save every pick as a new photo stamped with the current
+    /// time and wherever the player was standing, which put a holiday photo's
+    /// flowers beside the hive and a duplicate in the library each time.
+    /// Where a flower is decides how far the bees fly for it, so it is where
+    /// the photograph was taken — even if that turns out to be out of range.
+    @MainActor
+    private func libraryPhoto(
+        _ image: UIImage,
+        identifier: String?
+    ) async throws -> PhotoLibrary.PhotoMetadata {
+        // Reading the original's date and place needs read access, which
+        // nothing asked for until now: the picker itself needs none, and the
+        // camera path only ever wrote.
+        if PhotoLibrary.authorisationStatus == .notDetermined {
+            await PhotoLibrary.requestAccess()
+        }
+
+        if let identifier, let original = PhotoLibrary.metadata(for: identifier) {
+            return original
+        }
+
+        // The original cannot be read — most often because the player gave
+        // limited access, and a photo chosen in the picker is not one of the
+        // photos they shared. A copy is then the only way to show it in the
+        // garden. It carries no location: where the original was taken cannot
+        // be read, and where the player is now is not it.
+        return try await PhotoLibrary.save(image, location: nil)
     }
 }
 
