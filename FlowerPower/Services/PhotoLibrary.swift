@@ -117,12 +117,24 @@ enum PhotoLibrary {
         location: CLLocation?
     ) async throws -> PhotoMetadata {
 
+        // Encoded here, in a format we chose, rather than handing Photos the
+        // `UIImage`. Given an image, Photos writes it back in the format it was
+        // decoded from — and an image that came from a WebP file (anything
+        // saved from the web) cannot be written, because iOS reads WebP but
+        // has no encoder for it. The save failed with PHPhotosErrorDomain 3302
+        // and the flower was never added: the first run on a phone,
+        // 2026-09-15, reproduced in the simulator the same day.
+        guard let data = image.heicData() ?? image.jpegData(compressionQuality: 0.9) else {
+            throw PhotoLibraryError.couldNotSave
+        }
+
         // The change block runs on Photos' own queue, so what it learns comes
         // back in a box rather than by writing to a local.
         let placeholder = Placeholder()
 
         try await PHPhotoLibrary.shared().performChanges {
-            let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
+            let request = PHAssetCreationRequest.forAsset()
+            request.addResource(with: .photo, data: data, options: nil)
             request.location = location
             request.creationDate = Date()
             placeholder.identifier = request.placeholderForCreatedAsset?.localIdentifier
