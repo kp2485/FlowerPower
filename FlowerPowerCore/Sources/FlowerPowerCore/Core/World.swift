@@ -48,6 +48,18 @@ public struct World: Codable, Equatable, Sendable {
     /// The last swarm to leave, kept so the player may go with it.
     public var lastSwarm: DepartedSwarm?
 
+    // MARK: The world outside
+
+    /// The country around the nest, or `nil` for a colony founded before there
+    /// was any.
+    ///
+    /// Optional rather than defaulted so that "this save predates the world"
+    /// is a state the engine can see and act on, which is what
+    /// `Simulation.adoptTerrainIfMissing()` is for. Once it is set the garden
+    /// has cells in it and patches have somewhere to be; while it is nil every
+    /// patch stands at whatever distance it was given, exactly as before.
+    public var terrain: Terrain?
+
     /// Whether the entrance is propolised down for winter.
     public var entranceSealed = false
     /// The player's word on it for this autumn, or nil for instinct.
@@ -117,6 +129,12 @@ public struct World: Codable, Equatable, Sendable {
         ) ?? Milestones()
         history = try container.decodeIfPresent(ColonyHistory.self, forKey: .history)
             ?? ColonyHistory()
+
+        // The world arrived last of all. A save without it opens with no
+        // terrain and is given one on load rather than here, because deriving
+        // a seed needs the colony's random stream and a `World` cannot see it.
+        // See `Simulation.adoptTerrainIfMissing()`.
+        terrain = try container.decodeIfPresent(Terrain.self, forKey: .terrain)
     }
 
     public static let attackHistoryLimit = 40

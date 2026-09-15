@@ -6,11 +6,12 @@
 //
 //  Last in the pipeline, after `LineageSystem`, for the same reason that one
 //  is last: it reads the finished world and the tick's events and writes only
-//  to `world.milestones`. Nothing downstream of it exists, nothing upstream
-//  depends on it, and it touches neither the random stream nor the id
-//  generator — so adding it cannot move the balance baseline by a single
-//  colony. That property is worth more than the feature is, and
-//  `MilestoneTests` asserts it directly.
+//  to `world.milestones` and — since the world around the hive — to
+//  `world.terrain.gardenRings`, which is the garden opening out as it is
+//  earned. Nothing downstream of it exists, nothing upstream depends on it,
+//  and it touches neither the random stream nor the id generator — so adding
+//  it cannot move the balance baseline by a single colony. That property is
+//  worth more than the feature is, and `MilestoneTests` asserts it directly.
 //
 //  It runs after the lineage because two conditions read the record the
 //  lineage system has just written: a supersedure the colony came through, and
@@ -47,7 +48,35 @@ public struct MilestoneSystem: SimulationSystem {
             // true for the next two years still only speaks once.
             if world.milestones.award(milestone, onDay: context.day) {
                 context.emit(.milestone(milestone))
+                Self.openGarden(for: milestone, &world)
             }
+        }
+    }
+
+    /// The one thing a milestone does besides being recorded: it opens the
+    /// garden out.
+    ///
+    /// Ten flowers opens the second ring, ten families the third, exactly as
+    /// `WORLD.md` section 6 asks. It sits here rather than anywhere else
+    /// because here is where "for the first time, ever" is decided, and a ring
+    /// that opened again every time the condition was still true would be no
+    /// reward at all.
+    ///
+    /// It does not break the guarantee the note at the top of this file makes
+    /// and `MilestoneTests` asserts. This touches neither the random stream
+    /// nor the id generator; it widens the set of cells a *future* photograph
+    /// may be planted in, and a photograph is a player action between ticks.
+    /// With no terrain — which is every `beesim` trial run without `--world`,
+    /// and every save not yet migrated — it does nothing whatever.
+    ///
+    /// `unlockRings(upTo:)` never closes a ring, so a garden that has already
+    /// grown past a milestone by filling up is not shrunk by earning it.
+    static func openGarden(for milestone: Milestone, _ world: inout World) {
+        guard world.terrain != nil else { return }
+        switch milestone {
+        case .tenFlowers: world.terrain?.unlockRings(upTo: 2)
+        case .tenFamilies: world.terrain?.unlockRings(upTo: 3)
+        default: break
         }
     }
 

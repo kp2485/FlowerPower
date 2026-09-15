@@ -234,6 +234,20 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
     /// been given them.
     public var sharedBy: String?
 
+    /// Where on the ground this patch stands, when it stands anywhere.
+    ///
+    /// Optional for the same reason as `registeredOnDay` and `storedOrigin`:
+    /// every patch photographed before the world existed was nowhere in
+    /// particular, and a missing cell means exactly that rather than being an
+    /// error. Synthesised `Codable` handles an optional in both directions —
+    /// an old save decodes it as nil, and a save written with one opens in a
+    /// build that has never heard of it.
+    ///
+    /// When a patch has a cell, `distanceMetres` is derived from it and the
+    /// two are kept in step by `Simulation.plant(_:at:)`. When it has none,
+    /// the distance is whatever it was given.
+    public var cell: HexCoordinate?
+
     public var origin: PatchOrigin { storedOrigin ?? .photographed }
     public var isShared: Bool { origin == .shared }
 
@@ -257,7 +271,8 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         registeredOnDay: Int? = nil,
         origin: PatchOrigin = .photographed,
         sharedBy: String? = nil,
-        capacityScale: Double = 1
+        capacityScale: Double = 1,
+        cell: HexCoordinate? = nil
     ) {
         self.id = id
         self.photoLocalIdentifier = photoLocalIdentifier
@@ -268,6 +283,7 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         self.registeredOnDay = registeredOnDay
         self.storedOrigin = origin
         self.sharedBy = sharedBy
+        self.cell = cell
         self.recruitedForagers = 0
 
         let resolved = species ?? .unidentified

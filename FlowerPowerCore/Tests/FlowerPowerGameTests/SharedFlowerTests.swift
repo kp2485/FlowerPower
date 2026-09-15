@@ -132,15 +132,18 @@ final class SharedFlowerTests: XCTestCase {
         )
     }
 
-    /// A received flower is a flower the recipient's bees can work: it stands
-    /// at the nominal distance, the same as one they photographed themselves.
-    func testAnImportedFlowerIsWithinForagingRange() async throws {
+    /// A received flower is a flower the recipient's bees can work, and it is
+    /// planted in the recipient's own garden — the same place one they
+    /// photographed themselves would go. A share says what the flower is and
+    /// nothing about where it was, so where it *is* now is here.
+    func testAnImportedFlowerIsPlantedInTheGarden() async throws {
         let store = makeStore()
         store.importShared(incoming())
 
         let patch = try XCTUnwrap(store.snapshot.patches.first)
         XCTAssertTrue(patch.isWithinRange)
-        XCTAssertEqual(patch.distanceMetres, FlowerPatch.nominalDistance, accuracy: 1)
+        XCTAssertEqual(patch.cell, HexCoordinate.origin.ring(radius: 1).first)
+        XCTAssertEqual(patch.distanceMetres, HexCoordinate.cellMetres, accuracy: 1)
     }
 
     // MARK: - Sending

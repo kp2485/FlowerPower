@@ -136,7 +136,32 @@ public struct GamePersistence: GamePersisting {
     public func load() throws -> Simulation? {
         let url = saveURL
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-        return try Self.decoder().decode(Simulation.self, from: Data(contentsOf: url))
+        return Self.adopted(try Self.decoder().decode(Simulation.self, from: Data(contentsOf: url)))
+    }
+
+    /// Gives a colony saved before the world existed a world to live in.
+    ///
+    /// **Here rather than in `GameStore.load`**, which is the other obvious
+    /// place, because the store is not the only thing that opens a save. The
+    /// widget, the watch's complication, the App Intents and the phone's
+    /// side of the watch link all call `GamePersistence().load()` directly and
+    /// build a snapshot from what comes back — so a migration in the store
+    /// would mean the phone's Colony tab showed a garden at 200 m while the
+    /// complication on the same wrist showed the same colony at 800. This is
+    /// the one door every reader already goes through.
+    ///
+    /// Everything it does is in `Simulation.adoptTerrainIfMissing()`, in the
+    /// engine, where it can be tested without a filesystem. This decides only
+    /// *when*.
+    ///
+    /// The result is not written back here. The next ordinary save records it,
+    /// and until then the world is derived the same way from the same saved
+    /// state every time it is read — so a reader that never writes, like the
+    /// widget, sees exactly what the app sees.
+    static func adopted(_ simulation: Simulation) -> Simulation {
+        var simulation = simulation
+        simulation.adoptTerrainIfMissing()
+        return simulation
     }
 
     public func clear() throws {
@@ -184,7 +209,10 @@ public struct GamePersistence: GamePersisting {
     }
 
     public static func decodeTransfer(_ data: Data) throws -> Simulation {
-        try decoder().decode(Simulation.self, from: data)
+        // Migrated on arrival for the same reason as `load`: a colony that
+        // crosses from an old build on the phone to a new one on the watch
+        // must find the same country on both.
+        adopted(try decoder().decode(Simulation.self, from: data))
     }
 
     /// Writes bytes received from another device straight to the save file.

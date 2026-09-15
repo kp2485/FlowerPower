@@ -129,10 +129,12 @@ final class ForagingTests: XCTestCase {
         XCTAssertEqual(outOfRange.forageQuality(onDay: 0, config: .standard), 0)
     }
 
-    /// A registered patch stands at the nominal distance. It is the one number
-    /// every foraging cost is scaled against, so a change to it would move the
-    /// whole balance and ought to be deliberate.
-    func testARegisteredPatchStandsAtTheNominalDistance() {
+    /// A registered patch is planted in the garden, which is why it is at
+    /// 200 m rather than the nominal 800 every flower stood at before there
+    /// was anywhere for one to be. Distance is the number every foraging cost
+    /// is scaled against, so a change to it moves the whole balance and ought
+    /// to be deliberate; this is where it is made deliberate.
+    func testARegisteredPatchIsPlantedInTheGarden() {
         var simulation = Fixture.barrenSimulation()
         let patch = simulation.registerPhotograph(
             photoLocalIdentifier: "p",
@@ -141,9 +143,28 @@ final class ForagingTests: XCTestCase {
             takenAt: epoch
         )
 
+        XCTAssertEqual(patch.cell, HexCoordinate.origin.ring(radius: 1).first)
+        XCTAssertEqual(patch.distanceMetres, HexCoordinate.cellMetres)
+        XCTAssertEqual(HexCoordinate.cellMetres, 200)
+        XCTAssertTrue(patch.isWithinRange)
+    }
+
+    /// With no world around it — a save from before there was one — a patch
+    /// still stands where every patch in the game always stood.
+    func testAPatchWithNoWorldStandsAtTheNominalDistance() {
+        var simulation = Fixture.barrenSimulation()
+        simulation.mutateWorld { $0.terrain = nil }
+
+        let patch = simulation.registerPhotograph(
+            photoLocalIdentifier: "p",
+            species: Fixture.clover,
+            confidence: 1,
+            takenAt: epoch
+        )
+
+        XCTAssertNil(patch.cell)
         XCTAssertEqual(patch.distanceMetres, FlowerPatch.nominalDistance)
         XCTAssertEqual(FlowerPatch.nominalDistance, 800)
-        XCTAssertTrue(patch.isWithinRange)
     }
 
     // MARK: - The waggle dance

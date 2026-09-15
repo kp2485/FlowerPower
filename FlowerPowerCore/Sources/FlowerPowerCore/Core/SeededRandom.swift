@@ -31,4 +31,18 @@ public struct SeededRandom: RandomNumberGenerator, Codable, Equatable, Sendable 
     public mutating func chance(_ probability: Double) -> Bool {
         unitValue() < probability
     }
+
+    /// A seed derived from where the stream currently stands, without
+    /// disturbing it.
+    ///
+    /// Non-mutating on purpose. It is used to give an old save a world seed on
+    /// load — see `Simulation.adoptTerrainIfMissing()` — and consuming a draw
+    /// to do it would fork the colony's random stream at the moment of
+    /// migration, so a colony would come back from a save having lived a
+    /// different life than the one it was saved from. Taking a copy and
+    /// advancing that costs nothing and changes nothing.
+    public func derivedSeed() -> UInt64 {
+        var copy = self
+        return copy.next()
+    }
 }

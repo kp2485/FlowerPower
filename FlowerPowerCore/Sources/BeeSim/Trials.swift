@@ -128,6 +128,11 @@ struct TrialOutcome {
     var queenDeaths: [DeathCause: Int] = [:]
     var deaths: [DeathCause: Int] = [:]
 
+    /// The ground this colony lived on, when the world was switched on. Nil
+    /// under `--world` off, which is what keeps the report for every run made
+    /// before the world existed byte for byte the report it was.
+    var homeBiome: Biome?
+
     /// Best single explanation for the colony's death, inferred from what
     /// killed the most bees plus the colony-level events.
     var causeOfDeath: String = "survived"
@@ -160,7 +165,9 @@ enum Trials {
         palette: [FlowerSpecies],
         start: Date,
         shared: Bool = false,
-        policy: PlayerPolicy = .instinct
+        policy: PlayerPolicy = .instinct,
+        world: Bool = false,
+        worldSeed: UInt64? = nil
     ) -> [TrialOutcome] {
 
         (0..<trials).map { trial in
@@ -172,6 +179,19 @@ enum Trials {
                 seed: seed
             )
 
+            // `--world-seed` puts every trial on the same countryside, so the
+            // spread between rows is the colony rather than the ground. Left
+            // off, each trial gets the world its own seed implies, which is
+            // what a survival-by-biome table will want.
+            if let worldSeed {
+                simulation.setTerrainSeed(worldSeed)
+            }
+
+            // With the world off, every patch is held at `--distance`, which
+            // is what every measured number in `PLAN.md` was taken at. With it
+            // on, the distance argument is dropped and the flower is planted
+            // in the garden — 200 m in the first ring, 400 in the second —
+            // which is the whole of Phase 1's effect on the balance.
             func stock(_ count: Int, tag: String) {
                 for index in 0..<count {
                     if shared {
@@ -182,7 +202,7 @@ enum Trials {
                             confidence: 0.9,
                             takenAt: start,
                             sharedBy: "a friend",
-                            distanceMetres: distance
+                            distanceMetres: world ? nil : distance
                         )
                     } else {
                         simulation.registerPhotograph(
@@ -190,7 +210,7 @@ enum Trials {
                             species: palette[index % palette.count],
                             confidence: 0.9,
                             takenAt: start,
-                            distanceMetres: distance
+                            distanceMetres: world ? nil : distance
                         )
                     }
                 }
@@ -200,6 +220,7 @@ enum Trials {
 
             var outcome = TrialOutcome()
             outcome.seed = seed
+            if world { outcome.homeBiome = simulation.homeChunk?.biome }
             var layingWorkers = false
             var absconded = false
             var starvedRecently = false
@@ -361,16 +382,21 @@ enum Trials {
     /// One line per colony, for picking one to trace.
     static func list(_ outcomes: [TrialOutcome]) {
         print("")
-        print("  #   seed        outcome          collapsed  season")
-        print("  " + String(repeating: "-", count: 52))
+        let ground = outcomes.contains { $0.homeBiome != nil } ? "     biome" : ""
+        print("  #   seed        outcome          collapsed  season" + ground)
+        print("  " + String(repeating: "-", count: ground.isEmpty ? 52 : 63))
         for (index, outcome) in outcomes.enumerated() {
             let day = outcome.dayOfCollapse.map { "\($0)" } ?? "-"
             let season = outcome.seasonOfCollapse?.rawValue ?? "-"
+            // The ground it lived on, added only when there is one, so a list
+            // printed with the world off is byte for byte the list it was —
+            // trailing spaces included.
+            let tail = outcome.homeBiome.map { pad(season, 11) + $0.rawValue } ?? season
             print("  " + pad("\(index)", 4)
                   + pad("\(outcome.seed)", 12)
                   + pad(outcome.causeOfDeath, 17)
                   + pad(day, 11)
-                  + season)
+                  + tail)
         }
     }
 

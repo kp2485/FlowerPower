@@ -146,9 +146,109 @@ final class GamePersistenceTests: XCTestCase {
         )
         XCTAssertEqual(restored.patches.count, original.patches.count)
         XCTAssertEqual(
-            restored.patches.first?.distanceMetres, FlowerPatch.nominalDistance,
+            restored.patches.first?.distanceMetres,
+            original.patches.first?.distanceMetres,
             "the distance the bees fly comes from the patch, not from a key that is gone"
         )
+    }
+
+    // MARK: - Saves written before the world existed
+
+    /// A colony saved before there was any country around it must open, and
+    /// must be given one on the way through.
+    ///
+    /// Built the same way as the test above — a live colony, with the key an
+    /// older build did not write taken back out — so it stays a real save
+    /// rather than a hand-typed one that drifts. What it proves is the thing
+    /// `WORLD.md` section 9 promises: no old save fails, and the flowers in it
+    /// end up in the garden.
+    func testASaveWrittenBeforeTheWorldOpensAndIsGivenOne() throws {
+        let original = makeSimulation(days: 5)
+        let json = try JSONSerialization.jsonObject(
+            with: GamePersistence.encodeForTransfer(original)
+        )
+        var document = try XCTUnwrap(json as? [String: Any])
+        var world = try XCTUnwrap(document["world"] as? [String: Any])
+
+        world.removeValue(forKey: "terrain")
+        world["patches"] = try XCTUnwrap(world["patches"] as? [[String: Any]]).map {
+            var patch = $0
+            patch.removeValue(forKey: "cell")
+            // Where every flower in the game stood before there was anywhere
+            // for it to be.
+            patch["distanceMetres"] = FlowerPatch.nominalDistance
+            return patch
+        }
+        document["world"] = world
+
+        let older = try JSONSerialization.data(withJSONObject: document)
+
+        // Decoded raw, it is a colony with no world at all — which is what
+        // makes the migration below a migration rather than a no-op.
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let raw = try decoder.decode(Simulation.self, from: older)
+        XCTAssertNil(raw.terrain)
+        XCTAssertNil(raw.patches.first?.cell)
+
+        let restored = try GamePersistence.decodeTransfer(older)
+
+        XCTAssertNotNil(restored.terrain, "an old save was not given a world")
+        XCTAssertEqual(restored.terrain?.gardenRings, 1)
+        XCTAssertEqual(
+            restored.patches.first?.cell,
+            HexCoordinate.origin.ring(radius: 1).first,
+            "the flowers should have been planted, innermost first"
+        )
+        XCTAssertEqual(
+            restored.patches.first?.distanceMetres, 200,
+            "a garden is next to the nest; that is the point of it"
+        )
+    }
+
+    /// Reading the same old save twice must give the same country both times,
+    /// or the widget and the app would disagree about where the colony lives.
+    func testMigrationIsDeterministic() throws {
+        let original = makeSimulation(days: 5)
+        let json = try JSONSerialization.jsonObject(
+            with: GamePersistence.encodeForTransfer(original)
+        )
+        var document = try XCTUnwrap(json as? [String: Any])
+        var world = try XCTUnwrap(document["world"] as? [String: Any])
+        world.removeValue(forKey: "terrain")
+        document["world"] = world
+        let older = try JSONSerialization.data(withJSONObject: document)
+
+        let first = try GamePersistence.decodeTransfer(older)
+        let second = try GamePersistence.decodeTransfer(older)
+        XCTAssertEqual(first, second)
+        XCTAssertNotNil(first.terrain?.seed)
+
+        // And a different colony gets a different countryside, or every old
+        // save in the world would open onto the same village.
+        let otherOriginal = makeSimulation(days: 5, seed: 77)
+        let otherJSON = try JSONSerialization.jsonObject(
+            with: GamePersistence.encodeForTransfer(otherOriginal)
+        )
+        var otherDocument = try XCTUnwrap(otherJSON as? [String: Any])
+        var otherWorld = try XCTUnwrap(otherDocument["world"] as? [String: Any])
+        otherWorld.removeValue(forKey: "terrain")
+        otherDocument["world"] = otherWorld
+        let otherOlder = try JSONSerialization.data(withJSONObject: otherDocument)
+
+        XCTAssertNotEqual(
+            first.terrain?.seed,
+            try GamePersistence.decodeTransfer(otherOlder).terrain?.seed
+        )
+    }
+
+    /// A colony that already has a world is left exactly as it was.
+    func testMigrationLeavesAColonyThatHasAWorldAlone() throws {
+        let original = makeSimulation(days: 3)
+        let restored = try GamePersistence.decodeTransfer(
+            GamePersistence.encodeForTransfer(original)
+        )
+        XCTAssertEqual(restored, original)
     }
 
     // MARK: - Crossing between devices

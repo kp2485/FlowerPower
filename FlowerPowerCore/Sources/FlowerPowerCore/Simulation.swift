@@ -73,8 +73,16 @@ public struct Simulation: Codable, Equatable, Sendable {
         let hive = Hive.newColony(at: location, ids: &ids)
         let weather = Weather.next(after: Weather(), season: .spring, rng: &rng)
 
+        var world = World(hive: hive, weather: weather)
+        // The country the colony wakes up in. Its seed is derived from the
+        // colony's rather than shared with it, so that two colonies given the
+        // same seed find the same ground — which is what makes a `beesim`
+        // trial reproducible — while the colony's own random stream stays
+        // untouched by anything the generator does.
+        world.terrain = Terrain(seed: Self.terrainSeed(from: seed))
+
         var simulation = Simulation(
-            world: World(hive: hive, weather: weather),
+            world: world,
             clock: SimClock(epoch: date),
             config: config,
             seed: seed,
@@ -89,12 +97,25 @@ public struct Simulation: Codable, Equatable, Sendable {
                 confidence: patch.identificationConfidence,
                 takenAt: patch.discoveredAt,
                 // The flowers are where they were; it is the colony that has
-                // started again, so each patch keeps the distance it had.
+                // started again, so each patch keeps the distance it had, and
+                // its cell with it. Phase 3 is where following a swarm starts
+                // meaning the garden is left behind.
+                at: patch.cell,
                 distanceMetres: patch.distanceMetres
             )
         }
 
         return simulation
+    }
+
+    /// The world seed that goes with a colony seed.
+    ///
+    /// Mixed rather than reused, so that the countryside and the colony are
+    /// independent: a change to how the colony draws its randomness must not
+    /// move the village.
+    static func terrainSeed(from seed: UInt64) -> UInt64 {
+        var stream = SeededRandom(seed: seed ^ 0x776F_726C_645F_7365)
+        return stream.next()
     }
 
     // MARK: - The pipeline
@@ -228,30 +249,128 @@ public struct Simulation: Codable, Equatable, Sendable {
 
     /// Registers a photographed flower as a new forage patch.
     ///
-    /// - Parameter distanceMetres: how far the bees must fly. Left off, the
-    ///   patch stands at `FlowerPatch.nominalDistance`: the game knows what was
-    ///   photographed, not where, and a middling flight is the honest assumption
-    ///   rather than one dressed up as a measurement.
+    /// - Parameters:
+    ///   - cell: where in the garden to put it. Left off, and with a world to
+    ///     put it in, the game chooses the first free cell in ring order —
+    ///     which is what planting a flower means now that the garden is a
+    ///     place. See `nextFreeGardenCell()`.
+    ///   - distanceMetres: how far the bees must fly, as an explicit override.
+    ///     An explicit distance wins over placement and suppresses it
+    ///     entirely, which is how `beesim` holds a whole sweep at one distance
+    ///     and why every measured number in `PLAN.md` still reproduces. With
+    ///     no world and no distance the patch stands at
+    ///     `FlowerPatch.nominalDistance`, exactly as it always has.
     @discardableResult
     public mutating func registerPhotograph(
         photoLocalIdentifier: String,
         species: FlowerSpecies?,
         confidence: Double,
         takenAt: Date,
+        at cell: HexCoordinate? = nil,
         distanceMetres: Double? = nil
     ) -> FlowerPatch {
+        let placement = placement(preferring: cell, explicitDistance: distanceMetres)
+
         let patch = FlowerPatch(
             id: ids.next(),
             photoLocalIdentifier: photoLocalIdentifier,
             species: species,
             identificationConfidence: confidence,
-            distanceMetres: distanceMetres ?? FlowerPatch.nominalDistance,
+            distanceMetres: distanceMetres
+                ?? placement?.metresFromOrigin
+                ?? FlowerPatch.nominalDistance,
             discoveredAt: takenAt,
-            registeredOnDay: clock.day
+            registeredOnDay: clock.day,
+            cell: placement
         )
 
         world.patches.append(patch)
         return patch
+    }
+
+    // MARK: Planting
+
+    /// Where a new patch should stand.
+    ///
+    /// Three cases, and the middle one is the whole of the world's effect on
+    /// the existing balance: a caller that names a distance is saying where
+    /// the flower is, so the game does not also choose a cell for it.
+    private mutating func placement(
+        preferring cell: HexCoordinate?,
+        explicitDistance: Double?
+    ) -> HexCoordinate? {
+        if let cell { return cell }
+        guard explicitDistance == nil, world.terrain != nil else { return nil }
+        return nextFreeGardenCell()
+    }
+
+    /// The first cell of the garden nothing is standing in, opening a ring if
+    /// every open one is taken.
+    ///
+    /// Ring order, innermost first: the keystones a player plants early end up
+    /// closest to the nest, which is both the best place for them and a
+    /// pleasing accident of the order photographs arrive in.
+    ///
+    /// "Free" means no *unfaded* patch holds it. A patch that has gone over —
+    /// the clover mown, the verge built on — is still in the garden as a
+    /// record and still shows as spent, but its ground is available again,
+    /// which is the whole point of `vigour` reaching zero.
+    ///
+    /// A full garden opens the next ring rather than refusing the flower.
+    /// Turning away a photograph somebody went out and took is the one thing
+    /// this must never do.
+    private mutating func nextFreeGardenCell() -> HexCoordinate? {
+        guard var terrain = world.terrain else { return nil }
+        defer { world.terrain = terrain }
+
+        let day = clock.day
+        let config = self.config
+        var taken = Set<HexCoordinate>()
+        for patch in world.patches {
+            guard let cell = patch.cell, !patch.hasFaded(onDay: day, config: config) else { continue }
+            taken.insert(cell)
+        }
+
+        // Walking the rings rather than iterating `taken`: the set is only
+        // ever asked about a cell, never iterated, so its hash order cannot
+        // reach the answer.
+        for cell in terrain.gardenCells where !taken.contains(cell) {
+            return cell
+        }
+
+        // Every open ring is full. The garden grows.
+        let opened = terrain.openNextRing()
+        return opened.first
+    }
+
+    /// Whether any patch still standing is in this cell.
+    public func isCellOccupied(_ cell: HexCoordinate) -> Bool {
+        let day = clock.day
+        let config = self.config
+        return world.patches.contains {
+            $0.cell == cell && !$0.hasFaded(onDay: day, config: config)
+        }
+    }
+
+    /// Moves a patch to a cell, and its distance with it.
+    ///
+    /// There was no way to move a patch after creation and there has to be
+    /// one: the garden is a plot the player arranges, and a flower planted in
+    /// the wrong place should be movable rather than re-photographed.
+    ///
+    /// Refuses a cell another standing patch is already in — one patch to a
+    /// cell is what gives a garden of thirty flowers a shape.
+    ///
+    /// - Returns: whether the patch moved.
+    @discardableResult
+    public mutating func plant(_ id: EntityID, at cell: HexCoordinate) -> Bool {
+        guard let index = world.patches.firstIndex(where: { $0.id == id }) else { return false }
+        guard world.patches[index].cell != cell else { return true }
+        guard !isCellOccupied(cell) else { return false }
+
+        world.patches[index].cell = cell
+        world.patches[index].distanceMetres = cell.metresFromOrigin
+        return true
     }
 
     /// Takes in a flower somebody else photographed and sent.
@@ -270,7 +389,9 @@ public struct Simulation: Codable, Equatable, Sendable {
     ///     it can happen any number of times.
     ///   - distanceMetres: how far the recipient's bees must fly. A share says
     ///     what the flower is and nothing about where it was, so this is
-    ///     normally left off and the patch stands at the nominal distance.
+    ///     normally left off and the flower is planted in the recipient's own
+    ///     garden — which is the honest reading of a gift, and the same
+    ///     placement a photograph gets. See `registerPhotograph`.
     /// - Returns: the new patch, or `nil` if this flower was already imported.
     @discardableResult
     public mutating func importSharedFlower(
@@ -280,21 +401,27 @@ public struct Simulation: Codable, Equatable, Sendable {
         confidence: Double,
         takenAt: Date,
         sharedBy: String?,
+        at cell: HexCoordinate? = nil,
         distanceMetres: Double? = nil
     ) -> FlowerPatch? {
         guard !world.importedShares.contains(shareID) else { return nil }
+
+        let placement = placement(preferring: cell, explicitDistance: distanceMetres)
 
         let patch = FlowerPatch(
             id: ids.next(),
             photoLocalIdentifier: photoLocalIdentifier,
             species: species,
             identificationConfidence: confidence,
-            distanceMetres: distanceMetres ?? FlowerPatch.nominalDistance,
+            distanceMetres: distanceMetres
+                ?? placement?.metresFromOrigin
+                ?? FlowerPatch.nominalDistance,
             discoveredAt: takenAt,
             registeredOnDay: clock.day,
             origin: .shared,
             sharedBy: sharedBy,
-            capacityScale: config.sharedPatchYield
+            capacityScale: config.sharedPatchYield,
+            cell: placement
         )
 
         world.patches.append(patch)
@@ -310,6 +437,19 @@ public struct Simulation: Codable, Equatable, Sendable {
 
     /// Attaches a species to a patch once classification finishes, which may
     /// well be after the patch was registered.
+    ///
+    /// **Everything the patch already is has to be carried over by hand.**
+    /// This rebuilds the patch rather than editing it, because the capacity is
+    /// computed in the initialiser from the species — and for a long while the
+    /// rebuild quietly dropped `registeredOnDay`, the origin and `sharedBy`.
+    /// A patch identified on day 100 was handed a fresh registration day and
+    /// so went back to full vigour, having aged not at all; a shared flower
+    /// forgot it had been a gift and who sent it. Neither was visible in a
+    /// balance run, because `beesim` identifies at the moment of registering.
+    /// `WORLD.md` section 9 calls this out as the thing to fix before the
+    /// world starts making patches in bulk, which is exactly right: a
+    /// generator that plants wild flowers and then names them would have
+    /// reset every one of them.
     public mutating func identifyPatch(
         _ id: EntityID,
         as species: FlowerSpecies,
@@ -329,7 +469,18 @@ public struct Simulation: Codable, Equatable, Sendable {
             species: species,
             identificationConfidence: confidence,
             distanceMetres: existing.distanceMetres,
-            discoveredAt: existing.discoveredAt
+            discoveredAt: existing.discoveredAt,
+            // The photograph was taken when it was taken. This is the line
+            // that keeps a late identification from making a flower fresh.
+            registeredOnDay: existing.registeredOnDay,
+            origin: existing.origin,
+            sharedBy: existing.sharedBy,
+            // A gift is worth what a gift is worth, before and after somebody
+            // works out what it was. `sharedPatchYield` is 1.0 today, so this
+            // changes no number now; it is here so that the day it is not 1.0,
+            // naming a flower does not silently enlarge it.
+            capacityScale: existing.origin == .shared ? config.sharedPatchYield : 1,
+            cell: existing.cell
         )
         replacement.remainingNectar = max(0, replacement.nectarCapacity - workedNectar)
         replacement.remainingPollen = max(0, replacement.pollenCapacity - workedPollen)
@@ -935,6 +1086,82 @@ public struct Simulation: Codable, Equatable, Sendable {
     /// Clears the record of the last swarm once the player has decided.
     public mutating func forgetLastSwarm() {
         world.lastSwarm = nil
+    }
+
+    // MARK: - The world around the nest
+
+    /// The country this colony lives in, or nil for a save that predates it.
+    public var terrain: Terrain? { world.terrain }
+
+    /// The chunk the nest is in, drawn from the seed.
+    public var homeChunk: Chunk? { world.terrain?.homeChunk }
+
+    /// Draws a different countryside around the same nest.
+    ///
+    /// The garden is untouched — its cells belong to the patches, not to the
+    /// generator — so this changes what the ground *is* and not what is
+    /// planted on it. It exists for `beesim --world-seed`, which needs to put
+    /// two hundred colonies on the same ground to see what the ground is
+    /// worth, and for a test that wants a particular biome underfoot.
+    public mutating func setTerrainSeed(_ seed: UInt64) {
+        if world.terrain == nil {
+            world.terrain = Terrain(seed: seed)
+        } else {
+            world.terrain?.seed = seed
+        }
+    }
+
+    /// Gives a colony that has none a world to live in, and plants its flowers
+    /// into the garden.
+    ///
+    /// Every colony founded from now on gets its terrain in `newGame`. This is
+    /// for the ones that already exist: a save written before any of this, in
+    /// which the flowers are nowhere and every one of them stands at the
+    /// nominal 800 m.
+    ///
+    /// **The seed comes from the colony's own random stream**, read without
+    /// consuming it — see `SeededRandom.derivedSeed()`. It has to be
+    /// deterministic, because two devices restoring the same save must find
+    /// the same countryside; and it has to be particular to the colony, or
+    /// every old save in the world would open onto the same village. The
+    /// saved RNG state is the one number that is both.
+    ///
+    /// **The flowers are planted, and that makes the colony better off.** They
+    /// move from 800 m to 200 and 400, where the distance efficiency is 0.89
+    /// and 0.8 against 0.67, so the same photographs feed the colony a third
+    /// better than they did yesterday. That is the honest consequence of a
+    /// garden being next to the nest rather than nowhere in particular, and
+    /// `WORLD.md` section 10 asks for the baseline to be re-measured rather
+    /// than for the effect to be cancelled out.
+    ///
+    /// Idempotent: a colony that already has terrain is left exactly alone.
+    ///
+    /// - Returns: whether a world was adopted.
+    @discardableResult
+    public mutating func adoptTerrainIfMissing() -> Bool {
+        guard world.terrain == nil else { return false }
+
+        world.terrain = Terrain(seed: rng.derivedSeed())
+
+        // Ring order, oldest photograph first, so the flowers a player found
+        // earliest end up closest to the nest. `world.patches` is already in
+        // registration order.
+        //
+        // A stand that has already gone over is left where it was. It is still
+        // in the garden as a record and still shows as spent, but giving it
+        // ground would be giving ground to nothing — and the free-cell search
+        // ignores faded patches, so two of them would be handed the same cell.
+        let day = clock.day
+        let config = self.config
+        for index in world.patches.indices {
+            guard world.patches[index].cell == nil else { continue }
+            guard !world.patches[index].hasFaded(onDay: day, config: config) else { continue }
+            guard let cell = nextFreeGardenCell() else { break }
+            world.patches[index].cell = cell
+            world.patches[index].distanceMetres = cell.metresFromOrigin
+        }
+
+        return true
     }
 
     /// The real instant a number of simulated days from now begins, under

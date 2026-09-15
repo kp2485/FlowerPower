@@ -267,13 +267,21 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
     public let origin: PatchOrigin
     public let sharedBy: String?
 
+    /// Which cell of the garden it stands in, when it stands anywhere.
+    ///
+    /// Nil for a patch registered before the world existed, or one a caller
+    /// placed by distance alone. The map draws from this; the garden list does
+    /// not need it.
+    public let cell: HexCoordinate?
+
     public init(
         id: EntityID, photoLocalIdentifier: String, speciesName: String,
         isIdentified: Bool, rarity: FlowerRarity,
         distanceMetres: Double, isInBloom: Bool, isWithinRange: Bool,
         remainingFraction: Double, foragersWorkingIt: Int, discoveredAt: Date,
         vigour: Double, origin: PatchOrigin, sharedBy: String?,
-        taxon: Taxon?, nectarIsOutOfReach: Bool
+        taxon: Taxon?, nectarIsOutOfReach: Bool,
+        cell: HexCoordinate? = nil
     ) {
         self.id = id
         self.photoLocalIdentifier = photoLocalIdentifier
@@ -291,6 +299,7 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
         self.sharedBy = sharedBy
         self.taxon = taxon
         self.nectarIsOutOfReach = nectarIsOutOfReach
+        self.cell = cell
     }
 
     public var isShared: Bool { origin == .shared }
@@ -300,6 +309,69 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
 
     /// The stand is no longer there.
     public var hasFaded: Bool { vigour <= 0 }
+}
+
+/// One cell of the garden, and whatever is planted in it.
+///
+/// The interface draws the garden straight off a list of these: the cells come
+/// in ring order, so a `Canvas` can walk them without knowing what a hex is,
+/// and the empty ones are in the list as well as the full ones because an
+/// empty cell is a place to plant rather than an absence.
+public struct GardenCell: Codable, Equatable, Sendable, Identifiable {
+    public let cell: HexCoordinate
+    /// The patch standing here, or nil for bare ground.
+    public let patchID: EntityID?
+    /// Which ring of the garden it is in: 1 at 200 m, 2 at 400, and so on.
+    public let ring: Int
+    /// How far the bees fly to it.
+    public let distanceMetres: Double
+
+    public init(cell: HexCoordinate, patchID: EntityID?) {
+        self.cell = cell
+        self.patchID = patchID
+        self.ring = HexCoordinate.origin.distance(to: cell)
+        self.distanceMetres = cell.metresFromOrigin
+    }
+
+    public var id: HexCoordinate { cell }
+    public var isEmpty: Bool { patchID == nil }
+}
+
+/// The world around the nest, as much of it as Phase 1 draws.
+///
+/// The home chunk and the six around it, and the garden. Everything here is
+/// either read off `Terrain` or regenerated from its seed, so the snapshot
+/// carries no state of its own — and the interface does no hex arithmetic,
+/// which is the point: one implementation of the geometry, in the package,
+/// where it can be tested without a Mac.
+public struct TerrainSummary: Codable, Equatable, Sendable {
+
+    /// Where the colony lives.
+    public let home: Chunk
+
+    /// The six around it, in the fixed clockwise order — east first.
+    public let neighbours: [Chunk]
+
+    /// How many rings of the garden are open.
+    public let gardenRings: Int
+
+    /// Every open cell, innermost ring first and clockwise within each ring.
+    public let garden: [GardenCell]
+
+    public init(home: Chunk, neighbours: [Chunk], gardenRings: Int, garden: [GardenCell]) {
+        self.home = home
+        self.neighbours = neighbours
+        self.gardenRings = gardenRings
+        self.garden = garden
+    }
+
+    /// Cells with nothing in them, for a prompt that wants to say there is
+    /// room.
+    public var emptyCells: [GardenCell] { garden.filter(\.isEmpty) }
+
+    /// The name the player sees for the ground the nest is on.
+    public var homeName: String { home.name }
+    public var homeBiome: Biome { home.biome }
 }
 
 // MARK: - Snapshot
@@ -321,6 +393,10 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     public let queen: QueenSummary
     public let patches: [PatchSummary]
     public let alerts: [ColonyAlert]
+
+    /// The country around the nest, or nil for a colony that has none — a save
+    /// not yet migrated, or a simulation built without one.
+    public let terrain: TerrainSummary?
 
     /// Whether the bees are out working right now — the thing a player glancing
     /// at the app most wants to know.
@@ -438,6 +514,7 @@ extension Simulation {
             queen: queenSummary(),
             patches: patchSummaries(),
             alerts: alerts(),
+            terrain: terrainSummary(),
             isForaging: clock.isDaylight
                 && world.weather.isFlyingWeather
                 && hive.count(performing: .foragingBee) > 0,
@@ -599,7 +676,8 @@ extension Simulation {
                 origin: patch.origin,
                 sharedBy: patch.sharedBy,
                 taxon: patch.species?.taxon,
-                nectarIsOutOfReach: patch.resolvedSpecies.nectarIsOutOfReach
+                nectarIsOutOfReach: patch.resolvedSpecies.nectarIsOutOfReach,
+                cell: patch.cell
             )
         }
         // Best forage first: that is the order a player wants to scan.
@@ -607,6 +685,37 @@ extension Simulation {
             if lhs.isInBloom != rhs.isInBloom { return lhs.isInBloom }
             return lhs.remainingFraction > rhs.remainingFraction
         }
+    }
+
+    /// The world around the nest, drawn.
+    ///
+    /// Regenerated on every snapshot rather than cached, which is affordable:
+    /// seven chunks is seven hashes apiece and the snapshot is rebuilt twenty
+    /// times a minute at worst. Caching it would mean deciding when it went
+    /// stale, and a map that is one ring behind the garden is worse than a
+    /// little arithmetic.
+    private func terrainSummary() -> TerrainSummary? {
+        guard let terrain = world.terrain else { return nil }
+
+        // Which patch is standing where. Built as a dictionary for the lookup
+        // and never iterated — the order comes from the ring walk below, so
+        // hash order cannot reach the output.
+        let day = clock.day
+        let config = self.config
+        var occupants: [HexCoordinate: EntityID] = [:]
+        for patch in world.patches {
+            guard let cell = patch.cell,
+                  !patch.hasFaded(onDay: day, config: config)
+            else { continue }
+            occupants[cell] = patch.id
+        }
+
+        return TerrainSummary(
+            home: terrain.homeChunk,
+            neighbours: terrain.neighbouringChunks,
+            gardenRings: terrain.gardenRings,
+            garden: terrain.gardenCells.map { GardenCell(cell: $0, patchID: occupants[$0]) }
+        )
     }
 
     // MARK: Judgement

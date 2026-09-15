@@ -9,6 +9,13 @@
 //  Usage:
 //    beesim [--days N] [--patches N] [--distance M] [--seed N]
 //           [--preset standard|gentle|harsh] [--site <name>] [--every N]
+//           [--world] [--world-seed N]
+//
+//  `--world` founds a generated countryside around the colony and plants
+//  every stocked flower in the garden — 200 m in the first ring, 400 in the
+//  second — instead of holding them all at `--distance`. Without it nothing
+//  about a run differs from one made before the world existed, which is the
+//  property the whole of Phase 1 was checked against.
 //
 
 import Foundation
@@ -31,6 +38,16 @@ struct Options {
     /// Model a player who is fed by other people rather than going out
     /// themselves: every restock arrives as a shared flower.
     var sharedForage = false
+
+    /// Run in the generated world: the colony founds a terrain from its own
+    /// seed and every stocked flower is planted into a garden cell instead of
+    /// standing at a flat `--distance`. Off by default, and off is
+    /// byte-identical to every run made before the world existed.
+    var world = false
+
+    /// Put every trial on the same countryside, so the spread between rows is
+    /// the colony rather than the ground.
+    var worldSeed: UInt64?
 
     /// Ad-hoc config overrides, so a knob can be swept without a rebuild.
     /// `--set pheromoneDilutionScale=45 --set swarmCongestionThreshold=0.55`
@@ -55,8 +72,13 @@ struct Options {
             case "--restock": options.restockEvery = Int(value ?? "") ?? options.restockEvery
             case "--trials": options.trials = Int(value ?? "") ?? options.trials
             case "--policy": options.policy = value ?? options.policy
+            case "--world-seed": options.worldSeed = UInt64(value ?? "") ?? options.worldSeed
             case "--shared":
                 options.sharedForage = true
+                index += 1
+                continue
+            case "--world":
+                options.world = true
                 index += 1
                 continue
             case "--list":
@@ -155,6 +177,10 @@ var simulation = Simulation.newGame(
     seed: options.seed
 )
 
+if let worldSeed = options.worldSeed {
+    simulation.setTerrainSeed(worldSeed)
+}
+
 // Top-level code is main-actor isolated under the Swift 6 language mode, and
 // `simulation` is a top-level variable, so anything that mutates it has to say
 // where it runs.
@@ -169,7 +195,7 @@ func stockPatches(_ count: Int, tag: String) {
                 confidence: 0.9,
                 takenAt: start,
                 sharedBy: "a friend",
-                distanceMetres: options.distance
+                distanceMetres: options.world ? nil : options.distance
             )
         } else {
             simulation.registerPhotograph(
@@ -177,7 +203,7 @@ func stockPatches(_ count: Int, tag: String) {
                 species: palette[index % palette.count],
                 confidence: 0.9,
                 takenAt: start,
-                distanceMetres: options.distance
+                distanceMetres: options.world ? nil : options.distance
             )
         }
     }
@@ -197,9 +223,16 @@ if options.trials > 0 {
         palette: palette,
         start: start,
         shared: options.sharedForage,
-        policy: options.playerPolicy
+        policy: options.playerPolicy,
+        world: options.world,
+        worldSeed: options.worldSeed
     )
     print("policy: \(options.playerPolicy.rawValue)")
+    if options.world {
+        print("world: on"
+              + (options.worldSeed.map { ", seed \($0)" } ?? ", seed per trial")
+              + " · flowers planted in the garden")
+    }
     if CommandLine.arguments.contains("--list") { Trials.list(outcomes) }
     Trials.report(outcomes, days: options.days)
     exit(0)
@@ -233,10 +266,16 @@ func number(_ value: Double, _ decimals: Int = 0) -> String {
     String(format: "%.\(decimals)f", value)
 }
 
+let ground = options.world
+    ? "\(options.patches) patches in the garden · "
+        + "\(simulation.homeChunk?.name ?? "nowhere") "
+        + "(\(simulation.homeChunk?.biome.rawValue ?? "-"))"
+    : "\(options.patches) patches at \(number(options.distance))m"
+
 print("""
 FlowerPower colony trajectory
   preset \(options.preset) · site \(options.site) · seed \(options.seed)
-  \(options.patches) patches at \(number(options.distance))m · \(options.days) days
+  \(ground) · \(options.days) days
 
 """)
 
