@@ -1,9 +1,12 @@
 # FlowerPower — state of the project and what is next
 
-Audited and worked through on 2026-09-05, worked on again on 2026-09-06, and
-built out into a whole app on 2026-09-12. The engine is built and its full
-suite runs on Windows; the Xcode side is written, desk-checked twice, and has
-still never been compiled, because that needs a Mac.
+Audited and worked through on 2026-09-05, worked on again on 2026-09-06,
+built out into a whole app on 2026-09-12, first built on a Mac on 2026-09-14,
+and built against the iOS 27 SDK it was written for on 2026-09-15. The engine's
+full suite runs on Windows and on macOS. The Xcode side compiles with Xcode 27,
+its tests pass on an iOS 27 simulator, and it has been signed and installed on
+an iPhone on iOS 27 — though what it does there is still to be walked. See
+"The first Mac build" and "Xcode 27" below.
 
 ---
 
@@ -13,7 +16,8 @@ still never been compiled, because that needs a Mac.
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12) |
+| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76) |
+| Xcode targets | All four compile, and the test targets (Xcode 26.5, 2026-09-14; Xcode 27 against the iOS 27 SDK, 2026-09-15, one warning left — see "Xcode 27"). 10 unit tests and 4 UI test runs pass on an iOS 27 simulator |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
 | Balance, standard preset | 89% first year, 66% second, 2.49 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06; reproduced byte for byte on 2026-09-12 after the record-keeping systems were added) |
@@ -51,12 +55,15 @@ treated as indicative: a 60-colony sample moves five points on nothing.
 Everything in `FlowerPower/`, `FlowerPowerWatch/` and `FlowerPowerWidgets/` —
 roughly 11,500 lines of SwiftUI, Swift Charts, TipKit, App Intents, MapKit,
 PhotosUI, Vision, FoundationModels, ActivityKit, WidgetKit, WatchConnectivity
-and BackgroundTasks. **Nothing in those three folders has ever been through a
-compiler**, and nothing said about them below should be read as though it had.
+and BackgroundTasks. **Until 2026-09-14 nothing in those three folders had been
+through a compiler.** The two desk-checks below were written before that and
+are kept as the record of what was expected; "The first Mac build" after them
+says what the compiler and the simulator actually found, which was not the
+same list.
 
-`project.yml` has also never been run through XcodeGen. Its keys were checked
-against XcodeGen's own parser source rather than from memory, but XcodeGen does
-not build on Windows, so the generated project is unseen.
+`project.yml` had also never been run through XcodeGen. XcodeGen 2.46.0
+accepted it unchanged on the first attempt; the one fault in it was found by
+`build-for-testing`, below.
 
 #### The desk-check of 2026-09-06
 
@@ -205,6 +212,173 @@ static property wrapper; `IntentDialog(stringLiteral:)` with a runtime
 string; interpolated `IntentDescription`s under `SWIFT_EMIT_LOC_STRINGS`;
 `.task(id:)` and `.confirmationDialog` on a `Section` inside a `Form`; and
 `WidgetCenter.reloadAllTimelines()` from a nonisolated `perform()`.
+
+#### The first Mac build, 2026-09-14
+
+On Xcode 26.5 (Swift 6.3.2, iOS and watchOS 26.5 SDKs), because that is what
+the Mac had. The deployment target stays at 27 — Kyle's decision, to be built
+properly once Xcode 27 is installed — so running anything meant overriding it
+on the command line, never in the repo: `IPHONEOS_DEPLOYMENT_TARGET=26.0
+WATCHOS_DEPLOYMENT_TARGET=26.0 MACOSX_DEPLOYMENT_TARGET=26.0` on a
+`generic/platform=iOS Simulator` build, which does reach the package targets,
+then `xcrun simctl install <udid>`. A named destination is refused, because
+Xcode matches it against the project's own target and ignores the override;
+the tests go through `build-for-testing` and then `test-without-building` with
+the `.xctestrun` it writes, which accepts one. Install by UDID, not `booted`:
+with a paired watch simulator booted too, `booted` picked the watch. The
+iPhone to hand ran 26.6.1, so nothing went on a device.
+
+**What the compiler found: eight faults in the Xcode targets, one in
+`project.yml`.** The build stops at the first target that fails, so they
+arrived one gate at a time rather than as a list, and none was among the
+desk-checks' "probable faults":
+
+- **App Intents' metadata step rejects an interpolated `IntentDescription`**,
+  five times over. It reads titles and descriptions at build time without
+  running anything, so `IntentDescription("\(HivePosture.x.detail)")` is a
+  build failure. They are literal now, repeating the engine's sentences —
+  change both together.
+- **TipKit's `@Parameter` macro expands to an unqualified `Tips.Parameter`**,
+  which the app's own `enum Tips` shadowed. The second desk-check predicted
+  this of `#Rule` and got the macro wrong; its advice held. The enum is
+  `AppTips` now.
+- **Two `[String: Any]` payloads crossing to the main actor** in
+  `WatchColonyModel`. The `Data` inside is taken out on WatchConnectivity's
+  queue instead.
+- **An actor's synchronous `init` calling one of its own methods**
+  (`FeaturePrintStore.loadLearned`). Now a static read folded in before the
+  stored property is set.
+- **A `public` init taking an internal type** (`FlowerClassifier`), in an app
+  target where `public` means nothing.
+- **Two `Activity` values sent to `@concurrent` methods.** `Activity` is not
+  `Sendable`; its `id` is, and `LiveActivities` finds it again on the far
+  side.
+- **`GenerateImageFeaturePrintRequest.revision` is a `let`.** The revision is
+  passed to the initialiser instead — which is how every Vision request in the
+  Swift API takes it.
+- **`try?` does not nest optionals** and has not since Swift 5, so
+  `let placed = try? …; let placement = placed` would not bind.
+- **`Attachment(image)` is not in the iOS 26 SDK**, expected. Behind
+  `#if compiler(>=6.4)` — the Swift Xcode 27 ships — so an Xcode 26 build
+  fell through to feature prints the way a phone without Apple Intelligence
+  does. The guess about 6.4 was right, and the gate was deleted on
+  2026-09-15 once Xcode 27 was installed.
+- **`project.yml`: the test bundles had no Info.plist.** The project-wide
+  `GENERATE_INFOPLIST_FILE: NO` reached them too, and they have no `info:`
+  block. They generate their own now.
+
+Two warnings were also cleared: `XCUIApplication` calls from nonisolated test
+methods (now `@MainActor`, as Xcode's own template has them), and the Info.plist
+not saying whether documents open in place (they do —
+`LSSupportsOpeningDocumentsInPlace`, reasoning in `project.yml`).
+
+**What running it found: two crashes the compiler cannot see.** Both are the
+same fault, and it is worth understanding because nothing at build time will
+ever flag it. A closure written inside a `@MainActor` method is inferred to be
+main-actor-isolated. Handed to an Apple API that calls it back on another
+thread, and whose SDK signature does not say `@Sendable`, it compiles cleanly —
+and the Swift 6 runtime then checks the isolation on entry and traps
+(`_swift_task_checkIsolatedSwift` → `_dispatch_assert_queue_fail`).
+
+- **The watch app crashed within a second of every reply from the phone** —
+  `closure #1 in WatchColonyModel.refresh()`, on WatchConnectivity's
+  operation queue. So it could never show anything the phone sent. Found from
+  two crash reports; the same shape was in the decision-sending error handler.
+- **The phone app crashed the moment the hive hum started** — `closure #1 in
+  HiveHum.start()`, on `AURemoteIO::IOThread`, under a comment saying the
+  render block was not main-actor isolated. The setting persists and the hum
+  starts at launch, so turning it on made **every later launch** crash.
+  Reproduced by writing the default, fixed, and launched again with it still
+  on.
+
+All four closures are `@Sendable` now, and everything else that hands a
+closure to an Apple callback was audited for it: the rest are `async` APIs,
+live in nonisolated types (`WatchLink`, `NotificationDelegate`,
+`BackgroundRefresh`, `PhotoLibrary`), or are SwiftUI's own. See the working
+rule in section 4.
+
+**And two interface faults, fixed.** The Settings gear floated over the whole
+`TabView` at the top trailing corner — where every tab keeps its own main
+action — and sat on top of the camera button, so the one thing the game asks
+the player to do was hidden on its first screen. Each tab now puts a
+`SettingsButton` in its own navigation bar. And the watch's "no colony" screen
+cut its only instruction to "Open FlowerPower on you…", on an Ultra; it
+scrolls now.
+
+**What has been walked, in the simulator:** a fresh install through all four
+introduction pages, the notification prompt (on the fourth page, as intended),
+the site chooser, and a new colony on the dashboard, which then advances on its
+own; Settings; the capture sheet, the location prompt and the system photo
+picker. The watch app on a paired Apple Watch Ultra 3 simulator, asking the
+phone for a summary over WatchConnectivity and showing the colony. The UI
+tests' launch screenshots in light and dark.
+
+**Still not seen:** a photograph going all the way through identification into
+the garden (the picker opens; choosing an image in it needs simulator control
+that was not granted); the widget, Live Activities, App Intents and Siri; the
+complication; a decision answered from a notification or the watch; a backup
+exported and reopened; the save file reaching the watch by file transfer
+(`isWatchAppInstalled` has not been checked in the simulator); TipKit's
+popovers, none of which appeared on the first screen. The string catalogues were
+still empty — command-line builds did not fill them; see the next section.
+
+#### Xcode 27, 2026-09-15
+
+Xcode 27.0 (Swift 6.4, iOS and watchOS 27.0 SDKs), with the phone updated to
+iOS 27. **Against the SDK the deployment target names, the project compiled
+with no errors** — the nine faults above were the whole of it — and two new
+deprecations, both fixed: `BGTaskScheduler.submit(_:)` for
+`submitTaskRequest(_:completionHandler:)`, whose handler runs "on an arbitrary
+queue" and so is `@Sendable` by the working rule in section 4; and
+`AVAudioEngine.connect` for the throwing `connectNode`. The FoundationModels
+image path compiled for the first time, and its gate is gone. The unit and UI
+tests pass on an iOS 27 simulator with nothing overridden.
+
+**The first device build failed with sixteen errors, none of them in the
+code**: four per target — "No Accounts", and three ways of saying the team's
+wildcard profile does not carry the App Group. Xcode 27 had come up with no
+Apple ID signed in. Signed back in, it registered the App Group and made
+profiles for all five identifiers itself.
+
+**The bundle identifier then moved into the company's namespace**:
+`com.linwoodtechnologies.flowerpower`, Kyle's decision, after changing it for
+the app alone in Xcode's Signing tab failed the build with "Embedded binary's
+bundle identifier is not prefixed with the parent app's bundle identifier".
+The same string is spelled in the App Group, the watch's companion identifier,
+the background task, the three document types, both widget kinds and every
+`Logger` subsystem, so all of them moved together. Anything saved under the
+old App Group — only simulator colonies so far — is no longer found. Xcode
+registered the new group on the next signed build, which **succeeded and
+installed on the phone** (an iPhone 17 on iOS 27.0), and filled the three
+string catalogues on the way — 379, 28 and 12 strings. The command-line builds
+never had.
+
+One warning is left, and it is a decision rather than a fix. iOS 27 says "All
+interface orientations must be supported unless the app requires full
+screen": the app is portrait-only and builds for iPad as well. Either make it
+iPhone-only (`TARGETED_DEVICE_FAMILY: 1` in `project.yml`) or give the iPad
+the other orientations and look at the layouts in landscape.
+
+**The first run on the phone found one fault, in adding a flower from the
+library.** A photo that had been saved from the web as WebP failed with
+`PHPhotosErrorDomain 3302` and was never added, behind three ImageIO errors in
+the console ("unsupported output file format 'org.webmproject.webp'").
+`PhotoLibrary.save` handed Photos a `UIImage`, and Photos writes an image back
+in the format it was decoded from — which for WebP is a format iOS can read
+and not write. It encodes HEIC (or JPEG) itself now. A probe in the simulator
+reproduced the failure exactly, passed with the fix, and ruled out the other
+suspect, the on-device model. That probe was also the first time the model's
+image path ever ran: on iOS 27 it was available, answered in about twelve
+seconds, and declined to call a playing card a flower.
+
+The same console showed `WatchLink` queuing a transfer to the watch on every
+catch-up on a phone with no watch paired ("WCSession is not paired"). It
+asks for a paired watch with the app installed first, as its save-file path
+already did. The rest of that console — LaunchServices "process may not map
+database", "cannot add handler to 0 from 0", MapKit's `default.csv` and
+`SpringfieldUsage`, ICC profile warnings — is the system's, not ours.
+
+Still to see on the device: everything in "Still not seen" above.
 
 ---
 
@@ -402,17 +576,20 @@ That is in section 3 as a decision to make.
 
 ### Immediately, and only on a Mac
 
-1. **Generate and build.** `brew install xcodegen && xcodegen generate`, then
-   fix what the compiler finds. This is the single biggest unknown in the
-   project and everything below is easier once it is done. There are four
-   targets and roughly 11,500 lines of uncompiled interface, services,
-   intents, charts, ActivityKit and WidgetKit.
-2. **Run on a device.** The paths worth walking first are the ones with no test
-   coverage at all: the first run through the introduction to a chosen site;
-   photographing a flower with the camera; the map with and without location
-   permission; the watch receiving its first save and answering its first
-   siege; a widget button; "how are my bees" to Siri; exporting a backup and
-   opening it.
+1. **Generate and build.** Done — on Xcode 26.5 on 2026-09-14, and on Xcode 27
+   against the iOS 27 SDK on 2026-09-15; see "Xcode 27" in section 1.
+2. **Run on a device.** Xcode 27 and a phone on iOS 27 are both in hand, and
+   the app was signed and installed on the phone on 2026-09-15. The team in `project.yml`, `588PCRUA35`, is
+   **LINWOOD TECHNOLOGIES, LLC, a paid company team** — an earlier version of
+   this item called it the Personal Team, from a sorted list that had
+   scrambled the IDs and names; the Personal Team is `48Z7V96VSN`. The first
+   run through the
+   introduction to a chosen site has now been walked in the simulator, and
+   the watch has shown a summary the phone sent it. Still unwalked anywhere:
+   photographing a flower all the way into the garden; the map with and
+   without location permission; the watch receiving its first save by file
+   transfer and answering its first siege; a widget button; "how are my
+   bees" to Siri; exporting a backup and opening it.
 3. **Delete `FlowerPower/Legacy/`** once the new app has run.
 
 ### Then
@@ -722,3 +899,10 @@ about them matters most.
   assumes the mean flower is 1. Never fix a balance problem by shaving a
   measured trait.
 - **Nothing in the Xcode targets is verified until Xcode has seen it.** Say so.
+- **A closure handed to an Apple callback API from main-actor code is
+  `@Sendable`.** Otherwise Swift 6 infers it main-actor-isolated, the SDK's
+  unannotated block type lets it compile, and the runtime traps the first time
+  the framework calls it from its own thread. Both crashes on the first Mac run
+  were this — the watch on every reply from the phone, the phone whenever the
+  hum played — and no build, desk-check or warning could have found either.
+  If the closure needs the actor, it hops there with `Task { @MainActor in }`.

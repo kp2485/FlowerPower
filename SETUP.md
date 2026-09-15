@@ -10,13 +10,12 @@ It is built from `project.yml` by XcodeGen, because the hand-maintained one had
 drifted so far from the files on disk that it could not open and build at all.
 The previous page of drag-and-tick instructions in this file is gone with it.
 
-**The SwiftUI has never been compiled.** The engine and the game layer are
-tested — 248 XCTest plus 19 Swift Testing cases, run on Windows — and every engine call in the views was
-checked symbol by symbol against the package's public surface. But anything
-that needs the Apple SDKs, which is all of SwiftUI, MapKit, PhotosUI, Vision,
-WidgetKit, WatchConnectivity and BackgroundTasks, has never been near a
-compiler. Expect a round of errors on the first build. That is the known cost
-of the arrangement, not a surprise.
+**The SwiftUI was first compiled on 2026-09-14**, with Xcode 26.5, and against
+the iOS 27 SDK it was written for on 2026-09-15, with Xcode 27. It took nine
+fixes to build and two more to stop it crashing, all recorded in PLAN.md under
+"The first Mac build"; Xcode 27 added two deprecations and nothing else. The
+engine and the game layer were tested long before — on Windows, and now on
+macOS too — which is why none of the faults were in them.
 
 ---
 
@@ -35,7 +34,7 @@ That is the whole setup. `project.yml` already declares:
   extension that carries the complication;
 - the local `FlowerPowerCore` package, and which of its two libraries each
   target uses;
-- the App Group `group.com.kylepeterson.flowerpower` on all three;
+- the App Group `group.com.linwoodtechnologies.flowerpower` on all three;
 - the camera, photo library and location usage strings;
 - background refresh, and the task identifier it registers;
 - the `.flower`, `.swarm` and `.flowerhive` document types — the first two are
@@ -62,10 +61,13 @@ all simply inside a target's directory:
   space is left, the manifest needs a matching entry. The comment at the top
   of `FlowerPower/PrivacyInfo.xcprivacy` lists what was grepped for and what
   was deliberately left out.
-- **`Localizable.xcstrings`**, one per target, currently empty.
-  `SWIFT_EMIT_LOC_STRINGS` is on, so the first Mac build extracts every
-  `Text("…")` in the app into them. They exist now only so that extraction has
-  somewhere to go; nothing is translated and the game is English-only.
+- **`Localizable.xcstrings`**, one per target. `SWIFT_EMIT_LOC_STRINGS` is
+  on, and building in **Xcode.app** fills them with every `Text("…")` in the
+  app — 379, 28 and 12 strings on the first such build, 2026-09-15.
+  `xcodebuild` on the command line does not write them back, so a string
+  added in code reaches the catalogue at the next Xcode.app build; commit the
+  catalogues when they change. Nothing is translated and the game is
+  English-only.
 - **`Assets.xcassets`**, which now actually has an app icon in it — see
   `tools/make_app_icon.py` below.
 
@@ -101,7 +103,9 @@ it.
 ## 3. Deployment target and language mode
 
 iOS 27 and watchOS 27, matching what the package declares. Keep the two in step
-if you move either.
+if you move either. That needs Xcode 27. The very first build was done on Xcode
+26.5 by overriding the targets on the `xcodebuild` command line; PLAN.md's
+"The first Mac build" says how, should an older Xcode ever be all there is.
 
 The package builds in the **Swift 6 language mode** with complete concurrency
 checking, and does so cleanly - which is less of a surprise than it sounds. The
@@ -117,10 +121,24 @@ the whole flower catalogue rather than thirty near-copies.
 
 ## 4. Signing
 
-The bundle identifier is `com.kylepeterson.flowerpower`, changed from the 2023
-`com.LinwoodTechnologies.FlowerPower` so that it, the App Group and both
-`Logger` subsystems agree. Nothing was provisioned under the old one. If that
-turns out to be wrong, it is one line in `project.yml`.
+The team is LINWOOD TECHNOLOGIES, LLC (`588PCRUA35`), a paid company team —
+not the free Personal Team, which is `48Z7V96VSN` and cannot sign an App
+Group. The bundle identifier is `com.linwoodtechnologies.flowerpower`, in the
+company's namespace to match, and the App Group, the watch's companion
+identifier, the background task, the three document types, both widget kinds
+and every `Logger` subsystem are spelled from it. It was
+`com.kylepeterson.flowerpower` until 2026-09-15; changing it is not one line,
+and was done everywhere at once for that reason — a mismatch fails silently
+(a widget that finds no save, a background refresh that never runs) or, for an
+extension, fails the build with "Embedded binary's bundle identifier is not
+prefixed with the parent app's bundle identifier".
+
+Automatic signing needs an Apple ID signed in under Xcode → Settings →
+Accounts. After an Xcode or macOS upgrade it may not be: the build then fails
+with "No Accounts" and, having nothing better, tries the team's wildcard
+profile, which can never carry an App Group — four errors per target, sixteen
+in all. Signing back in is the whole fix; Xcode registers the App Group and
+makes the profiles itself.
 
 The App Group must be enabled on all three targets. It is how the phone app,
 the watch app and the widget extension read the same save file **on one
@@ -179,15 +197,20 @@ reviewed in a diff.
 
 ## 7. The UI tests
 
-**`FlowerPowerUITests` has never been run**, by anything, ever. Neither has
-`FlowerPowerTests`. They are written and desk-checked and that is all.
+**Both test targets first ran on 2026-09-14**, on an iOS 26.5 simulator with
+the deployment target overridden, and pass: the ten
+`FlowerPowerTests` cases and all four UI test runs. The launch test failed on
+its first run, correctly — it listed the site chooser as where a first run
+lands, and the introduction had been put in front of that since it was
+written.
 
 What is in there is one launch test that asserts the app reaches one of three
-screens — the tab bar's "Colony", or "A New Colony", or "Begin Again" — and is
-still in the foreground when it does, plus the launch-performance measurement
-and a per-configuration launch screenshot. The Xcode template's `testExample`,
-which launched the app and asserted nothing, is gone: it would have reported
-green for an app that drew a blank window.
+screens — the tab bar's "Colony", or the introduction's first page, "A wild
+colony", or "Begin Again" — and is still in the foreground when it does, plus
+the launch-performance measurement and a launch screenshot in light and dark.
+The Xcode template's `testExample`, which launched the app and asserted
+nothing, is gone: it would have reported green for an app that drew a blank
+window.
 
 There is no launch argument for starting from a known save, so the tests run
 against whatever colony is on the simulator. That is the first thing to add
