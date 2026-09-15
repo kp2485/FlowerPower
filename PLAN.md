@@ -2,11 +2,14 @@
 
 Audited and worked through on 2026-09-05, worked on again on 2026-09-06,
 built out into a whole app on 2026-09-12, first built on a Mac on 2026-09-14,
-and built against the iOS 27 SDK it was written for on 2026-09-15. The engine's
-full suite runs on Windows and on macOS. The Xcode side compiles with Xcode 27,
-its tests pass on an iOS 27 simulator, and it has been signed and installed on
-an iPhone on iOS 27 — though what it does there is still to be walked. See
-"The first Mac build" and "Xcode 27" below.
+built against the iOS 27 SDK it was written for on 2026-09-15, and stripped of
+location entirely later the same day — the map, the coordinates and the
+permission — as unnecessary and off-putting, after the first run on a phone.
+The engine's full suite runs on Windows and on macOS. The Xcode side compiles
+with Xcode 27, its tests pass on an iOS 27 simulator, and it has been signed
+and installed on an iPhone on iOS 27 — though most of what it does there is
+still to be walked. See "The first Mac build", "Xcode 27" and "location
+removed" below.
 
 ---
 
@@ -16,8 +19,8 @@ an iPhone on iOS 27 — though what it does there is still to be walked. See
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76) |
-| Xcode targets | All four compile, and the test targets (Xcode 26.5, 2026-09-14; Xcode 27 against the iOS 27 SDK, 2026-09-15, one warning left — see "Xcode 27"). 10 unit tests and 4 UI test runs pass on an iOS 27 simulator |
+| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76); 240 XCTest + 282 Swift Testing, 0 failures (2026-09-15, after geography was removed), with `beesim` byte-identical across that change |
+| Xcode targets | All four compile, and the test targets (Xcode 26.5, 2026-09-14; Xcode 27 against the iOS 27 SDK, 2026-09-15, one warning left — see "Xcode 27"). 10 unit tests and 4 UI test runs pass on an iOS 27 simulator. Three tabs since 2026-09-15: Colony, Nest, Garden |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
 | Balance, standard preset | 89% first year, 66% second, 2.49 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06; reproduced byte for byte on 2026-09-12 after the record-keeping systems were added) |
@@ -53,10 +56,13 @@ treated as indicative: a 60-colony sample moves five points on nothing.
 ### Not verified, and cannot be here
 
 Everything in `FlowerPower/`, `FlowerPowerWatch/` and `FlowerPowerWidgets/` —
-roughly 11,500 lines of SwiftUI, Swift Charts, TipKit, App Intents, MapKit,
-PhotosUI, Vision, FoundationModels, ActivityKit, WidgetKit, WatchConnectivity
-and BackgroundTasks. **Until 2026-09-14 nothing in those three folders had been
-through a compiler.** The two desk-checks below were written before that and
+roughly 11,500 lines of SwiftUI, Swift Charts, TipKit, App Intents, PhotosUI,
+Vision, FoundationModels, ActivityKit, WidgetKit, WatchConnectivity and
+BackgroundTasks. That count was taken on 2026-09-06, and MapKit and
+CoreLocation were both in the list until they were removed on 2026-09-15, so it
+is somewhat fewer lines now; it has not been re-counted. **Until 2026-09-14
+nothing in those three folders had been through a compiler.** The two
+desk-checks below were written before that and
 are kept as the record of what was expected; "The first Mac build" after them
 says what the compiler and the simulator actually found, which was not the
 same list.
@@ -146,7 +152,7 @@ were read and reasoned about but not proved:
   and the path is dead code until a model is bundled, but if iOS 27 has
   obsoleted them this is where it will show.
 - `CLLocationUpdate.liveUpdates(.default)` and `update.authorizationDenied` in
-  `CaptureView`'s `LocationProvider`.
+  `CaptureView`'s `LocationProvider` (removed 2026-09-15).
 - `WCSession.transferCurrentComplicationUserInfo`, which is the budgeted
   channel for keeping a complication current and may or may not have survived
   ClockKit's deprecation.
@@ -308,10 +314,10 @@ scrolls now.
 **What has been walked, in the simulator:** a fresh install through all four
 introduction pages, the notification prompt (on the fourth page, as intended),
 the site chooser, and a new colony on the dashboard, which then advances on its
-own; Settings; the capture sheet, the location prompt and the system photo
-picker. The watch app on a paired Apple Watch Ultra 3 simulator, asking the
-phone for a summary over WatchConnectivity and showing the colony. The UI
-tests' launch screenshots in light and dark.
+own; Settings; the capture sheet, the location prompt (removed 2026-09-15) and
+the system photo picker. The watch app on a paired Apple Watch Ultra 3
+simulator, asking the phone for a summary over WatchConnectivity and showing
+the colony. The UI tests' launch screenshots in light and dark.
 
 **Still not seen:** a photograph going all the way through identification into
 the garden (the picker opens; choosing an image in it needs simulator control
@@ -421,9 +427,10 @@ queen to send, and every virgin queen superseded before she could fly. Now 25%.
 **Sharing flowers.** A flower travels between players as a `.flower` file
 through the share sheet — no server, no accounts. It arrives at full strength:
 a yield penalty was tried and removed, because measurement showed it did not
-prevent anything and a gift that arrives diminished is a poor gift. Location is
-opt-in and rounds to about a kilometre by default, because a flower
-photograph's coordinate is where a person was standing. Everything received is
+prevent anything and a gift that arrives diminished is a poor gift. Location
+was opt-in and rounded to about a kilometre by default, because a flower
+photograph's coordinate is where a person was standing; as of 2026-09-15 a
+share carries no location at all, for that same reason. Everything received is
 clamped rather than trusted.
 
 **Identification without a model.** Vision feature prints matched against
@@ -440,7 +447,8 @@ a honey bee cannot work for nectar, which is the right four.
 
 **iOS 27 and the Swift 6 language mode.** Foundation Models with image input
 and guided generation places flowers at whatever rank it is sure of. Vision and
-CoreLocation move to their modern async APIs. New tests are Swift Testing.
+CoreLocation move to their modern async APIs (CoreLocation removed 2026-09-15).
+New tests are Swift Testing.
 
 **The player experience, all twenty-one proposals.** See `docs/PROPOSALS.md`
 for each. The shape of it: decisions with real windows — a siege, a swarm
@@ -570,6 +578,177 @@ summer branch of the cap is the exposure**, it was not retuned in the same
 change, and `beesim --policy harvestEagerly` exists so a fix can be measured.
 That is in section 3 as a decision to make.
 
+### 2026-09-15 — location removed
+
+After the first run on the phone, Kyle took location out of the app: "it is
+unnecessary and will turn people away." Not only the prompt — the Forage map,
+the coordinates on flowers and on the hive, and the opt-in location on a shared
+flower, all of it. The Forage tab was removed rather than replaced, so the app
+is three tabs now: Colony, Nest, Garden.
+
+**It was a clean cut because the mechanic it paid for had never been wired up.**
+A grep before any of the work, for who *sets* a hive coordinate, found nobody:
+every site is built with `HiveLocation(type:)`, and `relocateHive` only ever
+carried a nil across. `world.hive.location.coordinate` has been nil in every
+colony that has ever run. So the coordinate-based distance branches in
+`Simulation.registerPhotograph`, `importSharedFlower` and `relocateHive` never
+once fired, every patch has always sat at `FlowerPatch.nominalDistance` (800 m),
+the map's "Centre on Hive" was permanently disabled, and its foraging-range
+circle never drew. The location permission bought pins on a map with no hive on
+it. Removing location therefore could not change any colony's trajectory, and
+that was measured rather than assumed; see the `beesim` diff below.
+
+**Geography out of the package, forage economics kept.** Removed: `GeoPoint`
+entire, including `distance(to:)`; `FlowerPatch.coordinate`;
+`HiveLocation.coordinate`, which is `public init(type:)` only now;
+`Simulation.setPatchLocation` and the distance-recompute loop in
+`relocate(to:)`; `PatchSummary.coordinate` and `NestSummary.coordinate`;
+`GameStore.setPatchLocation`; the `coordinate:` parameter on
+`registerPhotograph`, `importSharedFlower` and `recordPhotograph`;
+`FlowerShare.latitude`, `.longitude` and `.coordinate`, the whole
+`LocationSharing` enum with its 0.01° grid rounding, and the lat/long clamping
+in `validated()`. `Hemisphere.containing(latitude:)` went with them as dead
+code — no caller anywhere; `Hemisphere` itself stays, since the settings picker
+is how a hemisphere is chosen. `SwarmShare` never carried a coordinate at all.
+
+What stayed is everything foraging cost depends on: `distanceMetres`,
+`nominalDistance`, `maximumForagingRange`, `isWithinRange`, and every
+calculation that reads them. The balance in this document was measured with
+them and they are still doing that work; it is only that the distance is the
+same for every patch, as in practice it always has been.
+`Simulation.newGame(inheriting:)` used to recompute an inherited patch's
+distance from its coordinate and now keeps the stored one, which is a change on
+paper only. The glossary and the field guide needed nothing: no term and no
+sentence in either is about maps, and the distance material — "Foraging Bee",
+"they fly a few miles at most", "Waggle Dance" — is bee biology and stays true.
+
+**Old saves and old `.flower` files still open, and neither version number
+moved.**
+`FlowerPatch`, `HiveLocation` and `FlowerShare` all use synthesised `Codable`,
+which ignores keys it does not know, so a file still carrying `"coordinate"`,
+`"latitude"` or `"longitude"` decodes cleanly; and because those fields were
+optional in the older build, a file written today opens there too. Neither
+`SaveArchive.currentFormatVersion` nor `FlowerShare.currentVersion` was bumped.
+A bump would make `decoded(from:)` refuse a perfectly readable file over a
+field nobody reads any more; the reasoning is in a comment on
+`FlowerShare.currentVersion`. Two tests hold that line:
+`GamePersistenceTests.testASaveWrittenWhenFlowersCarriedCoordinatesStillOpens`,
+which re-encodes a live colony with coordinate keys salted onto the hive
+location and every patch, decodes it and compares for equality, and
+`FlowerShareTests.testAShareCarryingTheOldLocationKeysStillOpens`. The save one
+is the one that matters, because `GameStore` treats an unreadable save as no
+save.
+
+**The engine is byte-identical across the change.** `beesim --trials 200 --days
+730 --patches 9 --restock 45` on a release build, run on clean HEAD before any
+edit and again afterwards: `diff` printed nothing. The baseline it printed both
+times, for the record: 66% survival (133 of 200), median peak population 724.
+`swift build` is clean and so is the release `beesim` build. The full
+suite is 0 failures: XCTest 248 → 240 and Swift Testing 282 → 282, which is two
+geography tests out of `ForagingTests` and one replacement in, seven coordinate
+rounding and clamping tests out of `FlowerShareTests` and one persistence
+regression in, two out of `SharedFlowerTests`, and one into
+`GamePersistenceTests`. A final grep of `Sources/` for
+`GeoPoint|coordinate|setPatchLocation` returns nothing.
+
+**The app.** Three agents, on disjoint files.
+
+`CaptureView` lost `import CoreLocation`, the `LocationProvider` that wrapped
+`CLLocationUpdate.liveUpdates`, the location request in its `.task`,
+`CaptureResult.hasLocation` and the "No location on this photo…" label.
+`PhotoLibrary.save(_:)` no longer takes a location and `PhotoMetadata` no
+longer has a coordinate, so that file now imports neither CoreLocation nor
+`FlowerPowerCore`; the HEIC/JPEG encoding fix from earlier the same day is kept
+verbatim, as is using a library photograph as it already is — its own date, no
+second copy, with the fallback copy only for limited photo access.
+`project.yml` lost `NSLocationWhenInUseUsageDescription`, and the generated
+Info.plist now carries the camera string and the two photo-library strings and
+nothing else.
+
+`ForageMapView.swift` is deleted, and `ContentView`'s `Tab` lost `.map`, which
+no deep link ever selected. Four tips instead of five: `ForageTip` —
+"Distance is the cost" — described something the player cannot influence, and
+`PhotographTip` no longer ends "the closer to the nest, the less the flight
+costs them" but "and the more families you find them across, the longer the
+colony eats."
+
+**What the map sheet was really for, and where it went.** Three things in its
+`PatchDetailView` were about the flower rather than the place, and they are now
+a `PatchStateCard` in the Garden's `FlowerDetailView`, between the name block
+and `FlowerFactsCard`: how much forage is left, as a labelled meter with the
+percentage, where the Garden had only an unlabelled thin `ProgressView` on the
+thumbnail; how many bees are working it (`foragersWorkingIt`, the only place in
+the app where a photograph is joined to actual foragers); and "Not in bloom
+this season" in words. Rarity took the `Distance` row's slot in
+`FlowerFactsCard`. Everything else went with the map, each because it only ever
+meant anything with coordinates: the distance row ("800 m" on every flower is
+noise), "Beyond foraging range" (nothing can be out of range now), the hive
+marker, the range circle, "Centre on Hive", `MapUnavailableView`,
+`UnlocatedBanner`, and the greying-out of out-of-range pins.
+
+`NewColonyView`'s relocation blurb no longer ends "Distances to your flowers
+are worked out from the new position." Onboarding page 2's second paragraph is
+now about the thing the player can actually act on:
+
+> And flowers do not last. A patch is at its best for about two months and is
+> gone a few months later, so a garden photographed once in spring is empty by
+> autumn. Keep finding new ones, and keep them across different families, so
+> that whatever the season there is something still in bloom.
+
+and AboutView's "Your photographs" paragraph:
+
+> The app never asks for or reads your location. Your photographs stay on your
+> device and in your own photo library. Flowers and swarms travel between
+> players as files through the share sheet — there is no server and no account,
+> and nothing leaves the device except the file you hand to somebody.
+
+`FlowerPower/PrivacyInfo.xcprivacy`'s prose now says: "Location least of all:
+the app does not use CoreLocation, asks for no location permission, and a
+flower it sends carries a picture and a name and nothing whatever about where
+anybody stood." `NSPrivacyCollectedDataTypes` was already empty.
+
+`ShareFlowerView` lost the "Where You Found It" picker and its "no location"
+fallback, so the form is the flower summary, From, and send; its header now
+says that nothing here asks about place, that there is no setting to remember
+to switch off, and no way for a flower sent to a group chat to tell everyone
+where somebody was standing. `ReceiveFlowerView` lost "No location, so your
+bees will fly a guessed distance", and an unnamed received flower now shows
+nothing rather than an empty card.
+
+**The one privacy guard left is the re-encode.**
+`SharedImageStore.prepareForSharing` decodes and re-encodes the photograph
+rather than forwarding the file, which leaves the EXIF behind — the camera, the
+timestamp, and the coordinates a phone writes into a picture without being
+asked. It is now the only thing standing between a shared photograph and a
+location leaving the device inside it, and its comment says so: "a privacy step
+first and a size one second: keep it that way round if this is ever made
+faster." `FlowerShare.swift`'s header privacy section was rewritten around the
+same point — a share says what the flower is, not where it is.
+
+**The app's permission footprint is now the camera, the photo library and
+notifications, and nothing else.**
+
+All three agents' builds were clean and the merged result builds with no
+warnings. The first run is a UI test now rather than a walk:
+`testTheTabsAreColonyNestGardenAndCaptureAsksForNoLocation` goes through the
+introduction to a chosen site (or straight on, if a colony is already there),
+asserts the tab bar is Colony, Nest and Garden with no Forage, opens the
+capture sheet and asserts SpringBoard is showing no alert in front of it —
+which is exactly where the location prompt used to be. It passed on a fresh
+install on an iOS 27 simulator, along with the 10 unit tests and the other four
+UI test runs. It is also the first test that drives the interface at all, done
+without the launch argument for a known save that the test file's header said
+would be needed first: it accepts either landing instead.
+
+**Two loose ends.** `FlowerPower/Localizable.xcstrings` still holds the dead
+strings — "Beyond foraging range", the `ForageTip` message, the old privacy
+paragraph — because command-line builds do not write the catalogues back;
+Xcode.app's next build will mark them stale. And `FlowerPower/Legacy/` still
+has an unrelated `coordinates: (x, y)` tuple of its own; it is excluded from
+every target, and item 3 in section 3 is what to do about it. The watch app,
+the widgets and the complication never touched location at all — grep returns
+nothing.
+
 ---
 
 ## 3. What is next
@@ -586,11 +765,12 @@ That is in section 3 as a decision to make.
    run through the
    introduction to a chosen site has now been walked in the simulator, and
    the watch has shown a summary the phone sent it. Still unwalked anywhere:
-   photographing a flower all the way into the garden; the map with and
-   without location permission; the watch receiving its first save by file
-   transfer and answering its first siege; a widget button; "how are my
-   bees" to Siri; exporting a backup and opening it.
-3. **Delete `FlowerPower/Legacy/`** once the new app has run.
+   photographing a flower all the way into the garden; the watch receiving its
+   first save by file transfer and answering its first siege; a widget button;
+   "how are my bees" to Siri; exporting a backup and opening it.
+3. **Delete `FlowerPower/Legacy/`** once the new app has run. It has — on the
+   phone, on 2026-09-15 — so the condition is met and doing it is Kyle's call.
+   It is also the last `coordinates` in the repo, though an unrelated one.
 
 ### Then
 
@@ -860,6 +1040,15 @@ about them matters most.
   should sit for an idle game.
 - Whether the catch-up ceiling of 180 simulated days — a fortnight of real
   absence — is generous enough. Beyond it, time is skipped rather than lived.
+- **Whether a patch's distance should ever vary again.** `distanceMetres` still
+  prices every foraging trip and `maximumForagingRange` still bounds it, but
+  with coordinates gone every patch sits at the nominal 800 m — which, as the
+  2026-09-15 entry says, it always did anyway. Nothing is broken and the
+  balance was measured there. It is a live lever that cannot move, though, and
+  if distance is ever to mean something to a player it has to come from
+  somewhere other than where they were standing: the site, the species, or a
+  draw when the photograph is taken. Whether it is worth having at all is the
+  first question.
 
 ---
 
@@ -899,6 +1088,11 @@ about them matters most.
   assumes the mean flower is 1. Never fix a balance problem by shaving a
   measured trait.
 - **Nothing in the Xcode targets is verified until Xcode has seen it.** Say so.
+- **Check a mechanic is wired up before paying a price for it.** The app asked
+  every player for their location for months to feed a distance calculation
+  that had never once received a hive coordinate; every patch sat at the
+  nominal 800 m and always had. Grepping for who *reads* a value shows it is
+  used. Only grepping for who *sets* it shows it is wired.
 - **A closure handed to an Apple callback API from main-actor code is
   `@Sendable`.** Otherwise Swift 6 infers it main-actor-isolated, the SDK's
   unannotated block type lets it compile, and the runtime traps the first time

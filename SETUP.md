@@ -35,7 +35,8 @@ That is the whole setup. `project.yml` already declares:
 - the local `FlowerPowerCore` package, and which of its two libraries each
   target uses;
 - the App Group `group.com.linwoodtechnologies.flowerpower` on all three;
-- the camera, photo library and location usage strings;
+- the camera and photo library usage strings — there is no location string,
+  because the app asks for no location; see PLAN.md, "location removed";
 - background refresh, and the task identifier it registers;
 - the `.flower`, `.swarm` and `.flowerhive` document types — the first two are
   how one player's flower or swarm reaches another, the third is a backup of a
