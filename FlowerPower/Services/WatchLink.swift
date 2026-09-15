@@ -176,7 +176,11 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
     func send(_ summary: WatchSummary, force: Bool = false) {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
-        guard session.activationState == .activated else { return }
+        // Paired and installed, as `sendSaveFile` already asked. Without it a
+        // phone with no watch queued a transfer on every catch-up, and each
+        // one failed into the console as "WCSession is not paired".
+        guard session.activationState == .activated, session.isPaired,
+              session.isWatchAppInstalled else { return }
         guard throttle.claimSummary(
             summary, force: force, minimumInterval: Self.minimumInterval
         ) else { return }
