@@ -1,6 +1,104 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@"
+          }
+        }
+      }
+    },
+    "%@. %@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@: %3$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lldd" : {
+
+    },
+    "Asks the colony how it is doing, in a sentence or two." : {
+
+    },
+    "Bees" : {
+
+    },
+    "Builders draw comb and foragers hold back, to ease the crowding that sends a swarm out." : {
+
+    },
+    "Cleaners hunt the comb for moth and beetle larvae, at the expense of everything else." : {
+
+    },
+    "Every bee that can sting meets the attacker at the door. Fewer foragers out, and defenders die doing it." : {
+
+    },
+    "Hold the Entrance" : {
+
+    },
+    "Honey" : {
+
+    },
+    "How Are My Bees" : {
+
+    },
+    "How far along it is" : {
+
+    },
+    "How the colony is doing, and what matters this season." : {
+
+    },
+    "Keep the Entrance Open" : {
+
+    },
+    "Keep the Foragers Home" : {
+
+    },
+    "Keeps the entrance open through the winter." : {
+
+    },
+    "Lets the bees propolise the entrance down for winter." : {
+
+    },
+    "Make Room" : {
+
+    },
+    "Narrow the Entrance" : {
+
+    },
+    "No colony yet" : {
+
+    },
+    "Nobody goes out. Nothing for an ambusher to take, and nothing coming in." : {
+
+    },
+    "Opens FlowerPower on the camera, to add a flower to your garden." : {
+
+    },
+    "Photograph a Flower" : {
+
+    },
+    "Propolis narrows the entrance to a slot. Hard to force, hard to rob, slow to fly through." : {
+
+    },
+    "Seal the Entrance" : {
+
+    },
+    "Send in the Cleaners" : {
+
+    },
+    "The Hive" : {
+
+    }
   },
   "version" : "1.0"
 }

@@ -1,6 +1,49 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ · %lld bees" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld bees"
+          }
+        }
+      }
+    },
+    "Hive" : {
+
+    },
+    "How your colony is doing, and what it needs." : {
+
+    },
+    "No colony" : {
+
+    },
+    "No colony yet" : {
+
+    },
+    "Open FlowerPower on iPhone" : {
+
+    },
+    "Open FlowerPower on your iPhone." : {
+
+    },
+    "Or leave it to the bees, which is what happens if you do nothing." : {
+
+    },
+    "Out of touch with your phone" : {
+
+    },
+    "Retry" : {
+
+    },
+    "The bees are in the nest." : {
+
+    },
+    "The bees are out working." : {
+
+    }
   },
   "version" : "1.0"
 }

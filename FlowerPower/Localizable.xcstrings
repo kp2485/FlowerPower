@@ -1,6 +1,1269 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    " " : {
+
+    },
+    "“%@”" : {
+
+    },
+    "%@ — these bloom when little else does, and are worth far more than their yield suggests." : {
+
+    },
+    "%@ · %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "%@ appeared" : {
+
+    },
+    "%@ at the nest" : {
+
+    },
+    "%@ chart" : {
+
+    },
+    "%@ has gone with %lld bees and %lld units of honey in their crops. The colony that stays rests on a virgin queen. You can stay with it, or go with the swarm to a new site — your garden comes either way." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ has gone with %2$lld bees and %3$lld units of honey in their crops. The colony that stays rests on a virgin queen. You can stay with it, or go with the swarm to a new site — your garden comes either way."
+          }
+        }
+      }
+    },
+    "%@ is now critical" : {
+
+    },
+    "%@ millimetres deep against a reach of %@; %lld percent of the nectar is reachable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ millimetres deep against a reach of %2$@; %3$lld percent of the nectar is reachable"
+          }
+        }
+      }
+    },
+    "%@, %lld bees" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld bees"
+          }
+        }
+      }
+    },
+    "%@, %lld degrees" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld degrees"
+          }
+        }
+      }
+    },
+    "%@, in the %@ hemisphere." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, in the %2$@ hemisphere."
+          }
+        }
+      }
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$lld"
+          }
+        }
+      }
+    },
+    "%@: %lld bees" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$lld bees"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld / %lld cells" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld / %2$lld cells"
+          }
+        }
+      }
+    },
+    "%lld banked" : {
+
+    },
+    "%lld cells" : {
+
+    },
+    "%lld cells of drawn comb, paid for in the honey it takes to make the wax. Room they can use today rather than room they cannot afford to fill." : {
+
+    },
+    "%lld days" : {
+
+    },
+    "%lld days old" : {
+
+    },
+    "%lld flowers have no location and are not shown. Your bees still forage them." : {
+
+    },
+    "%lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "%lld of %lld cells" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld cells"
+          }
+        }
+      }
+    },
+    "%lld of %lld units" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld units"
+          }
+        }
+      }
+    },
+    "%lld of stores taken." : {
+
+    },
+    "%lld percent" : {
+
+    },
+    "%lld percent forage left" : {
+
+    },
+    "%lld percent remaining" : {
+
+    },
+    "%lld queen cells — %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld queen cells — %2$@"
+          }
+        }
+      }
+    },
+    "%lld taken so far" : {
+
+    },
+    "%lld units taken and still yours to give back" : {
+
+    },
+    "%lld winter bees — long-lived, and what carries the colony to spring" : {
+
+    },
+    "%lld°" : {
+
+    },
+    "°C" : {
+
+    },
+    "A Colony Backup" : {
+
+    },
+    "A decision can be answered straight from the notification — hold the entrance, make room, keep the entrance open — without opening the app at all. There is also one morning report a day, at an hour you choose." : {
+
+    },
+    "A Flower For You" : {
+
+    },
+    "A flower, but we cannot name it" : {
+
+    },
+    "A Friend Asks" : {
+
+    },
+    "A keystone plant — it flowers when the colony has few other options, which makes it worth more than its yield alone." : {
+
+    },
+    "A keystone plant: it flowers when the colony has few other options, which makes it worth more than its yield alone." : {
+
+    },
+    "A patch is at its best for about two months and gone a few months after that. The garden is a record of where you have been, so keep adding to it — and mind which families are missing this season." : {
+
+    },
+    "A Swarm" : {
+
+    },
+    "A swarm for you" : {
+
+    },
+    "A swarm has left" : {
+
+    },
+    "A swarm has left its old home and is looking for somewhere to live." : {
+
+    },
+    "A wild colony of honey bees, simulated properly. Foragers age into their jobs, brood takes the days it really takes to develop, wax is drawn only out of a nectar flow, the cluster burns honey to hold its temperature through winter, varroa breeds in capped brood, and a crowded nest raises swarm cells and divides. Nectar and pollen come from the floral traits of the plants you photograph — corolla depth against a honey bee's reach, sugar concentration apart from volume, pollen protein apart from abundance." : {
+
+    },
+    "A worker's job follows her age. She cleans cells, then nurses, then builds and ripens, then guards, and finally forages until she wears out." : {
+
+    },
+    "Abandon this colony?" : {
+
+    },
+    "Abandoning the nest for a new site." : {
+
+    },
+    "About FlowerPower" : {
+
+    },
+    "Abscond to somewhere roomier. The bees go; the comb, stores and brood do not." : {
+
+    },
+    "Added to your garden" : {
+
+    },
+    "All Flowers" : {
+
+    },
+    "Almanac" : {
+
+    },
+    "Almost nothing flowers now. Your bees are living on what they stored." : {
+
+    },
+    "Ask a Friend" : {
+
+    },
+    "Ask a Friend for Forage" : {
+
+    },
+    "Ask for Forage" : {
+
+    },
+    "Asks the colony how it is doing, in a sentence or two." : {
+
+    },
+    "Autumn: the entrance" : {
+
+    },
+    "Backup" : {
+
+    },
+    "Beekeeping terms" : {
+
+    },
+    "Bees" : {
+
+    },
+    "Bees take on work as they age. You can lean the colony toward a job, but only bees old enough — and well enough — will take it up." : {
+
+    },
+    "Bees working it" : {
+
+    },
+    "Best nectar first. These are the ones worth walking for this week." : {
+
+    },
+    "Beyond foraging range" : {
+
+    },
+    "Bloom calendar" : {
+
+    },
+    "Blooms" : {
+
+    },
+    "Brood in the warm centre, pollen ringed around it, honey banked at the edges — the way a colony really arranges itself. Comb space, not forage, is what limits how much they can store." : {
+
+    },
+    "Brood nest" : {
+
+    },
+    "Brood: %lld eggs, %lld larvae, %lld pupae" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Brood: %1$lld eggs, %2$lld larvae, %3$lld pupae"
+          }
+        }
+      }
+    },
+    "Build" : {
+
+    },
+    "Builders draw comb and foragers hold back, to ease the crowding that sends a swarm out." : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Centre on Hive" : {
+
+    },
+    "Changes apply from now on. Over 200 simulated colonies, about 92% see their first spring on Forgiving, 89% on Natural and 64% on Harsh; by the second spring it is 60%, 66% and 14%. Forgiving is not safer over two years: well-fed colonies swarm more, and every swarm stakes the colony on a virgin queen's mating flight." : {
+
+    },
+    "Choose a Photo" : {
+
+    },
+    "Cleaners hunt the comb for moth and beetle larvae, at the expense of everything else." : {
+
+    },
+    "Clears every assignment and returns the colony to its natural division of labour." : {
+
+    },
+    "Close" : {
+
+    },
+    "Collection" : {
+
+    },
+    "Colony" : {
+
+    },
+    "Colony news" : {
+
+    },
+    "Comb" : {
+
+    },
+    "Comb space, not forage, is what limits how much a colony can store. A bigger cavity is the single biggest thing you can change — but moving is absconding. The bees go; the comb, the stores and the brood stay behind." : {
+
+    },
+    "Comes with where it was found, so it will appear on your map." : {
+
+    },
+    "Corolla depth" : {
+
+    },
+    "Current workforce" : {
+
+    },
+    "Day" : {
+
+    },
+    "Day %lld" : {
+
+    },
+    "days %lld–%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "days %1$lld–%2$lld"
+          }
+        }
+      }
+    },
+    "Decisions" : {
+
+    },
+    "Decisions are a siege, swarm cells, a full nest, a swarm that has left, the autumn entrance — each with a window, each answerable from the notification itself. Colony news is everything else the colony does badly, including the day it ends. The morning report is one summary a day at the hour set above." : {
+
+    },
+    "Difficulty" : {
+
+    },
+    "Difficulty, moving the hive, the hour your morning report arrives, which notifications you want, and how to play." : {
+
+    },
+    "Distance" : {
+
+    },
+    "Distance is the cost" : {
+
+    },
+    "Diversity comes from how many drones she mated with. It is the colony's main defence against disease." : {
+
+    },
+    "Divide Them Yourself" : {
+
+    },
+    "Done" : {
+
+    },
+    "Earned in %@ of year %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Earned in %1$@ of year %2$lld"
+          }
+        }
+      }
+    },
+    "Earned. %@" : {
+
+    },
+    "Every balance figure in the game comes from a deterministic release build and reproduces byte for byte." : {
+
+    },
+    "Every bee that can sting meets the attacker at the door. Fewer foragers out, and defenders die doing it." : {
+
+    },
+    "Every flower sits at its real distance from the nest, and a forager burns honey to fly there and back. The same flowers three kilometres out return about a third of what they would at the entrance, and past eight kilometres the bees will not go at all." : {
+
+    },
+    "Every plant the game knows. A tick is one you have found; the rest are out there." : {
+
+    },
+    "Everything else is here" : {
+
+    },
+    "Everything goes, including the flowers you have photographed. Your photos stay in your photo library." : {
+
+    },
+    "Export a Backup" : {
+
+    },
+    "Families" : {
+
+    },
+    "Families flowering now that the garden has none of: %@." : {
+
+    },
+    "Families in the garden" : {
+
+    },
+    "Field Guide" : {
+
+    },
+    "Filter" : {
+
+    },
+    "Find a Flower" : {
+
+    },
+    "Firsts belong to this colony. A new colony earns its own." : {
+
+    },
+    "Five modelling errors were found by tracing single colonies through their deaths rather than by reading the average — comb being drawn out of the winter larder, a second swarm cast on the day a new queen mated, and three queen bugs before those. Each of them made the game easier or harder for a reason that had nothing to do with design." : {
+
+    },
+    "Flower, genus or family" : {
+
+    },
+    "FlowerPower" : {
+
+    },
+    "Flowers" : {
+
+    },
+    "Flowers do not last. A patch you photograph is at its best for about two months and is gone a few months after that, so keep finding new ones." : {
+
+    },
+    "Flowers go over" : {
+
+    },
+    "Flowers in %@" : {
+
+    },
+    "Flowers of yours that would help" : {
+
+    },
+    "Flowers photographed" : {
+
+    },
+    "Follow the Swarm" : {
+
+    },
+    "Forage" : {
+
+    },
+    "Foraging" : {
+
+    },
+    "Found" : {
+
+    },
+    "From" : {
+
+    },
+    "Garden" : {
+
+    },
+    "Generation" : {
+
+    },
+    "Give It to My Bees" : {
+
+    },
+    "Give the Swarm Away" : {
+
+    },
+    "Give Them a Home" : {
+
+    },
+    "Glossary" : {
+
+    },
+    "Gone over" : {
+
+    },
+    "Help" : {
+
+    },
+    "Hemisphere" : {
+
+    },
+    "History" : {
+
+    },
+    "Hive hum" : {
+
+    },
+    "Hold the Entrance" : {
+
+    },
+    "Holding: %@" : {
+
+    },
+    "Honey carried" : {
+
+    },
+    "Honey in their crops" : {
+
+    },
+    "Honey to give back" : {
+
+    },
+    "Honey to take" : {
+
+    },
+    "Honey you took is still yours to give back, and a colony that goes into winter short of what it needs does not come out of it. What goes in is honey like any other: they will eat it, and burn it keeping warm." : {
+
+    },
+    "How Are My Bees" : {
+
+    },
+    "How it is balanced" : {
+
+    },
+    "How to Play" : {
+
+    },
+    "In bloom now — %@" : {
+
+    },
+    "In the Backup" : {
+
+    },
+    "In the nest" : {
+
+    },
+    "In your garden" : {
+
+    },
+    "Incomplete protein. Short of essential amino acids, so brood reared on this alone does badly however much is collected." : {
+
+    },
+    "Inside the nest" : {
+
+    },
+    "Jobs" : {
+
+    },
+    "Keep It Open" : {
+
+    },
+    "Keep my flowers" : {
+
+    },
+    "Keep the Entrance Open" : {
+
+    },
+    "Keep the Foragers Home" : {
+
+    },
+    "Keeps the entrance open through the winter." : {
+
+    },
+    "keystone" : {
+
+    },
+    "Keystone flower" : {
+
+    },
+    "Keystone Flowers" : {
+
+    },
+    "Leave it empty to go back to her number." : {
+
+    },
+    "Let the colony decide" : {
+
+    },
+    "Let Them Tell Me" : {
+
+    },
+    "Lets the bees propolise the entrance down for winter." : {
+
+    },
+    "Lineage" : {
+
+    },
+    "Location" : {
+
+    },
+    "Looking at it…" : {
+
+    },
+    "Make Room" : {
+
+    },
+    "Making room. It may still go." : {
+
+    },
+    "Matches" : {
+
+    },
+    "Mated with" : {
+
+    },
+    "Might also be" : {
+
+    },
+    "Milestones" : {
+
+    },
+    "Morning report" : {
+
+    },
+    "Most colonies end. A new swarm is looking for a home, and the flowers you photographed are still growing where you found them — your garden comes with you." : {
+
+    },
+    "Move the Hive" : {
+
+    },
+    "Move the queen and the house bees out now. Fewer go than would leave in a swarm, and the foragers stay with the nest because they know where it is." : {
+
+    },
+    "Move to a Larger Cavity" : {
+
+    },
+    "Name" : {
+
+    },
+    "Name %@" : {
+
+    },
+    "Name a Queen" : {
+
+    },
+    "Name It Yourself" : {
+
+    },
+    "Narrow the Entrance" : {
+
+    },
+    "Nest" : {
+
+    },
+    "Next" : {
+
+    },
+    "No adult workers." : {
+
+    },
+    "No colony can carry its comb. The adults go, with what honey they can hold in their crops; the stores, the comb and every larva stay behind. They arrive as a swarm does and start again. Distances to your flowers are worked out from the new position." : {
+
+    },
+    "No colony yet" : {
+
+    },
+    "No Flower Found" : {
+
+    },
+    "No flowers match this filter." : {
+
+    },
+    "No Flowers Yet" : {
+
+    },
+    "No location on this photo, so it will not appear on the map. Your bees still work it, at a guessed distance." : {
+
+    },
+    "No location, so your bees will fly a guessed distance to it." : {
+
+    },
+    "No Mapped Forage" : {
+
+    },
+    "Nobody goes out. Nothing for an ambusher to take, and nothing coming in." : {
+
+    },
+    "Northern" : {
+
+    },
+    "Not enough of this range has been lived through yet. Try a longer one." : {
+
+    },
+    "Not in bloom this season" : {
+
+    },
+    "Not in the glossary" : {
+
+    },
+    "Not Now" : {
+
+    },
+    "Not yet earned" : {
+
+    },
+    "Not yet found" : {
+
+    },
+    "Not yet." : {
+
+    },
+    "Nothing else. An idle game that pings about nothing gets its notifications turned off, and then it cannot say the one thing that matters. You can switch any of the three off in Settings." : {
+
+    },
+    "Nothing has changed. The colony on this phone is exactly as it was." : {
+
+    },
+    "Nothing here" : {
+
+    },
+    "nothing in the garden flowers" : {
+
+    },
+    "Nothing in the garden flowers in %@. The colony has no forage then." : {
+
+    },
+    "Nothing in your garden would help right now." : {
+
+    },
+    "Nothing is filed under %@." : {
+
+    },
+    "Nothing to chart yet" : {
+
+    },
+    "Nothing to spare right now." : {
+
+    },
+    "Nothing worth writing down yet. There will be." : {
+
+    },
+    "Nothing written yet" : {
+
+    },
+    "Nothing yet. Photograph a flower and the first of these is yours." : {
+
+    },
+    "Notifications" : {
+
+    },
+    "OK" : {
+
+    },
+    "On This Phone" : {
+
+    },
+    "Once they have settled, photograph the flowers you find and your bees will work them." : {
+
+    },
+    "One report a day, at the hour you choose; decisions still arrive when they open. At double speed a winter lasts about four real days instead of seven. The hemisphere sets which flowers are in season for your walks." : {
+
+    },
+    "One simulated hour passes every five real minutes, so a simulated day takes about two hours and a year about a month. The colony keeps going while the app is closed." : {
+
+    },
+    "Open the Nest Up" : {
+
+    },
+    "Opens FlowerPower on the camera, to add a flower to your garden." : {
+
+    },
+    "Or leave them to it, which is what happens if you do nothing." : {
+
+    },
+    "Or let instinct handle it, which is what happens if you do nothing." : {
+
+    },
+    "Or let them go, which is what happens if you do nothing." : {
+
+    },
+    "Out now, %@" : {
+
+    },
+    "Out of season" : {
+
+    },
+    "Packaging the colony up" : {
+
+    },
+    "Photograph" : {
+
+    },
+    "Photograph a flower" : {
+
+    },
+    "Photograph a Flower" : {
+
+    },
+    "Photograph a flower and your bees will work it. Closer and clearer is better — a flower we can name is worth more." : {
+
+    },
+    "Photograph flowers with location enabled and they will appear here, at the places you found them." : {
+
+    },
+    "Photographed" : {
+
+    },
+    "Photographs are the only forage your bees have. Anything actually in bloom will do — the closer to the nest, the less the flight costs them." : {
+
+    },
+    "Preparing the flower to send" : {
+
+    },
+    "Produces no nectar at all. Pollen only." : {
+
+    },
+    "Propolis narrows the entrance to a slot. Hard to force, hard to rob, slow to fly through." : {
+
+    },
+    "Queen" : {
+
+    },
+    "Queenless for %lld days" : {
+
+    },
+    "Queens" : {
+
+    },
+    "Range" : {
+
+    },
+    "Rarity" : {
+
+    },
+    "reach %@ mm" : {
+
+    },
+    "Recent raids: %@" : {
+
+    },
+    "Reigning" : {
+
+    },
+    "Replace It" : {
+
+    },
+    "Replace this phone's colony?" : {
+
+    },
+    "Replace your colony?" : {
+
+    },
+    "Restore" : {
+
+    },
+    "Restore This Colony" : {
+
+    },
+    "Restoring replaces all of it — the colony, the comb, the queens and the flowers in your garden — with what is in the backup. Your photographs stay in your photo library. There is no undo." : {
+
+    },
+    "Rhythm" : {
+
+    },
+    "Right now" : {
+
+    },
+    "Save" : {
+
+    },
+    "Say something (optional)" : {
+
+    },
+    "Seal It" : {
+
+    },
+    "Seal the Entrance" : {
+
+    },
+    "Search flowers" : {
+
+    },
+    "Season" : {
+
+    },
+    "See what you are missing" : {
+
+    },
+    "Send Flower" : {
+
+    },
+    "Send in the Cleaners" : {
+
+    },
+    "Send the Swarm" : {
+
+    },
+    "Sent by %@" : {
+
+    },
+    "Sent by a friend" : {
+
+    },
+    "Series" : {
+
+    },
+    "Settings" : {
+
+    },
+    "Settled" : {
+
+    },
+    "Share" : {
+
+    },
+    "Share a Flower" : {
+
+    },
+    "Short of" : {
+
+    },
+    "Site" : {
+
+    },
+    "Something else" : {
+
+    },
+    "something in the garden flowers" : {
+
+    },
+    "Something Went Wrong" : {
+
+    },
+    "Southern" : {
+
+    },
+    "Species" : {
+
+    },
+    "Start a New Colony" : {
+
+    },
+    "Start Over" : {
+
+    },
+    "Stay With the Colony" : {
+
+    },
+    "Still in bloom" : {
+
+    },
+    "Swarm cells are started. The old queen will leave with most of the flying bees, and what stays will rest on a virgin queen's mating flight. This is how colonies reproduce — and how most of them end." : {
+
+    },
+    "Take" : {
+
+    },
+    "Take a Photo" : {
+
+    },
+    "Taken" : {
+
+    },
+    "Taking this swarm replaces your current colony. Your garden stays." : {
+
+    },
+    "Tap to name her" : {
+
+    },
+    "Tap to prioritise this job" : {
+
+    },
+    "Tap to release" : {
+
+    },
+    "Tap to send this flower" : {
+
+    },
+    "That colony is over." : {
+
+    },
+    "That flower could not be opened" : {
+
+    },
+    "The age ladder" : {
+
+    },
+    "The almanac fills as the year goes by: the first flow, the first swarm cell, what came to the nest." : {
+
+    },
+    "The bees will narrow the entrance with propolis before winter unless you say otherwise. Sealed, it keeps mice out and warmth in, and the damp with it. Open, the cluster breathes and anything small can walk in." : {
+
+    },
+    "The cavity is full and there is no more of it. A %@ gives what it gives." : {
+
+    },
+    "The colony grew by %lld" : {
+
+    },
+    "The colony is preparing to swarm" : {
+
+    },
+    "The colony is recorded once a day. Come back tomorrow and there will be a line." : {
+
+    },
+    "The colony on this phone will be gone. If you might want it back, export a backup of it first." : {
+
+    },
+    "The colony shrank by %lld" : {
+
+    },
+    "The colony's surplus" : {
+
+    },
+    "The comb has filled the cavity. A %@ has room for about %lld more cells — give it to them and they will keep building; leave it and they will divide instead." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The comb has filled the cavity. A %1$@ has room for about %2$lld more cells — give it to them and they will keep building; leave it and they will divide instead."
+          }
+        }
+      }
+    },
+    "The corolla against a honey bee's reach" : {
+
+    },
+    "The difficulty is measured, not guessed. Across 200 simulated colonies run for two years each, 89% see their first spring and 66% their second on the standard setting. That is close to what happens to real unmanaged swarms, and it means losing a colony is the ordinary arc of the thing rather than a punishment." : {
+
+    },
+    "The field guide lists every plant the game knows, whether or not you have found it — what to look for, when it flowers, and whether your bees can reach the nectar." : {
+
+    },
+    "The file is the whole colony and its garden — every bee, the comb, the queens and the flowers you have photographed. Keep it somewhere you keep things. Opening one on another phone replaces that phone's colony, so it is a way to move a colony rather than to share one." : {
+
+    },
+    "The flowers you photographed carry across to the new colony. They are still growing where you found them." : {
+
+    },
+    "The hive" : {
+
+    },
+    "The line" : {
+
+    },
+    "The photograph could not be shown" : {
+
+    },
+    "The photograph of %@ you were sent" : {
+
+    },
+    "The photograph you took" : {
+
+    },
+    "Their colony is in %@." : {
+
+    },
+    "There does not seem to be a flower or plant in this picture. Your bees are particular." : {
+
+    },
+    "There is no room in the comb for any of it." : {
+
+    },
+    "There is room to open the nest up, but not the honey to draw comb into it — wax costs about seven times its weight in stores." : {
+
+    },
+    "These bloom when little else does, and are what carry a colony through the gaps." : {
+
+    },
+    "They are short for winter" : {
+
+    },
+    "They can open it in FlowerPower and their bees will work it, exactly as yours do." : {
+
+    },
+    "They open it in FlowerPower and see which of their flowers would help." : {
+
+    },
+    "This colony and everything it has built will be gone. There is no undo." : {
+
+    },
+    "This one flowers when your bees have few other options. A real find." : {
+
+    },
+    "This one offers no nectar at all — only pollen. Your bees take it for the brood, not for honey." : {
+
+    },
+    "This one was not recognised, so your bees work it at reduced yield. A clearer photo of the same flower may identify it." : {
+
+    },
+    "This photo has no location, so none will be sent." : {
+
+    },
+    "To" : {
+
+    },
+    "Try Again" : {
+
+    },
+    "Units" : {
+
+    },
+    "Unnamed, which their bees do not mind." : {
+
+    },
+    "Varroa breeds in sealed brood and carries deformed wing virus. Hygienic bees uncap infested cells and remove them." : {
+
+    },
+    "Version" : {
+
+    },
+    "What have you found?" : {
+
+    },
+    "What Is It?" : {
+
+    },
+    "What it models" : {
+
+    },
+    "What the bees have put away beyond what they need for winter. Every unit taken is a unit they do not have if the spring is late — the cap is what they can spare, and it moves with the season." : {
+
+    },
+    "When they need you" : {
+
+    },
+    "Where the bees settle decides almost everything. A big cavity holds more comb, which is the real limit on how much honey a colony can put away. A well-insulated one costs less honey to keep warm through winter. A small entrance can be held by a handful of guards." : {
+
+    },
+    "Where the notes and the engine disagree the disagreement is deliberate and written down. Larval periods are the real six, seven and five days rather than a flat nine; swarming is tied to congestion and queen pheromone rather than to how much honey is in the nest, because congestion is the thing the honey was standing in for." : {
+
+    },
+    "Where the science comes from" : {
+
+    },
+    "Where You Found It" : {
+
+    },
+    "While You Were Away" : {
+
+    },
+    "Winter bees are the exception: they never wore themselves out, so they can turn a hand to anything the colony needs in spring." : {
+
+    },
+    "Winter runs at double speed" : {
+
+    },
+    "Worker job ages, brood development times, nest sites and the list of things that raid a hive are taken from the beekeeping and entomology notes the project started from, kept in the repository as docs/RESEARCH.md and enforced by the engine's own tests." : {
+
+    },
+    "Worth finding in %@" : {
+
+    },
+    "Worth looking for" : {
+
+    },
+    "Written by FlowerPower %@." : {
+
+    },
+    "Year" : {
+
+    },
+    "Year %lld" : {
+
+    },
+    "You already have this one" : {
+
+    },
+    "You could divide them yourself in %lld days, once a queen cell is far enough along to leave behind." : {
+
+    },
+    "You could divide them yourself tomorrow, once a queen cell is far enough along to leave behind." : {
+
+    },
+    "You have %lld flowers, but none of their photos carried a location. Allow location access in the camera to place them on the map." : {
+
+    },
+    "Your bees can only eat what you find for them. Photograph a flower to start." : {
+
+    },
+    "Your bees still forage this one, at a reduced yield. A clearer, closer photo may let it be identified." : {
+
+    },
+    "Your bees will work it anyway, at a reduced yield. A closer, sharper photo in better light usually does it." : {
+
+    },
+    "Your current colony and everything it has built will be gone. Your flowers stay." : {
+
+    },
+    "Your friend will found a colony from this swarm at a site they choose. Your colony keeps its virgin queen either way." : {
+
+    },
+    "Your friend's bees will know what it is." : {
+
+    },
+    "Your garden has something workable in every family flowering now. Nothing to ask for." : {
+
+    },
+    "Your last colony is gone. This swarm can be the next." : {
+
+    },
+    "Your name" : {
+
+    },
+    "Your photograph of %@" : {
+
+    },
+    "Your photographs" : {
+
+    },
+    "Your photographs stay on your device and in your own photo library. Flowers and swarms travel between players as files through the share sheet — there is no server and no account. A shared flower carries a coordinate only if you choose to include one, and rounds it to about a kilometre by default, because a flower photograph's location is where a person was standing." : {
+
+    }
   },
   "version" : "1.0"
 }
