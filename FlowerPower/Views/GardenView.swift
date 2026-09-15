@@ -320,6 +320,8 @@ private struct FlowerDetailView: View {
                         }
                     }
 
+                    PatchStateCard(patch: patch)
+
                     if let species {
                         FlowerFactsCard(species: species, patch: patch)
                         FloralTraitsView(species: species)
@@ -359,6 +361,41 @@ private struct FlowerDetailView: View {
     }
 }
 
+/// What this one patch is doing today, as against what the species is like in
+/// general: how much of it is left, how many bees are on it, and whether it is
+/// flowering at all. These are facts about the flower in the photograph rather
+/// than about its kind, so they sit above the reference material.
+private struct PatchStateCard: View {
+
+    let patch: PatchSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionTitle("Right now", systemImage: "clock.fill")
+
+            MeterView(
+                label: "Forage remaining",
+                value: patch.remainingFraction,
+                caption: "\(Int(patch.remainingFraction * 100))%",
+                tint: Theme.nectar,
+                symbolName: "drop.fill"
+            )
+
+            LabeledContent("Bees working it", value: "\(patch.foragersWorkingIt)")
+                .font(.subheadline)
+
+            if !patch.isInBloom {
+                Label("Not in bloom this season", systemImage: "calendar.badge.exclamationmark")
+                    .font(.caption)
+                    .foregroundStyle(Theme.caution)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+}
+
 private struct FlowerFactsCard: View {
 
     let species: FlowerSpecies
@@ -390,11 +427,8 @@ private struct FlowerFactsCard: View {
             }
             .font(.subheadline)
 
-            LabeledContent("Distance") {
-                Text(Measurement(value: patch.distanceMetres, unit: UnitLength.meters),
-                     format: .measurement(width: .abbreviated))
-            }
-            .font(.subheadline)
+            LabeledContent("Rarity", value: patch.rarity.displayName)
+                .font(.subheadline)
 
             if species.isKeystone {
                 Label(

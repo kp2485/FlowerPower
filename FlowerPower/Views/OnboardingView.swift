@@ -95,7 +95,7 @@ struct OnboardingView: View {
             title: "Flowers are the only forage",
             lines: [
                 "Photograph a real flower and your bees can work it. There is no other source of nectar in the game: a colony with nothing to fly to starves, however well it is run.",
-                "And flowers do not last. A patch is at its best for about two months and is gone a few months later, so a garden photographed once in spring is empty by autumn. Keep finding new ones — different families, and close to the nest, because every kilometre costs the foragers honey to fly."
+                "And flowers do not last. A patch is at its best for about two months and is gone a few months later, so a garden photographed once in spring is empty by autumn. Keep finding new ones, and keep them across different families, so that whatever the season there is something still in bloom."
             ]
         ),
         Page(

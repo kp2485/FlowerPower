@@ -56,7 +56,7 @@ struct AboutView: View {
             }
 
             Section {
-                Text("Your photographs stay on your device and in your own photo library. Flowers and swarms travel between players as files through the share sheet — there is no server and no account. A shared flower carries a coordinate only if you choose to include one, and rounds it to about a kilometre by default, because a flower photograph's location is where a person was standing.")
+                Text("The app never asks for or reads your location. Your photographs stay on your device and in your own photo library. Flowers and swarms travel between players as files through the share sheet — there is no server and no account, and nothing leaves the device except the file you hand to somebody.")
             } header: {
                 Text("Your photographs")
             }

@@ -27,8 +27,10 @@
 //
 //  It runs against whatever colony happens to be on the simulator, which is
 //  the honest thing for a launch test to do and also its limitation: there is
-//  no launch argument for starting from a known save. That is the first thing
-//  any test wanting to drive the interface will have to add.
+//  no launch argument for starting from a known save. The second test drives
+//  the interface anyway, by accepting either landing — it walks the
+//  introduction if that is what appears, and goes straight on if the tabs are
+//  already there.
 //
 //  First run on 2026-09-14, on an iOS 26.5 simulator with the deployment
 //  target overridden; see SETUP.md.
@@ -66,6 +68,54 @@ final class FlowerPowerUITests: XCTestCase {
         )
 
         // Still running, rather than having shown something and then died.
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    /// The tabs the game has, and the capture sheet opening with nothing in
+    /// front of it.
+    ///
+    /// Two things this holds. The tab bar is Colony, Nest and Garden — the
+    /// Forage map went with location on 2026-09-15, and a tab that came back
+    /// would be a regression. And tapping the camera button opens the sheet
+    /// with no system dialogue between the tap and "Choose a Photo": that is
+    /// where the location prompt used to appear, and the app asks for no
+    /// location now. The dialogue, if there were one, would belong to
+    /// SpringBoard rather than the app, which is where the test looks.
+    @MainActor
+    func testTheTabsAreColonyNestGardenAndCaptureAsksForNoLocation() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let landed = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label IN %@", Self.landings))
+            .firstMatch
+        XCTAssertTrue(landed.waitForExistence(timeout: 20))
+
+        // A first run: three pages of introduction, then the notification
+        // page, declined here so that no system prompt gets in the way.
+        if landed.label == "A wild colony" {
+            for _ in 0..<3 { app.buttons["Next"].tap() }
+            app.buttons["Not Now"].tap()
+        }
+
+        // A first run and a collapsed colony both end at the site chooser.
+        let settle = app.buttons["Settle Here"]
+        if settle.waitForExistence(timeout: 5) { settle.tap() }
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 10), "No tab bar appeared.")
+        for tab in ["Colony", "Nest", "Garden"] {
+            XCTAssertTrue(tabBar.buttons[tab].exists, "The \(tab) tab is missing.")
+        }
+        XCTAssertFalse(tabBar.buttons["Forage"].exists, "The Forage tab was removed with the map.")
+
+        app.buttons["Photograph a Flower"].tap()
+        let choose = app.buttons["Choose a Photo"]
+        XCTAssertTrue(choose.waitForExistence(timeout: 10), "The capture sheet did not open.")
+
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        XCTAssertEqual(springboard.alerts.count, 0, "A system prompt appeared in front of the capture sheet.")
+        XCTAssertTrue(choose.isHittable)
         XCTAssertEqual(app.state, .runningForeground)
     }
 

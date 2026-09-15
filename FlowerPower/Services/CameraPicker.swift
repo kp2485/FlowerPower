@@ -15,11 +15,11 @@
 //  interest lies. A hand-rolled capture pipeline would be several hundred
 //  lines standing between the player and a picture of a flower.
 //
-//  A photograph taken this way carries no location of its own — that only
-//  comes from the Camera app's own EXIF writing — so `PhotoLibrary.save`
-//  attaches one from CoreLocation when the player has granted it. This is why
-//  location is requested at all, and why the game stays entirely playable
-//  without it.
+//  A photograph taken this way exists nowhere until something writes it down,
+//  so `PhotoLibrary.save` banks it in the player's library and hands back the
+//  identifier the garden then shows it by. That is the one difference from a
+//  photograph chosen out of the library, which is already there and is used
+//  where it lies.
 //
 
 import SwiftUI

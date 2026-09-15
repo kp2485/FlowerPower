@@ -12,9 +12,9 @@
   thing that ever leaves the device is a `.flower`, `.swarm` or `.flowerhive`
   file the player hands to somebody through the share sheet. So
   NSPrivacyTracking is false, NSPrivacyTrackingDomains is empty, and there are
-  no collected data types to declare — including location, which the game reads
-  but never sends anywhere. See `FlowerShare` for the one place a coordinate
-  can leave the device, and for why it is off by default.
+  no collected data types to declare. Location least of all: the app does not
+  use CoreLocation, asks for no location permission, and a flower it sends
+  carries a picture and a name and nothing whatever about where anybody stood.
 
   NSPrivacyAccessedAPITypes is the part that must be kept in step with the
   code. It lists required-reason APIs the app actually calls, and Apple checks

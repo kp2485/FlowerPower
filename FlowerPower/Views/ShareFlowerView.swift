@@ -4,12 +4,18 @@
 //
 //  Sending a flower to somebody.
 //
-//  The screen exists mostly for one control. Everything else here could have
-//  been a single share button, but a flower photograph knows where it was
-//  taken, and that is where a person was standing — often their garden, which
-//  is their address. So the location choice is on the screen, set to not
-//  sharing, rather than buried in settings where the default would quietly
-//  become whatever it was left at.
+//  Almost everything in a share is decided by the game: which species, how
+//  sure the identification was, when it was photographed. The only parts a
+//  person chooses are the two on this screen — a name to be thanked by and a
+//  line to read alongside the flower — so the form is short, and most of it
+//  is there to show what is about to go before the share sheet opens.
+//
+//  Nothing here asks about place. A share carries no location at all, because
+//  the app never learns one, and the photograph's own EXIF is left behind when
+//  the picture is re-encoded on the way out. That means there is no setting
+//  for a player to remember to switch off, and no way for a flower sent to a
+//  group chat to tell everyone in it where somebody was standing. The
+//  re-encode is in `SharedImageStore.prepareForSharing`.
 //
 
 import SwiftUI
@@ -25,13 +31,9 @@ struct ShareFlowerView: View {
 
     @AppStorage("shareSenderName") private var senderName = ""
     @State private var note = ""
-    @State private var location: LocationSharing = .none
     @State private var image: UIImage?
     @State private var prepared: URL?
     @State private var failure: String?
-
-    /// Location choices only make sense for a flower that has one.
-    private var hasLocation: Bool { patch.coordinate != nil }
 
     var body: some View {
         NavigationStack {
@@ -61,31 +63,6 @@ struct ShareFlowerView: View {
                         .textInputAutocapitalization(.words)
                     TextField("Say something (optional)", text: $note, axis: .vertical)
                         .lineLimit(1...3)
-                }
-
-                if hasLocation {
-                    Section {
-                        Picker("Location", selection: $location) {
-                            ForEach(LocationSharing.allCases) { option in
-                                Text(option.title).tag(option)
-                            }
-                        }
-                        .pickerStyle(.inline)
-                        .labelsHidden()
-                    } header: {
-                        Text("Where You Found It")
-                    } footer: {
-                        Text(location.detail)
-                    }
-                } else {
-                    Section {
-                        Label(
-                            "This photo has no location, so none will be sent.",
-                            systemImage: "location.slash"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
                 }
 
                 Section {
@@ -122,15 +99,15 @@ struct ShareFlowerView: View {
             }
         }
         // Rebuilt whenever anything that goes into the file changes, so the
-        // share sheet can never hand over a stale one — in particular one
-        // carrying a location the player has since switched off.
+        // share sheet can never hand over a stale one — signed with a name the
+        // player has since corrected, or missing the line they just typed.
         .task(id: rebuildKey) { @MainActor in
             await prepare()
         }
     }
 
     private var rebuildKey: String {
-        "\(location.rawValue)|\(senderName)|\(note)"
+        "\(senderName)|\(note)"
     }
 
     @MainActor
@@ -155,8 +132,7 @@ struct ShareFlowerView: View {
             patch: patch.id,
             imageData: data,
             from: senderName.trimmingCharacters(in: .whitespacesAndNewlines),
-            note: note.trimmingCharacters(in: .whitespacesAndNewlines),
-            location: location
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines)
         ) else {
             failure = "That flower is no longer in your garden."
             return

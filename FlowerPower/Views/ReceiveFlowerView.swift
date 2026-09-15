@@ -105,33 +105,28 @@ struct ReceiveFlowerView: View {
         }
     }
 
+    /// When the flower is named, the one thing worth saying about it is when
+    /// it flowers, since that is what decides whether it helps. An unnamed one
+    /// shows nothing rather than an empty card: the bees work it either way,
+    /// and there is nothing to promise about it in advance.
     @ViewBuilder
     private var detail: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let species = share.species {
-                Label(
-                    species.bloomSeasons
-                        .sorted { $0.rawValue < $1.rawValue }
-                        .map { $0.rawValue.capitalized }
-                        .joined(separator: ", ")
-                        + (species.isKeystone
-                           ? " — and one of the plants that carries a colony through the gaps"
-                           : ""),
-                    systemImage: "calendar"
-                )
-            }
-
+        if let species = share.species {
             Label(
-                share.coordinate == nil
-                    ? "No location, so your bees will fly a guessed distance to it."
-                    : "Comes with where it was found, so it will appear on your map.",
-                systemImage: share.coordinate == nil ? "location.slash" : "mappin.and.ellipse"
+                species.bloomSeasons
+                    .sorted { $0.rawValue < $1.rawValue }
+                    .map { $0.rawValue.capitalized }
+                    .joined(separator: ", ")
+                    + (species.isKeystone
+                       ? " — and one of the plants that carries a colony through the gaps"
+                       : ""),
+                systemImage: "calendar"
             )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 
     @ViewBuilder

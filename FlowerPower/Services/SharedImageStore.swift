@@ -96,9 +96,14 @@ enum SharedImageStore {
 
     /// Shrinks a photograph to something reasonable to send.
     ///
-    /// Re-encoding rather than forwarding the original file is what strips the
-    /// EXIF — the location, the timestamp, the camera — so this is a privacy
-    /// step as much as a size one. `FlowerShare` says the rest.
+    /// Re-encoding rather than forwarding the original file is what leaves the
+    /// EXIF behind — the camera, the timestamp, and the coordinates a phone
+    /// writes into a picture without being asked. The app never reads or
+    /// records where a flower was found, and a `FlowerShare` has no field to
+    /// put a place in, so this re-encode is the only thing standing between a
+    /// photograph and a location leaving the device inside it. It is a privacy
+    /// step first and a size one second: keep it that way round if this is
+    /// ever made faster. `FlowerShare` says the rest.
     static func prepareForSharing(
         _ image: UIImage,
         maximumDimension: CGFloat = 1_400,

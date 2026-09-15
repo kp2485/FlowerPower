@@ -14,7 +14,6 @@
 
 import SwiftUI
 import PhotosUI
-import CoreLocation
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -25,7 +24,6 @@ struct CaptureView: View {
 
     @State private var pickerItem: PhotosPickerItem?
     @State private var stage: Stage = .choosing
-    @State private var locationProvider = LocationProvider()
     @State private var isUsingCamera = false
 
     /// Built asynchronously, because working out the best available
@@ -50,7 +48,6 @@ struct CaptureView: View {
         let image: UIImage
         let identification: FlowerIdentification
         let patchID: EntityID
-        let hasLocation: Bool
     }
 
     var body: some View {
@@ -121,7 +118,6 @@ struct CaptureView: View {
             await handle(pickerItem)
         }
         .task { @MainActor in
-            locationProvider.requestWhenInUse()
             if classifier == nil {
                 classifier = await FlowerClassifier.bundled()
             }
@@ -132,11 +128,11 @@ struct CaptureView: View {
 
     /// Where a photograph came from, which decides what is recorded for it.
     private enum Source {
-        /// Just taken: saved to the library, stamped with where the player is.
+        /// Just taken: nowhere yet, so it is saved to the library first.
         case camera
-        /// Chosen from the library: already there, and already knowing when
-        /// and where it was taken. `nil` if the picker did not say which it
-        /// was, which with the shared library it should.
+        /// Chosen from the library: already there, and already knowing when it
+        /// was taken. `nil` if the picker did not say which photograph it was,
+        /// which with the shared library it should.
         case library(String?)
     }
 
@@ -169,7 +165,7 @@ struct CaptureView: View {
 
     /// Everything after "we have an image", shared by the camera and the
     /// library picker. The two differ only in where the pixels came from —
-    /// and in whether the photo already knows where it was taken.
+    /// and so in whether anything has to be written to the library at all.
     @MainActor
     private func handle(_ image: UIImage, from source: Source) async {
         do {
@@ -196,10 +192,8 @@ struct CaptureView: View {
             let saved: PhotoLibrary.PhotoMetadata
             switch source {
             case .camera:
-                // Bank the photo — including its location, if the player has
-                // granted it and we have a recent fix.
-                let location = locationProvider.currentLocation
-                saved = try await PhotoLibrary.save(image, location: location)
+                // Nothing holds this photograph yet, so bank it.
+                saved = try await PhotoLibrary.save(image)
             case .library(let identifier):
                 saved = try await libraryPhoto(image, identifier: identifier)
             }
@@ -208,7 +202,6 @@ struct CaptureView: View {
                 localIdentifier: saved.localIdentifier,
                 species: identification.species,
                 confidence: identification.confidence,
-                coordinate: saved.coordinate,
                 takenAt: saved.takenAt
             )
 
@@ -217,8 +210,7 @@ struct CaptureView: View {
             stage = .result(CaptureResult(
                 image: image,
                 identification: identification,
-                patchID: patchID,
-                hasLocation: saved.coordinate != nil
+                patchID: patchID
             ))
 
         } catch {
@@ -226,22 +218,22 @@ struct CaptureView: View {
         }
     }
 
-    /// A photograph chosen from the library, as it already is: its own date
-    /// and place, and no second copy of it in the camera roll.
+    /// A photograph chosen from the library, as it already is: its own date,
+    /// and no second copy of it in the camera roll.
     ///
-    /// This used to save every pick as a new photo stamped with the current
-    /// time and wherever the player was standing, which put a holiday photo's
-    /// flowers beside the hive and a duplicate in the library each time.
-    /// Where a flower is decides how far the bees fly for it, so it is where
-    /// the photograph was taken — even if that turns out to be out of range.
+    /// Every pick used to be saved as a fresh photo stamped with the current
+    /// time, which left a duplicate in the library each time and dated a
+    /// flower photographed last summer to this afternoon. Using the original
+    /// costs nothing and is simply truer: the patch was found when the picture
+    /// was taken, not when it was picked out of a grid.
     @MainActor
     private func libraryPhoto(
         _ image: UIImage,
         identifier: String?
     ) async throws -> PhotoLibrary.PhotoMetadata {
-        // Reading the original's date and place needs read access, which
-        // nothing asked for until now: the picker itself needs none, and the
-        // camera path only ever wrote.
+        // Reading the original's date needs read access, which nothing asked
+        // for until now: the picker itself needs none, and the camera path
+        // only ever wrote.
         if PhotoLibrary.authorisationStatus == .notDetermined {
             await PhotoLibrary.requestAccess()
         }
@@ -253,9 +245,9 @@ struct CaptureView: View {
         // The original cannot be read — most often because the player gave
         // limited access, and a photo chosen in the picker is not one of the
         // photos they shared. A copy is then the only way to show it in the
-        // garden. It carries no location: where the original was taken cannot
-        // be read, and where the player is now is not it.
-        return try await PhotoLibrary.save(image, location: nil)
+        // garden, and it is dated today rather than whenever the original was
+        // taken, because a copy is all there is to read a date from.
+        return try await PhotoLibrary.save(image)
     }
 }
 
@@ -391,16 +383,6 @@ private struct ResultView: View {
                     )
                 } else {
                     UnidentifiedCard(onNameItYourself: { isNaming = true })
-                }
-
-                if !result.hasLocation {
-                    Label(
-                        "No location on this photo, so it will not appear on the map. Your bees still work it, at a guessed distance.",
-                        systemImage: "location.slash"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Button("Done", action: onDone)
@@ -621,62 +603,6 @@ private struct FailureView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.honey)
         }
-    }
-}
-
-// MARK: - Location
-
-/// Where the player is standing, when they have said that is allowed.
-///
-/// Rewritten onto `CLLocationUpdate.liveUpdates()`, the async-sequence API,
-/// which replaces four delegate callbacks and an `NSObject` subclass with a
-/// loop. It is also the reason this can be `@Observable` and main-actor bound
-/// without any of the usual dance about which queue a delegate arrives on.
-///
-/// Location is optional throughout the game. A patch without a coordinate sits
-/// at a nominal foraging distance and does not appear on the map, which costs
-/// accuracy and nothing else — so every failure here is silent by design.
-@Observable
-@MainActor
-final class LocationProvider {
-
-    private(set) var currentLocation: CLLocation?
-
-    @ObservationIgnored private var updates: Task<Void, Never>?
-
-    deinit { updates?.cancel() }
-
-    /// Starts listening. Asking for a location is what prompts for permission,
-    /// so there is nothing separate to request.
-    func requestWhenInUse() {
-        guard updates == nil else { return }
-
-        updates = Task { [weak self] in
-            do {
-                for try await update in CLLocationUpdate.liveUpdates(.default) {
-                    guard !Task.isCancelled else { return }
-
-                    // The player declined, or location is restricted. Nothing
-                    // to report and nothing to say — the game plays without it.
-                    if update.authorizationDenied || update.authorizationRestricted {
-                        self?.currentLocation = nil
-                        return
-                    }
-
-                    if let location = update.location {
-                        self?.currentLocation = location
-                    }
-                }
-            } catch {
-                // No location simply means no map pin.
-                self?.currentLocation = nil
-            }
-        }
-    }
-
-    func stop() {
-        updates?.cancel()
-        updates = nil
     }
 }
 

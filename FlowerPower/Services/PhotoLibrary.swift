@@ -2,20 +2,20 @@
 //  PhotoLibrary.swift
 //  FlowerPower
 //
-//  Reading photos and, importantly, their EXIF location.
+//  Reading photographs out of the player's library, and writing new ones into it.
 //
-//  The location is what turns a photograph into a place on the map, and a place
-//  into a foraging distance the colony actually pays for. It is also personal
-//  data, so everything here degrades gracefully: no permission, no location, or
-//  a photo with no GPS at all all leave the game entirely playable — the patch
-//  simply sits at a nominal distance instead of a real one.
+//  Little is wanted from a photograph that is already there: its identifier,
+//  which is how the garden shows it again without keeping a second copy, and
+//  the date it was taken, which is the date its patch gets. Saving is the other
+//  direction and the fiddlier one, because Photos will only write a format it
+//  has an encoder for — so a capture is encoded here rather than handed over as
+//  a `UIImage`. Either way this degrades gracefully: no permission, or an
+//  original that cannot be read, leaves the game entirely playable.
 //
 
 import Foundation
 import Photos
 import UIKit
-import CoreLocation
-import FlowerPowerCore
 
 enum PhotoLibrary {
 
@@ -88,7 +88,6 @@ enum PhotoLibrary {
     struct PhotoMetadata: Equatable, Sendable {
         let localIdentifier: String
         let takenAt: Date
-        let coordinate: GeoPoint?
     }
 
     /// Everything the simulation needs from a photo.
@@ -97,13 +96,7 @@ enum PhotoLibrary {
 
         return PhotoMetadata(
             localIdentifier: localIdentifier,
-            takenAt: asset.creationDate ?? Date(),
-            coordinate: asset.location.map {
-                GeoPoint(
-                    latitude: $0.coordinate.latitude,
-                    longitude: $0.coordinate.longitude
-                )
-            }
+            takenAt: asset.creationDate ?? Date()
         )
     }
 
@@ -112,14 +105,7 @@ enum PhotoLibrary {
     /// A photo chosen from the library is not saved again — it is used as it
     /// is — unless the app cannot read it, which is when `CaptureView` falls
     /// back to a copy through here. See `CaptureView.libraryPhoto`.
-    ///
-    /// - Parameter location: attached explicitly. A photo taken through
-    ///   `AVCapture` carries no location of its own — that has to be supplied
-    ///   from CoreLocation, and only when the player has granted it.
-    static func save(
-        _ image: UIImage,
-        location: CLLocation?
-    ) async throws -> PhotoMetadata {
+    static func save(_ image: UIImage) async throws -> PhotoMetadata {
 
         // Encoded here, in a format we chose, rather than handing Photos the
         // `UIImage`. Given an image, Photos writes it back in the format it was
@@ -139,7 +125,6 @@ enum PhotoLibrary {
         try await PHPhotoLibrary.shared().performChanges {
             let request = PHAssetCreationRequest.forAsset()
             request.addResource(with: .photo, data: data, options: nil)
-            request.location = location
             request.creationDate = Date()
             placeholder.identifier = request.placeholderForCreatedAsset?.localIdentifier
         }

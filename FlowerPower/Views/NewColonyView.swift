@@ -137,7 +137,7 @@ struct NewColonyView: View {
             case .relocating:
                 Text("Abandoning the nest for a new site.")
                     .font(.title3.weight(.semibold))
-                Text("No colony can carry its comb. The adults go, with what honey they can hold in their crops; the stores, the comb and every larva stay behind. They arrive as a swarm does and start again. Distances to your flowers are worked out from the new position.")
+                Text("No colony can carry its comb. The adults go, with what honey they can hold in their crops; the stores, the comb and every larva stay behind. They arrive as a swarm does and start again. Your garden comes with them.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

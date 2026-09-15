@@ -111,9 +111,7 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
 
-        # Usage strings. Location genuinely is optional: a patch with no
-        # coordinate falls back to a nominal foraging distance and the map says
-        # so. The wording must not imply otherwise.
+        # Usage strings.
         NSCameraUsageDescription: >-
           FlowerPower uses the camera to photograph flowers for your bees.
         NSPhotoLibraryUsageDescription: >-
@@ -121,9 +119,6 @@ targets:
           garden.
         NSPhotoLibraryAddUsageDescription: >-
           Flowers you photograph are saved to your library.
-        NSLocationWhenInUseUsageDescription: >-
-          Locations let your flowers appear on the map, and set how far your
-          bees must fly. FlowerPower works without it.
 
         # Background refresh advances the colony and pushes a copy of the save
         # to the watch while the app is closed. Without it the complication

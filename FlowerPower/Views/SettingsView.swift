@@ -64,10 +64,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $isRelocating) {
                 NewColonyView(reason: .relocating) { site in
-                    store.relocateHive(to: HiveLocation(
-                        coordinate: store.snapshot.nest.coordinate,
-                        type: site
-                    ))
+                    store.relocateHive(to: HiveLocation(type: site))
                     isRelocating = false
                 }
             }

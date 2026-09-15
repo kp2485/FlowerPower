@@ -229,7 +229,7 @@ struct SwarmDecisionCard: View {
         .sensoryFeedback(.success, trigger: answers)
         .sheet(isPresented: $isRelocating) {
             NewColonyView(reason: .relocating) { site in
-                store.relocateHive(to: HiveLocation(coordinate: snapshot.nest.coordinate, type: site))
+                store.relocateHive(to: HiveLocation(type: site))
                 isRelocating = false
             }
         }
