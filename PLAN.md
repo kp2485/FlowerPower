@@ -1051,7 +1051,9 @@ about them matters most.
   if distance is ever to mean something to a player it has to come from
   somewhere other than where they were standing: the site, the species, or a
   draw when the photograph is taken. Whether it is worth having at all is the
-  first question.
+  first question. `docs/WORLD.md`, written the same day, proposes the answer:
+  a generated hex world around the hive, in which the garden is at 200 m and
+  the moor at five kilometres, and the lever finally moves.
 
 ---
 
