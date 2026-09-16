@@ -159,6 +159,185 @@ public struct WorldGenerator: Equatable, Sendable {
         )
     }
 
+    // MARK: - Wild flowers
+
+    /// What grows wild in a chunk, and where.
+    ///
+    /// The generator's output is a *description* rather than a `FlowerPatch`:
+    /// it says which cell, which species and how big the stand runs, and
+    /// nothing about identifiers, capacity or the day. That is deliberate.
+    /// Patches carry ids from the colony's `IDGenerator` and state the save
+    /// has to keep, and neither of those can come out of a pure function of a
+    /// coordinate — so the generator describes the ground and
+    /// `World.discover(_:ids:config:)` is what turns a description into a
+    /// patch, once, at the moment a bee finds it.
+    public struct WildPatchSeed: Equatable, Sendable {
+
+        /// Where it stands. Its distance from the nest follows from this.
+        public let cell: HexCoordinate
+
+        /// A `FlowerCatalogue` identifier.
+        public let speciesID: String
+
+        /// How big this particular stand is, against the biome's own base.
+        /// Around 1.0, and multiplied by `Biome.wildAbundance` and the world's
+        /// `SimulationConfig.wildPatchYield` to reach the patch's
+        /// `capacityScale`.
+        public let variation: Double
+
+        public init(cell: HexCoordinate, speciesID: String, variation: Double) {
+            self.cell = cell
+            self.speciesID = speciesID
+            self.variation = variation
+        }
+    }
+
+    /// Salts for the wild-flower draws. Distinct from the field salts above,
+    /// so moving a biome boundary does not shuffle every hedge in the county.
+    private enum WildSalt: UInt64 {
+        case placement = 21
+        case species = 22
+        case size = 23
+    }
+
+    /// The wild flowers of a chunk, in the chunk's own fixed cell order.
+    ///
+    /// Choosing *k* of the 37 cells without an RNG stream: every cell is given
+    /// a hash, and the *k* smallest win, ties broken by the cell's position in
+    /// the walk. That is a stable selection with no state, which is what lets
+    /// a chunk be regenerated identically whenever anybody asks — on the
+    /// phone, on the watch, and in a save opened next year.
+    ///
+    /// Species are drawn from the biome's list weighted by the catalogue's
+    /// rarity, common most: a hedge is mostly bramble with the odd stand of
+    /// something better, which is the whole reason `FlowerRarity` exists.
+    /// Integer arithmetic throughout — a modulo of the hash — so nothing here
+    /// can move with the floating-point unit.
+    /// - Parameter density: multiplies the biome's own count, so how thick the
+    ///   country is can be swept without editing seven numbers. One is the
+    ///   table as written. The *choice* of cells does not move with it — the
+    ///   ranking is the same ranking and a denser world simply takes more of
+    ///   it — so raising the density adds hedges rather than rearranging them.
+    public func wildPatches(
+        in coordinate: ChunkCoordinate, density: Double = 1
+    ) -> [WildPatchSeed] {
+        let biome = self.biome(at: coordinate)
+        let cells = coordinate.cells
+        let scaled = Int((Double(biome.wildPatchCount) * max(0, density)).rounded())
+        let wanted = min(scaled, cells.count)
+        guard wanted > 0 else { return [] }
+
+        // Rank the cells by their placement hash. The cell's position in the
+        // walk is the tie-break, so two cells that hash the same still come
+        // out in a fixed order.
+        struct Ranked {
+            let position: Int
+            let cell: HexCoordinate
+            let key: UInt64
+        }
+
+        var ranked: [Ranked] = []
+        ranked.reserveCapacity(cells.count)
+        for (position, cell) in cells.enumerated() {
+            let key = Self.hash(
+                seed: seed, salt: WildSalt.placement.rawValue, q: cell.q, r: cell.r
+            )
+            ranked.append(Ranked(position: position, cell: cell, key: key))
+        }
+        ranked.sort { left, right in
+            left.key == right.key ? left.position < right.position : left.key < right.key
+        }
+
+        let weighted = Self.weightedSpecies(for: biome)
+        guard !weighted.isEmpty else { return [] }
+
+        // Back into cell order before returning, so the patches of a chunk are
+        // always created in the same sequence and take their identifiers from
+        // the colony's counter in that sequence.
+        let chosen = ranked.prefix(wanted).sorted { $0.position < $1.position }
+
+        var seeds: [WildPatchSeed] = []
+        seeds.reserveCapacity(chosen.count)
+        for entry in chosen {
+            let draw = Self.hash(
+                seed: seed, salt: WildSalt.species.rawValue, q: entry.cell.q, r: entry.cell.r
+            )
+            let index = Int(draw % UInt64(weighted.count))
+            // A stand is 0.7 to 1.3 of the biome's base. Enough that two hedges
+            // are not the same hedge; not enough that the ground's character
+            // comes from the dice.
+            let size = Self.unit(
+                seed: seed, salt: WildSalt.size.rawValue, q: entry.cell.q, r: entry.cell.r
+            )
+            seeds.append(WildPatchSeed(
+                cell: entry.cell,
+                speciesID: weighted[index],
+                variation: 0.7 + size * 0.6
+            ))
+        }
+        return seeds
+    }
+
+    /// The biome's species list with each identifier repeated by how common
+    /// the plant is, so a uniform draw over the expanded list is a draw
+    /// weighted by rarity.
+    ///
+    /// An array rather than a running total because the lists are five to
+    /// eleven entries long: the expanded list is at most thirty-odd strings,
+    /// built once per chunk, and it makes the weighting something a reader can
+    /// see rather than something they have to trust.
+    static func weightedSpecies(for biome: Biome) -> [String] {
+        var expanded: [String] = []
+        for identifier in biome.species {
+            let rarity = FlowerCatalogue.species(withID: identifier)?.rarity ?? .common
+            let weight: Int
+            switch rarity {
+            case .common: weight = 4
+            case .uncommon: weight = 2
+            case .rare: weight = 1
+            }
+            expanded.append(contentsOf: repeatElement(identifier, count: weight))
+        }
+        return expanded
+    }
+
+    /// How much of a chunk's wild forage is actually standing on a given day.
+    ///
+    /// Capacity times whether the plant is in flower, summed over the chunk.
+    /// It is what `ExplorationSystem` weighs a rumoured chunk by: a forager
+    /// blundering into the next parish is far more likely to come back with
+    /// news of it when there is a field of rape in it than when there is
+    /// nothing out, which is the only sense in which the bees can be said to
+    /// choose where they explore.
+    public func wildRichness(
+        in coordinate: ChunkCoordinate, during season: Season, density: Double = 1
+    ) -> Double {
+        let biome = self.biome(at: coordinate)
+        return wildPatches(in: coordinate, density: density).reduce(0.0) { total, seed in
+            guard let species = FlowerCatalogue.species(withID: seed.speciesID),
+                  species.isInBloom(during: season)
+            else { return total }
+            return total + seed.variation * biome.wildAbundance
+        }
+    }
+
+    /// The first seed at or after `start` whose home chunk is this biome.
+    ///
+    /// For `beesim --biome`, and for a test that wants particular ground
+    /// underfoot. A linear scan rather than anything clever: the fields are
+    /// smooth noise and every biome turns up within a few hundred seeds, and a
+    /// scan is reproducible where a solver would not be.
+    ///
+    /// Returns nil rather than looping forever if a biome cannot be found
+    /// within `limit` — a caller that asked for the impossible gets to say so.
+    public static func seed(producing biome: Biome, from start: UInt64, limit: Int = 100_000) -> UInt64? {
+        for offset in 0..<limit {
+            let candidate = start &+ UInt64(offset)
+            if WorldGenerator(seed: candidate).biome(at: .origin) == biome { return candidate }
+        }
+        return nil
+    }
+
     // MARK: - Names
 
     /// What the ground is called.

@@ -16,6 +16,16 @@ final class VarroaTests: XCTestCase {
         config: SimulationConfig = .standard,
         seed: UInt64 = 42
     ) -> [Double] {
+        // The standard colony, and nothing wild in the country round it. Since
+        // the world was drawn a founding colony gets wild stands in its seven
+        // parishes, and a better-fed colony rears more brood and so more mites:
+        // with the country on, and the dance weighting distance to the power
+        // three, varroa reached 0.327 by day 300 against the 0.3 this test
+        // holds for a single year. That is a real effect and it belongs to the
+        // balance tables in PLAN.md, not here — this test is about how mites
+        // grow on a colony of known composition, so the composition is held.
+        var config = config
+        config.wildPatchDensity = 0
         var simulation = Fixture.thrivingSimulation(config: config, seed: seed)
         simulation.world.hive.pathogens[.varroa] = config.pathogenSeedLevel
 

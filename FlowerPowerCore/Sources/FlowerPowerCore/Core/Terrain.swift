@@ -66,6 +66,63 @@ public struct Terrain: Codable, Equatable, Sendable {
         home.neighbours.map(generator.chunk(at:))
     }
 
+    /// The home chunk's biome without building its name.
+    ///
+    /// `homeChunk` is asked for by the interface a few times a refresh;
+    /// `homeBiome` is asked for by `ThreatSystem` once per predator per day,
+    /// which is twenty-one string constructions a day for a label nobody
+    /// reads. Same arithmetic, none of the naming.
+    public var homeBiome: Biome { generator.biome(at: home) }
+
+    /// Everything the colony knows, drawn, in the order it came to know it.
+    ///
+    /// The map can show more than seven chunks now, so this is what it draws
+    /// from. Order is `discovered`'s own — arrival order — which puts the home
+    /// chunk and its six first and everything the foragers and the scouts
+    /// found after them.
+    public var discoveredChunks: [Chunk] {
+        discovered.map(generator.chunk(at:))
+    }
+
+    // MARK: - The fog
+
+    /// Ground the dancers have pointed at: an undiscovered chunk touching a
+    /// discovered one, and within the range a bee can actually fly.
+    ///
+    /// Derived rather than stored, which is the whole reason it is correct.
+    /// A stored rumour would have to be kept in step with every discovery, and
+    /// a save that got out of step would show a rumour of ground the colony
+    /// already stands on.
+    ///
+    /// In a fixed order: discovered chunks in arrival order, and each one's
+    /// neighbours in `HexCoordinate.directions` order — east first, clockwise.
+    /// An array rather than a `Set` for the reason `discovered` is one.
+    public var rumoured: [ChunkCoordinate] {
+        var known = Set(discovered)
+        var result: [ChunkCoordinate] = []
+
+        for chunk in discovered {
+            for neighbour in chunk.neighbours {
+                guard !known.contains(neighbour) else { continue }
+                guard Self.isWithinFlight(neighbour) else { continue }
+                known.insert(neighbour)
+                result.append(neighbour)
+            }
+        }
+        return result
+    }
+
+    /// Whether a chunk is close enough that a bee could have been there.
+    ///
+    /// Measured to the chunk's centre cell, which is the cell the chunk is
+    /// named for. `FlowerPatch.maximumForagingRange` is the engine's own edge
+    /// and the only edge the world has: past it a patch's distance efficiency
+    /// is zero, so ground out there could never be worth anything even if
+    /// somebody drew it.
+    public static func isWithinFlight(_ chunk: ChunkCoordinate) -> Bool {
+        chunk.centre.metresFromOrigin <= FlowerPatch.maximumForagingRange
+    }
+
     // MARK: - The garden
 
     /// Every cell of the garden that is open, innermost ring first and

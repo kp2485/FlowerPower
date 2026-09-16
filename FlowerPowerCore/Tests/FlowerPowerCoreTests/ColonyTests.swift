@@ -468,7 +468,23 @@ final class DefenceTests: XCTestCase {
     /// open comb hanging from a branch.
     func testGoodSitesRepelMoreOfWhatComes() {
         func repelRate(location: HiveLocationType, seed: UInt64) -> (attacks: Int, repelled: Int) {
-            var simulation = Fixture.thrivingSimulation(seed: seed, locationType: location)
+            // The biome decides *who comes*, and the seeds below put the two
+            // sites on different ground; this is about who is turned away once
+            // they are at the door. `biomeThreatScale = 0` is the engine
+            // before the biome tables existed, and it is what leaves the site
+            // as the only thing that differs. See `SimulationConfig`.
+            var config = SimulationConfig.standard
+            config.biomeThreatScale = 0
+            // And no country at all, for the same reason: wild forage changes
+            // how many bees are in the field, and a field ambusher's chance is
+            // read straight off that. Zero density means no wild stand is ever
+            // planted, on discovery or at founding, so the two colonies differ
+            // in their site and nothing else.
+            config.wildPatchDensity = 0
+
+            var simulation = Fixture.thrivingSimulation(
+                config: config, seed: seed, locationType: location
+            )
             simulation.mutateWorld { world in
                 world.hive.resources.add(600, of: .honey)
                 for index in 0..<250 {

@@ -60,6 +60,22 @@ public struct World: Codable, Equatable, Sendable {
     /// patch stands at whatever distance it was given, exactly as before.
     public var terrain: Terrain?
 
+    /// A scouting party in the field, or nil when everybody is foraging.
+    ///
+    /// The one thing about the world the colony carries in its save. Where a
+    /// chunk is known is `Terrain.discovered`; where the bees *are* is here,
+    /// because it is a state of the colony and it has to survive being put
+    /// down mid-flight.
+    public var scoutingParty: ScoutingParty?
+
+    /// Whether some of today's foragers went wandering instead of working.
+    ///
+    /// Transient: `ExplorationSystem` sets it at the day boundary and clears
+    /// it at the next one, and `ForagingSystem` is the only thing that reads
+    /// it. Saved anyway, because a save taken mid-day that came back with the
+    /// flag cleared would give the colony a few free foraging hours.
+    public var exploringToday = false
+
     /// Whether the entrance is propolised down for winter.
     public var entranceSealed = false
     /// The player's word on it for this autumn, or nil for instinct.
@@ -135,6 +151,16 @@ public struct World: Codable, Equatable, Sendable {
         // a seed needs the colony's random stream and a `World` cannot see it.
         // See `Simulation.adoptTerrainIfMissing()`.
         terrain = try container.decodeIfPresent(Terrain.self, forKey: .terrain)
+
+        // And the country after it. A save written before scouting existed has
+        // nobody out and nobody wandering, which is exactly what these
+        // defaults say.
+        scoutingParty = try container.decodeIfPresent(
+            ScoutingParty.self, forKey: .scoutingParty
+        )
+        exploringToday = try container.decodeIfPresent(
+            Bool.self, forKey: .exploringToday
+        ) ?? false
     }
 
     public static let attackHistoryLimit = 40
@@ -191,4 +217,128 @@ public struct World: Codable, Equatable, Sendable {
             attackHistory.removeFirst(attackHistory.count - Self.attackHistoryLimit)
         }
     }
+
+    // MARK: - Finding the country
+
+    /// Records a chunk as known and plants whatever grows in it.
+    ///
+    /// The one place a wild patch is ever created. Discovery and registration
+    /// are the same act on purpose: a chunk is generated on demand for
+    /// drawing, but its *flowers* have state — how much of the stand the bees
+    /// have taken, how much has grown back — and state has to live in the save
+    /// rather than be re-derived. So the moment a bee reaches a chunk, the
+    /// chunk's seeds become patches with ids from the colony's counter, and
+    /// from then on they are ordinary patches that happen never to fade.
+    ///
+    /// **The home chunk grows wild flowers too**, in every cell but the one
+    /// the bees live in. Its 37 cells are exactly the three rings of the
+    /// garden — a coincidence of both being radius 3 — and the first instinct
+    /// was to leave it to the player's plot. Measured, that was wrong by a
+    /// long way: it put every wild flower in the game at 800 m or more, where
+    /// the distance efficiency is 0.67 and falling, and a colony on wild
+    /// forage alone survived its first year eight times in a hundred however
+    /// much was growing out there. The country has to start at the doorstep.
+    /// The garden takes precedence where the two meet — see
+    /// `Simulation.nextFreeGardenCell()`.
+    ///
+    /// Does nothing at all for a chunk already known, so it is safe to call on
+    /// every discovery path.
+    ///
+    /// - Returns: how many patches were planted.
+    @discardableResult
+    mutating func discover(
+        _ chunk: ChunkCoordinate,
+        ids: inout IDGenerator,
+        config: SimulationConfig,
+        on day: Int,
+        at date: Date
+    ) -> Int {
+        guard var terrain else { return 0 }
+        guard !terrain.hasDiscovered(chunk) else { return 0 }
+
+        terrain.discover(chunk)
+        self.terrain = terrain
+
+        return plantWildFlowers(of: chunk, ids: &ids, config: config, on: day, at: date)
+    }
+
+    /// Creates the patches of an already-discovered chunk.
+    ///
+    /// Split out from `discover` so that founding — where the seven home
+    /// chunks are known before anybody asks — and a change of world seed under
+    /// `beesim` can both use it without pretending to discover ground that is
+    /// already on the map.
+    @discardableResult
+    mutating func plantWildFlowers(
+        of chunk: ChunkCoordinate,
+        ids: inout IDGenerator,
+        config: SimulationConfig,
+        on day: Int,
+        at date: Date
+    ) -> Int {
+        guard let terrain else { return 0 }
+
+        let biome = terrain.generator.biome(at: chunk)
+        var planted = 0
+
+        for seed in terrain.generator.wildPatches(in: chunk, density: config.wildPatchDensity) {
+            // Nothing grows in the nest.
+            guard seed.cell != HexCoordinate.origin else { continue }
+
+            let distance = seed.cell.metresFromOrigin
+            // Past the range there is nothing to work however much grows
+            // there, and a patch with a distance efficiency of zero is dead
+            // weight in a save that is walked every tick.
+            guard distance <= FlowerPatch.maximumForagingRange else { continue }
+
+            patches.append(FlowerPatch(
+                id: ids.next(),
+                photoLocalIdentifier: FlowerPatch.wildPhotoIdentifier(for: seed.cell),
+                species: FlowerCatalogue.species(withID: seed.speciesID),
+                // No photograph, so no identification bonus. The bees know
+                // perfectly well what it is; the player has not recorded it.
+                identificationConfidence: 0,
+                distanceMetres: distance,
+                discoveredAt: date,
+                // Never fades. A hedge is cut and grows back, and there is no
+                // photograph of it ageing out. See `FlowerPatch.vigour`.
+                registeredOnDay: nil,
+                origin: .wild,
+                capacityScale: config.wildPatchYield * biome.wildAbundance * seed.variation,
+                cell: seed.cell
+            ))
+            planted += 1
+        }
+
+        return planted
+    }
+
+    /// Wild patches belonging to chunks that are no longer part of this world.
+    ///
+    /// Only `beesim --world-seed` and `--biome` ever move the ground out from
+    /// under a colony, and when they do the flowers of the old country have to
+    /// go with it.
+    mutating func removeWildPatches() {
+        patches.removeAll(where: \.isWild)
+    }
+}
+
+/// Foragers sent out to look at the country rather than to work it.
+///
+/// A record of a commitment with a date on it, in the shape `PendingSwarm` and
+/// `ActiveThreat` already take: when they left, when they are due back. What
+/// they find is decided on the day they return and not before, so there is
+/// nothing here about where they went — the answer is "the ring of rumoured
+/// ground", and that ring is derived from the map at the moment they get home.
+public struct ScoutingParty: Codable, Equatable, Sendable {
+
+    public let leftOnDay: Int
+    public let returnsOnDay: Int
+
+    public init(leftOnDay: Int, returnsOnDay: Int) {
+        self.leftOnDay = leftOnDay
+        self.returnsOnDay = returnsOnDay
+    }
+
+    public func daysRemaining(on day: Int) -> Int { max(0, returnsOnDay - day) }
 }

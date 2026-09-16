@@ -60,13 +60,30 @@ public struct BloomPrompt: Equatable, Sendable {
     /// Plants that flower when little else does. Worth pointing out.
     public let keystones: [FlowerSpecies]
 
+    /// Where a keystone is in flower out in the country, when the colony knows
+    /// of one: "Heather is out on Heather Bank, to the north-east."
+    ///
+    /// The one sentence in the game that gives a direction, and it earns it —
+    /// a flow, in this world, is a *place*, and the colony's year is a
+    /// sequence of directions the dancers point in. Nil until the bees have
+    /// found ground with a keystone on it, which is most of the time.
+    ///
+    /// Not a nudge to photograph anything. The heather is already being
+    /// worked; this says so.
+    public let wildKeystone: String?
+
     public init(
         date: Date = Date(),
         hemisphere: Hemisphere = .northern,
-        patches: [PatchSummary]
+        patches: [PatchSummary],
+        terrain: TerrainSummary? = nil,
+        wildPatches: [PatchSummary] = []
     ) {
         let season = RealSeason.current(on: date, in: hemisphere)
         let collection = BotanyCollection(patches: patches)
+        self.wildKeystone = Self.wildKeystoneSentence(
+            patches: wildPatches, terrain: terrain, season: season
+        )
 
         let flowering = FlowerCatalogue.inBloom(during: season)
         self.season = season
@@ -78,6 +95,42 @@ public struct BloomPrompt: Equatable, Sendable {
         let familiesHeld = Set(collection.families.map(\.family))
         self.missingFamilies = familiesFlowering.subtracting(familiesHeld)
             .sorted { $0.scientificName < $1.scientificName }
+    }
+
+    /// Finds a keystone standing wild on ground the colony knows, and says
+    /// where it is.
+    ///
+    /// Read off the patches rather than off the generator, and that is the
+    /// honest way round: a wild patch is only in `patches` at all once a bee
+    /// has been to its chunk, so this can never point at country nobody has
+    /// seen. The chunk is resolved through `TerrainSummary.chunk(containing:)`
+    /// for the same reason.
+    ///
+    /// Patch order is registration order, which is discovery order, so the
+    /// first keystone found is the first one the colony found — a fixed
+    /// answer rather than whichever way a set happened to iterate.
+    private static func wildKeystoneSentence(
+        patches: [PatchSummary],
+        terrain: TerrainSummary?,
+        season: Season
+    ) -> String? {
+        guard let terrain else { return nil }
+
+        for patch in patches {
+            guard patch.origin == .wild, let cell = patch.cell, let taxon = patch.taxon else {
+                continue
+            }
+            guard let species = FlowerCatalogue.all.first(where: { $0.taxon == taxon }),
+                  species.isKeystone,
+                  species.isInBloom(during: season)
+            else { continue }
+
+            guard let chunk = terrain.chunk(containing: cell) else { continue }
+            guard let bearing = terrain.home.centre.direction(to: chunk.centre) else { continue }
+
+            return "\(species.commonName) is out on \(chunk.name), to the \(bearing)."
+        }
+        return nil
     }
 
     public var isEmpty: Bool { inBloom.isEmpty }

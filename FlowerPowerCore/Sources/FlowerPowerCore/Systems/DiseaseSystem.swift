@@ -43,6 +43,16 @@ public struct DiseaseSystem: DailySystem {
 
             var chance = context.config.pathogenArrivalChance(for: pathogen) * exposure
 
+            // Wet ground is nosema country and a damp wood is chalkbrood
+            // country. The second of the two hooks `docs/WORLD.md` section 4
+            // names, and the biome touches nothing else in this system — what
+            // a pathogen does once it is in is the colony's own hygiene and
+            // genetics. Varroa is deliberately neutral everywhere: it arrives
+            // on bees rather than out of the ground.
+            if let biome = world.terrain?.homeBiome {
+                chance *= context.config.scaled(biome.pathogenMultiplier(for: pathogen))
+            }
+
             // A good propolis envelope is genuinely antimicrobial.
             chance *= (1 - 0.4 * world.hive.propolisEnvelope)
 

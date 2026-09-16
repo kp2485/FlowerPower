@@ -61,6 +61,16 @@ public struct ThreatSystem: DailySystem {
     ) -> Double {
         var chance = predator.dailyEncounterChance
 
+        // The ground the nest stands on decides who is about. A wood is badger
+        // country, a churchyard is wasp country, and a moor is where the bear
+        // is. One of the two hooks `docs/WORLD.md` section 4 names, and the
+        // biome touches nothing else in this system: what a predator does when
+        // it arrives is the site's business and the colony's, exactly as
+        // before. `biomeThreatScale = 0` returns this line to 1.0.
+        if let biome = world.terrain?.homeBiome {
+            chance *= context.config.scaled(biome.predatorMultiplier(for: predator))
+        }
+
         // Ground-dwelling raiders find some sites far more easily than others.
         if predator.attackStyle == .entrance || predator.attackStyle == .catastrophic {
             chance *= 0.4 + world.hive.location.type.groundPredatorExposure

@@ -9,13 +9,20 @@
 //  Usage:
 //    beesim [--days N] [--patches N] [--distance M] [--seed N]
 //           [--preset standard|gentle|harsh] [--site <name>] [--every N]
-//           [--world] [--world-seed N]
+//           [--world] [--world-seed N] [--biome <name>]
 //
 //  `--world` founds a generated countryside around the colony and plants
 //  every stocked flower in the garden — 200 m in the first ring, 400 in the
-//  second — instead of holding them all at `--distance`. Without it nothing
-//  about a run differs from one made before the world existed, which is the
-//  property the whole of Phase 1 was checked against.
+//  second — instead of holding them all at `--distance`. Without it there is
+//  no wild forage and no fog, and nothing about a run differs from one made
+//  before the world existed, which is the property the whole of Phase 1 was
+//  checked against and the reason every recorded baseline is still readable.
+//
+//  Since Phase 2 it also stocks the six parishes around the home chunk with
+//  wild flowers, so `--world --patches 0` is a colony on wild forage alone —
+//  the measurement `docs/WORLD.md` section 10 item 2 exists for. `--biome
+//  <name>` puts a particular kind of ground under the nest, which is how the
+//  survival-by-biome table is taken.
 //
 
 import Foundation
@@ -49,6 +56,10 @@ struct Options {
     /// the colony rather than the ground.
     var worldSeed: UInt64?
 
+    /// Force the ground under the nest. Each trial still gets its own
+    /// neighbours, so the row measures the biome rather than one map.
+    var biome: String?
+
     /// Ad-hoc config overrides, so a knob can be swept without a rebuild.
     /// `--set pheromoneDilutionScale=45 --set swarmCongestionThreshold=0.55`
     var overrides: [String: Double] = [:]
@@ -73,6 +84,7 @@ struct Options {
             case "--trials": options.trials = Int(value ?? "") ?? options.trials
             case "--policy": options.policy = value ?? options.policy
             case "--world-seed": options.worldSeed = UInt64(value ?? "") ?? options.worldSeed
+            case "--biome": options.biome = value ?? options.biome
             case "--shared":
                 options.sharedForage = true
                 index += 1
@@ -103,10 +115,35 @@ struct Options {
         case "harsh": config = .harsh
         default: config = .standard
         }
+
+        // `--world` off means no country, and that is the whole point of the
+        // flag: every balance number recorded in `PLAN.md` was taken on an
+        // engine that had none, and a run that quietly grew forty hedges
+        // around the nest would not be comparable with any of them. The app
+        // always has a world — `newGame` always makes one — so this is a
+        // statement about the tool rather than about the game.
+        //
+        // Before the overrides, so `--set wildPatchDensity=` still wins for
+        // anyone who wants to sweep it with the garden held at one distance.
+        if !world { config.wildPatchDensity = 0 }
+
         for (key, value) in overrides {
             config.apply(key, value)
         }
         return config
+    }
+
+    /// An unknown biome is a hard error for the same reason an unknown
+    /// `--policy` is: a survival-by-biome sweep whose rows all quietly ran on
+    /// whatever the seed gave is worse than no table at all.
+    var homeBiome: Biome? {
+        guard let biome else { return nil }
+        guard let parsed = Biome(rawValue: biome) else {
+            let known = Biome.allCases.map(\.rawValue).joined(separator: ", ")
+            print("unknown --biome '\(biome)'. Known: \(known)")
+            exit(2)
+        }
+        return parsed
     }
 
     var locationType: HiveLocationType {
@@ -180,6 +217,9 @@ var simulation = Simulation.newGame(
 if let worldSeed = options.worldSeed {
     simulation.setTerrainSeed(worldSeed)
 }
+if let biome = options.homeBiome {
+    simulation.setTerrainBiome(biome)
+}
 
 // Top-level code is main-actor isolated under the Swift 6 language mode, and
 // `simulation` is a top-level variable, so anything that mutates it has to say
@@ -225,13 +265,15 @@ if options.trials > 0 {
         shared: options.sharedForage,
         policy: options.playerPolicy,
         world: options.world,
-        worldSeed: options.worldSeed
+        worldSeed: options.worldSeed,
+        biome: options.homeBiome
     )
     print("policy: \(options.playerPolicy.rawValue)")
     if options.world {
         print("world: on"
               + (options.worldSeed.map { ", seed \($0)" } ?? ", seed per trial")
-              + " · flowers planted in the garden")
+              + (options.homeBiome.map { " · \($0.rawValue) underfoot" } ?? "")
+              + " · flowers planted in the garden, wild forage around it")
     }
     if CommandLine.arguments.contains("--list") { Trials.list(outcomes) }
     Trials.report(outcomes, days: options.days)
@@ -268,6 +310,7 @@ func number(_ value: Double, _ decimals: Int = 0) -> String {
 
 let ground = options.world
     ? "\(options.patches) patches in the garden · "
+        + "\(simulation.patches.filter(\.isWild).count) wild · "
         + "\(simulation.homeChunk?.name ?? "nowhere") "
         + "(\(simulation.homeChunk?.biome.rawValue ?? "-"))"
     : "\(options.patches) patches at \(number(options.distance))m"

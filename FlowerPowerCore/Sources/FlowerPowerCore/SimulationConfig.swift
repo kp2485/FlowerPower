@@ -352,6 +352,153 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     ///
     public var sharedPatchYield: Double = 1.0
 
+    // MARK: - The country
+
+    /// How much of a photographed patch a *wild* stand is worth.
+    ///
+    /// The number `WORLD.md` section 6 puts at the centre of the whole design.
+    /// A photograph is a flower the player went out and found, and it feeds
+    /// the colony at full capacity with the identification bonus on top; a
+    /// wild stand is a hedge shared with every other pollinator in the parish,
+    /// and this is that share. Set it too high and the photograph stops
+    /// mattering and the game loses its premise; set it to zero and a wild
+    /// colony in a real hedgerow starves, which is not true of wild colonies.
+    ///
+    /// The target it is set against is 40% first-year survival on wild forage
+    /// alone, measured with `beesim --world --patches 0`, against 86% with the
+    /// garden. Multiplied by `Biome.wildAbundance` and by the stand's own
+    /// variation, so this is the world-wide dial and the biome table is the
+    /// shape.
+    ///
+    /// **Measured, and it only pays alongside a low density.** 200 colonies,
+    /// one year, wild forage alone, at the density the biome table names: 0.3
+    /// gives 26%, 0.8 gives 33%, 1.6 gives 33% — it saturates, because the
+    /// colony's income is bounded by how many foragers it has and how far they
+    /// fly rather than by what is standing there. Halve the number of stands
+    /// and raise this to 1.6, and the same measurement gives 38%: *fewer and
+    /// richer* beats *more and thinner* on both sides of the balance. See
+    /// `wildPatchDensity` for why.
+    ///
+    /// A wild stand at 1.6 is a little richer than a photographed flower's
+    /// 1.36, and that is not the contradiction it looks: a stand is shared
+    /// with every other pollinator in the parish and stands where it stands,
+    /// which at 800 m and beyond is worth a third less per trip than a
+    /// photograph planted at 200. The photograph is still worth 25 points of
+    /// first-year survival and 30 at two years.
+    public var wildPatchYield: Double = 1.6
+
+    /// How much more steeply *recruitment* falls off with distance than yield
+    /// does. An exponent on the patch's distance efficiency, in the dance and
+    /// nowhere else.
+    ///
+    /// The harvest keeps the plain efficiency: a bee who flies two kilometres
+    /// still brings back what two kilometres is worth. What changes is whether
+    /// anybody follows the dance at all. Seeley's finding is that a distant
+    /// source has to be *much* more profitable before it recruits — the dance
+    /// threshold rises with distance far faster than the yield falls — and the
+    /// engine had the two at the same slope, which is why an untouched stand a
+    /// kilometre out out-ranked a half-worked garden patch at the door.
+    ///
+    /// Three, from a sweep on 2026-09-16 over 200 colonies and two years, with
+    /// the garden on. At one — the engine as it was — the country *cost* the
+    /// garden colony (56% against 62% with the garden alone) and a colony that
+    /// scouted survived at 2%: it abandoned its worked garden for untouched
+    /// stands miles out and starved. At two, 64% and 55%. At three, 69% and
+    /// 66% — scouting a three-point price rather than a trap, and the country
+    /// worth having. Wild forage alone rose with it (38% → 64% first year),
+    /// which is a matter for `wildPatchDensity` rather than a reason to
+    /// flatten the dance again.
+    ///
+    /// A run with the world off is byte for byte what it was at any exponent:
+    /// its patches all stand at one distance, so the factor is the same on
+    /// every weight and cancels when the shares are normalised. Measured, not
+    /// assumed — the 400 m baseline diffs clean at one and at three.
+    public var danceDistanceExponent: Double = 3.0
+
+    /// How many patches the dance floor holds: the best this many, and nothing
+    /// else gets a dancer.
+    ///
+    /// **The single most important number the country added, and it is about
+    /// the colony rather than about the ground.** Recruitment was spread over
+    /// every patch in bloom, weighted by quality — which is fine for the nine
+    /// or twelve flowers a player photographs and catastrophic for a
+    /// countryside. A colony that had scouted the whole eight-kilometre circle
+    /// held two hundred and sixty stands, split its force across all of them,
+    /// and died: every colony of two hundred, in the first year, with more
+    /// forage on offer than the game has ever had. Abundance was a *penalty*,
+    /// which is the exact opposite of what `docs/WORLD.md` section 1 says the
+    /// world is for.
+    ///
+    /// A real dance floor is not two hundred and sixty sources either. Recruits
+    /// follow the most vigorous dances; a marginal source gets watched and
+    /// ignored. Sixteen is a colony's working repertoire, and it is above
+    /// anything the game produced before the world existed — nine photographs
+    /// and their restocks — so a colony with no country behaves exactly as it
+    /// always did. The ranking is recomputed every tick, so a patch that is
+    /// worked down drops off the floor and the next one steps up: the floor
+    /// rotates, it is not a fixed list.
+    public var danceFloorPatches: Int = 16
+
+    /// How thick the country is, as a multiplier on each biome's own count of
+    /// wild stands per 37-cell chunk.
+    ///
+    /// The second of the two levers `docs/WORLD.md` section 6 names, and the
+    /// one that turned out to decide the whole thing — downward.
+    ///
+    /// **Forty stands are worse than sixteen, on both sides of the balance.**
+    /// The dance recruits on quality, and quality is a profitability rather
+    /// than an amount: a full stand at 900 m rates above a half-worked garden
+    /// patch at 200, so a thick countryside pulls the colony's force outward,
+    /// where every trip returns less and costs more honey to fly. Measured
+    /// over 200 colonies with the standard garden: at the biome table's own
+    /// density the first year is 63%, at 0.4 of it 80%, against the 86% of a
+    /// colony with no country at all. And on wild forage alone, 0.4 with the
+    /// yield raised to match gives 38% where the full density gives 33%.
+    ///
+    /// It shipped at 0.4 — about two stands to a parish — while the dance was
+    /// flat with distance. Once `danceDistanceExponent` went to three, a colony
+    /// with no photographs at all survived its first year 64% of the time at
+    /// that density, which is too close to the 90% a garden gives it: the
+    /// photograph has to be the thing that matters. Measured on 2026-09-16,
+    /// 200 colonies, wild forage alone: 0.4 → 64%, 0.25 → 54%, 0.15 → 46%.
+    /// Yield was not the lever — 1.6, 1.0 and 0.6 all landed within five
+    /// points — because income is bounded by foragers and flight, not by
+    /// what is standing. So it ships at 0.15, about one stand to a parish,
+    /// and the country is sparse the way real country is: most cells are grass
+    /// or canopy with nothing in them for a bee.
+    public var wildPatchDensity: Double = 0.15
+
+    /// How far the biome tables are allowed to move a threat, as a multiplier
+    /// on their deviation from one.
+    ///
+    /// One is the tables as written. Zero switches biomes out of the threat
+    /// and disease systems entirely and is the row every measurement of them
+    /// is taken against — `beesim --set biomeThreatScale=0` is the engine
+    /// before `WORLD.md` section 4 existed. Above one widens the spread
+    /// between biomes without editing fourteen numbers.
+    public var biomeThreatScale: Double = 1.0
+
+    /// The share of the forager force a scouting party takes, and how long it
+    /// is gone.
+    ///
+    /// A tenth for three days, which is what `WORLD.md` section 7 says the
+    /// decision costs: honey not gathered, in exchange for the ring of
+    /// rumoured ground being drawn. The cost is the whole point of it being a
+    /// decision rather than a button.
+    public var scoutShare: Double = 0.10
+    public var scoutDays: Int = 3
+
+    /// The share of the force that wanders when the colony is short, and how
+    /// readily a wandering forager comes back having found somewhere.
+    ///
+    /// Much smaller than a scouting party, because this is not a decision and
+    /// nobody sent them: it is what a dearth does to foragers on its own,
+    /// which is push them further out. `explorationChance` multiplies a
+    /// rumoured chunk's standing wild forage, so an empty parish is very
+    /// rarely found and a field of rape usually is.
+    public var explorationShare: Double = 0.06
+    public var explorationChance: Double = 0.03
+
     /// Days a photographed patch holds full strength before it starts to go.
     ///
     /// Sized against the seasons rather than against real time: 60 is two

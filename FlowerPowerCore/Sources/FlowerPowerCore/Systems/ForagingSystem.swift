@@ -81,6 +81,15 @@ public struct ForagingSystem: SimulationSystem {
         // A narrowed entrance slows traffic a little. Late autumn foraging is
         // light anyway, which is why instinct waits until then to seal it.
         if world.entranceSealed { foragerForce *= 0.95 }
+
+        // Bees looking at the country are not working it. This is the whole
+        // cost of both ways of finding ground: a scouting party the player
+        // sent, and the handful that wander off on their own in a dearth.
+        // Multiplicative rather than additive, because a colony that is doing
+        // both is not doing sixteen per cent less of nothing.
+        if world.scoutingParty != nil { foragerForce *= max(0, 1 - context.config.scoutShare) }
+        if world.exploringToday { foragerForce *= max(0, 1 - context.config.explorationShare) }
+
         guard foragerForce > 0 else { return }
 
         // Only patches in bloom, in range, and not stripped are worth dancing for.
@@ -96,11 +105,43 @@ public struct ForagingSystem: SimulationSystem {
         // Recruitment is superlinear in quality: a patch twice as good attracts
         // far more than twice the dancers. This is what makes the colony
         // converge on the best forage rather than spreading itself evenly.
-        let weights = candidates.map { index in
-            pow(world.patches[index].forageQuality(onDay: context.day, config: context.config),
-                context.config.danceRecruitmentExponent)
+        let qualities = candidates.map { index in
+            world.patches[index].forageQuality(onDay: context.day, config: context.config)
         }
-        let totalWeight = weights.reduce(0, +)
+        let weights = qualities.map { pow($0, context.config.danceRecruitmentExponent) }
+
+        // The colony is served in the order the dancers rank the ground.
+        //
+        // Comb space runs out before the day does in a honey-bound colony, and
+        // whoever is reached first gets it. Handing it out in the order patches
+        // happen to sit in `world.patches` meant the oldest photograph was
+        // served before the best flower — harmless while every patch was a
+        // photograph registered in the order it was taken, and a visible bias
+        // the moment the world starts inserting wild patches around the garden.
+        // The dance is a ranking; this is what the ranking means.
+        //
+        // The tie-break is the patch's id, so two equally good patches are
+        // always served in the same order — a sort that is not stable would
+        // otherwise let the platform's sorting algorithm decide the balance.
+        let ranked = candidates.indices.sorted { left, right in
+            qualities[left] == qualities[right]
+                ? world.patches[candidates[left]].id < world.patches[candidates[right]].id
+                : qualities[left] > qualities[right]
+        }
+
+        // And the floor only holds so many. See `danceFloorPatches` — this is
+        // what stops a colony that knows a whole county from splitting its
+        // force two hundred and sixty ways and starving in a year of plenty.
+        let floor = ranked.prefix(max(1, context.config.danceFloorPatches))
+
+        // Summed in patch order rather than in ranking order, so a colony whose
+        // floor is not full computes bit-for-bit the shares it always did and
+        // the world-off balance is untouched.
+        let onTheFloor = Set(floor)
+        var totalWeight = 0.0
+        for slot in candidates.indices where onTheFloor.contains(slot) {
+            totalWeight += weights[slot]
+        }
         guard totalWeight > 0 else { return }
 
         // Comb space limits how much unripened nectar the colony can accept. A
@@ -123,11 +164,33 @@ public struct ForagingSystem: SimulationSystem {
         var totalPollenGathered = 0.0
         var flightCost = 0.0
 
-        for (slot, index) in candidates.enumerated() {
-            guard nectarSpace > 0 || pollenSpace > 0 else { break }
+        // Foragers still looking for somewhere to go, and the dance floor they
+        // are choosing from. Both shrink as patches take their share.
+        //
+        // **What a patch cannot serve, the next dance gets.** A patch gives
+        // what it has; foragers who arrive to find it stripped come back and
+        // follow another dancer, and until now they simply did not forage at
+        // all that day. That was invisible while every patch was a photograph
+        // big enough to absorb its share. The countryside made it the dominant
+        // effect — forty small wild stands each took a share of the force and
+        // wasted most of it, and nectar income fell *sevenfold* with more
+        // forage on offer than the colony had ever had.
+        //
+        // The arithmetic is arranged so that a colony whose patches all absorb
+        // their share is completely unaffected: with nothing wasted, `force`
+        // and `weightLeft` fall in step and each patch is handed exactly
+        // `foragerForce × weight / totalWeight`, which is what it was handed
+        // before. Only the surplus is new.
+        var force = foragerForce
+        var weightLeft = totalWeight
 
-            let share = weights[slot] / totalWeight
-            let assigned = foragerForce * share
+        for slot in floor {
+            let index = candidates[slot]
+            guard nectarSpace > 0 || pollenSpace > 0 else { break }
+            guard force > 0, weightLeft > 0 else { break }
+
+            let assigned = force * (weights[slot] / weightLeft)
+            weightLeft -= weights[slot]
             guard assigned > 0.001 else { continue }
 
             let patch = world.patches[index]
@@ -151,11 +214,22 @@ public struct ForagingSystem: SimulationSystem {
             nectarSpace -= taken.nectar
             pollenSpace -= taken.pollen
 
+            // How much of the force this patch could actually use. A stand
+            // that gave everything asked of it used all of it; one that was
+            // half stripped sends half of them back to the comb, where the
+            // next dance is waiting.
+            let wanted = wantNectar + wantPollen
+            let served = wanted > 0 ? min(1, (taken.nectar + taken.pollen) / wanted) : 0
+            let spent = assigned * served
+            force -= spent
+
             // Flying costs honey, and it costs more the further out the patch
             // is. This is what makes a distant rare flower a genuine trade-off
-            // rather than a strict upgrade.
+            // rather than a strict upgrade. Charged on the bees who actually
+            // worked it: the ones who turned round at a stripped patch are
+            // charged at whatever they go on to work instead.
             if taken.nectar > 0 || taken.pollen > 0 {
-                flightCost += assigned
+                flightCost += spent
                     * context.config.flightEnergyPerForager
                     * (1 + patch.distanceMetres / 2_000)
             }

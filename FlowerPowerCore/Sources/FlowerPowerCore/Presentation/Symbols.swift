@@ -239,6 +239,7 @@ public extension WatchDecision.Kind {
         case .nestFull: return "square.grid.3x3.fill"
         case .entrance: return "door.left.hand.closed"
         case .feed: return "takeoutbag.and.cup.and.straw.fill"
+        case .scout: return "binoculars.fill"
         }
     }
 }

@@ -312,6 +312,18 @@ public final class GameStore {
         return given
     }
 
+    /// Sends a scouting party out for three days.
+    ///
+    /// - Returns: whether they went. False means the decision was not open —
+    ///   the flow has ended, a party is already out, or there is no rumoured
+    ///   ground left to find.
+    @discardableResult
+    public func sendScouts() -> Bool {
+        guard simulation.sendScouts() else { return false }
+        refresh()
+        return true
+    }
+
     public func nameQueen(_ number: Int, _ name: String?) {
         simulation.nameQueen(number, name)
         refresh()

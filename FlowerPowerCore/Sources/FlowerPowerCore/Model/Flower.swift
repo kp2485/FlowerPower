@@ -189,6 +189,11 @@ public enum PatchOrigin: String, Codable, Sendable, CaseIterable {
     case photographed
     /// Somebody sent it to them.
     case shared
+    /// Nobody put it there. It grows in a cell of the country the bees have
+    /// found, it is shared with every other pollinator in the parish, and it
+    /// never fades — the hedge is cut and grows back, and no photograph of it
+    /// is ageing.
+    case wild
 }
 
 /// One photographed flower, which becomes a depleting forage patch.
@@ -250,6 +255,24 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
 
     public var origin: PatchOrigin { storedOrigin ?? .photographed }
     public var isShared: Bool { origin == .shared }
+
+    /// Grew there on its own. No photograph stands behind it, which is why
+    /// `photoLocalIdentifier` carries a sentinel rather than a library id and
+    /// why nothing in the app should try to load an image for one.
+    public var isWild: Bool { origin == .wild }
+
+    /// What a wild patch's `photoLocalIdentifier` starts with.
+    ///
+    /// A sentinel rather than an empty string so the app can tell "there is no
+    /// photograph of this, it is a hedge" from "the photograph has gone
+    /// missing from the library", which are two different things to draw. The
+    /// rest of the string is the cell, so it is unique and legible in a log.
+    public static let wildPhotoPrefix = "wild:"
+
+    /// The sentinel for a wild patch in a particular cell.
+    public static func wildPhotoIdentifier(for cell: HexCoordinate) -> String {
+        "\(wildPhotoPrefix)\(cell.q),\(cell.r)"
+    }
 
     public var remainingNectar: Double
     public var remainingPollen: Double
@@ -380,6 +403,21 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
     /// How attractive this patch is to a scout deciding whether to dance for
     /// it. Real bees weigh sugar concentration against flight distance, which
     /// is exactly what makes the waggle dance an optimisation algorithm.
+    ///
+    /// **This is a *profitability*, not an amount**, and deliberately so. A
+    /// dancer signals how good the source was — the sugar in it, how far she
+    /// flew — and says nothing about how many bees it could feed. How many it
+    /// can feed is settled where it belongs, in `ForagingSystem`: a patch
+    /// gives what it has, and the foragers it cannot serve follow the next
+    /// dance. Weighting the dance by the standing crop instead was tried and
+    /// measured, and it cost the world-off colony twenty-eight points of
+    /// two-year survival by concentrating the force on the richest species
+    /// until it was stripped.
+    /// Distance counts for more here than it does in the harvest — see
+    /// `SimulationConfig.danceDistanceExponent`. At the default of one the
+    /// two are the same slope and this is arithmetically the line it always
+    /// was, skipping the `pow` rather than raising to the first power so that
+    /// nothing can move in the last bit.
     public func forageQuality(onDay day: Int, config: SimulationConfig) -> Double {
         let standing = remainingNectar + remainingPollen * 0.7
         guard standing > 0 else { return 0 }
@@ -389,7 +427,12 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         // recruited as hard as a fresh one, and the dance stopped being the
         // optimisation it is supposed to model.
         let vigour = self.vigour(onDay: day, config: config)
-        return richness * distanceEfficiency
+
+        let reach = config.danceDistanceExponent == 1
+            ? distanceEfficiency
+            : pow(distanceEfficiency, config.danceDistanceExponent)
+
+        return richness * reach
             * resolvedSpecies.rarity.yieldMultiplier * keystoneBonus * vigour
     }
 

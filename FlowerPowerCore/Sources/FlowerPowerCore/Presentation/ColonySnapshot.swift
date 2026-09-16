@@ -350,7 +350,29 @@ public struct TerrainSummary: Codable, Equatable, Sendable {
     public let home: Chunk
 
     /// The six around it, in the fixed clockwise order — east first.
+    ///
+    /// Kept beside `discovered` rather than folded into it because the six are
+    /// what a colony always has and the map's first draw depends on them being
+    /// there. They are the first seven entries of `discovered` as well.
     public let neighbours: [Chunk]
+
+    /// Everything the colony knows, in the order it came to know it: the home
+    /// chunk, its six, and whatever the foragers and the scouts have added
+    /// since. The map can show more than seven now.
+    public let discovered: [Chunk]
+
+    /// Ground the dancers have pointed at and nobody has been to — an
+    /// undiscovered chunk touching a discovered one, within flying range.
+    ///
+    /// Coordinates rather than `Chunk`s, and that is the point: a rumour is
+    /// not a drawn parish. The interface knows where it is and nothing else
+    /// about it, which is what "rumoured" means.
+    public let rumoured: [ChunkCoordinate]
+
+    /// Whether a scouting party is in the field, and how long until it is
+    /// back.
+    public let scoutsOut: Bool
+    public let scoutsDaysRemaining: Int?
 
     /// How many rings of the garden are open.
     public let gardenRings: Int
@@ -358,11 +380,34 @@ public struct TerrainSummary: Codable, Equatable, Sendable {
     /// Every open cell, innermost ring first and clockwise within each ring.
     public let garden: [GardenCell]
 
-    public init(home: Chunk, neighbours: [Chunk], gardenRings: Int, garden: [GardenCell]) {
+    public init(
+        home: Chunk,
+        neighbours: [Chunk],
+        gardenRings: Int,
+        garden: [GardenCell],
+        discovered: [Chunk] = [],
+        rumoured: [ChunkCoordinate] = [],
+        scoutsOut: Bool = false,
+        scoutsDaysRemaining: Int? = nil
+    ) {
         self.home = home
         self.neighbours = neighbours
         self.gardenRings = gardenRings
         self.garden = garden
+        self.discovered = discovered.isEmpty ? [home] + neighbours : discovered
+        self.rumoured = rumoured
+        self.scoutsOut = scoutsOut
+        self.scoutsDaysRemaining = scoutsDaysRemaining
+    }
+
+    /// The drawn chunk a cell falls in, when the colony has been there.
+    ///
+    /// Searched over `discovered` rather than generated, so a cell in ground
+    /// nobody has reached comes back nil instead of quietly revealing a parish
+    /// the bees have never seen.
+    public func chunk(containing cell: HexCoordinate) -> Chunk? {
+        let coordinate = ChunkCoordinate.containing(cell)
+        return discovered.first { $0.coordinate == coordinate }
     }
 
     /// Cells with nothing in them, for a prompt that wants to say there is
@@ -391,7 +436,18 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     public let nest: NestSummary
     public let health: HealthSummary
     public let queen: QueenSummary
+    /// The player's flowers: the garden, and what people have sent them.
+    ///
+    /// Not the country. `wildPatches` is that, and the two are kept apart
+    /// because almost everything that asks for "the patches" means the
+    /// player's — the garden grid, the collection, the field guide, the
+    /// archive. See `Simulation.patches`.
     public let patches: [PatchSummary]
+
+    /// What grows wild on ground the colony has found, for the map to draw and
+    /// for the bloom prompt to point at.
+    public let wildPatches: [PatchSummary]
+
     public let alerts: [ColonyAlert]
 
     /// The country around the nest, or nil for a colony that has none — a save
@@ -481,6 +537,17 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     /// Whether the feeding decision is open: the colony is short of what it
     /// needs to overwinter, and there is honey banked to give it.
     public let feedDecisionOpen: Bool
+
+    /// Whether "send scouts" is in front of the player: a flow is on, there is
+    /// rumoured ground, and nobody is already out.
+    public let scoutDecisionOpen: Bool
+
+    /// Whether a scouting party is in the field, and how long until it is
+    /// back. Repeated from `terrain` so a card that has only the snapshot does
+    /// not have to reach through an optional for it, the same way
+    /// `feedOnOffer` sits beside `stores`.
+    public let scoutsOut: Bool
+    public let scoutsDaysRemaining: Int?
 }
 
 /// What left, without the bees themselves.
@@ -512,7 +579,8 @@ extension Simulation {
             nest: nestSummary(),
             health: healthSummary(),
             queen: queenSummary(),
-            patches: patchSummaries(),
+            patches: patchSummaries(patches),
+            wildPatches: patchSummaries(wildPatches),
             alerts: alerts(),
             terrain: terrainSummary(),
             isForaging: clock.isDaylight
@@ -549,7 +617,10 @@ extension Simulation {
             harvestableHoney: harvestableHoney,
             feedOnOffer: feedOnOffer,
             storesShortfall: storesShortfall,
-            feedDecisionOpen: feedDecisionOpen
+            feedDecisionOpen: feedDecisionOpen,
+            scoutDecisionOpen: scoutDecisionOpen,
+            scoutsOut: scoutsOut,
+            scoutsDaysRemaining: scoutsDaysRemaining
         )
     }
 
@@ -650,12 +721,12 @@ extension Simulation {
         )
     }
 
-    private func patchSummaries() -> [PatchSummary] {
+    private func patchSummaries(_ patches: [FlowerPatch]) -> [PatchSummary] {
         let season = self.season
         let day = clock.day
         let config = self.config
 
-        return world.patches.map { patch in
+        return patches.map { patch in
             let capacity = patch.nectarCapacity + patch.pollenCapacity
             let remaining = patch.remainingNectar + patch.remainingPollen
             let vigour = patch.vigour(onDay: day, config: config)
@@ -714,7 +785,11 @@ extension Simulation {
             home: terrain.homeChunk,
             neighbours: terrain.neighbouringChunks,
             gardenRings: terrain.gardenRings,
-            garden: terrain.gardenCells.map { GardenCell(cell: $0, patchID: occupants[$0]) }
+            garden: terrain.gardenCells.map { GardenCell(cell: $0, patchID: occupants[$0]) },
+            discovered: terrain.discoveredChunks,
+            rumoured: terrain.rumoured,
+            scoutsOut: scoutsOut,
+            scoutsDaysRemaining: scoutsDaysRemaining
         )
     }
 

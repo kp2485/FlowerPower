@@ -26,6 +26,8 @@ extension SimulationConfig {
         case "nectarPerForager": nectarPerForager = value
         case "pollenPerForager": pollenPerForager = value
         case "danceRecruitmentExponent": danceRecruitmentExponent = value
+        case "danceFloorPatches": danceFloorPatches = Int(value)
+        case "danceDistanceExponent": danceDistanceExponent = value
         case "patchDailyRegrowth": patchDailyRegrowth = value
         case "flightEnergyPerForager": flightEnergyPerForager = value
         case "forageWearPerTick": forageWearPerTick = value
@@ -35,6 +37,15 @@ extension SimulationConfig {
         case "sharedPatchYield": sharedPatchYield = value
         case "patchFreshDays": patchFreshDays = Int(value)
         case "patchFadeDays": patchFadeDays = Int(value)
+
+        // The country
+        case "wildPatchYield": wildPatchYield = value
+        case "wildPatchDensity": wildPatchDensity = value
+        case "biomeThreatScale": biomeThreatScale = value
+        case "scoutShare": scoutShare = value
+        case "scoutDays": scoutDays = Int(value)
+        case "explorationShare": explorationShare = value
+        case "explorationChance": explorationChance = value
 
         // Answers to congestion
         case "combExtensionStep": combExtensionStep = value

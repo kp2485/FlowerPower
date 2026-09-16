@@ -95,6 +95,7 @@ public struct WatchDecision: Codable, Equatable, Sendable {
         case nestFull
         case entrance
         case feed
+        case scout
     }
 
     public struct Option: Codable, Equatable, Sendable {
@@ -263,6 +264,25 @@ extension Simulation {
                     .init(identifier: "entrance.seal", title: "Seal It"),
                     .init(identifier: "entrance.open", title: "Keep It Open")
                 ]
+            )
+        }
+
+        // Last of all, and the only one here that arrives while things are
+        // going *well*. A flow is exactly when a tenth of the force is
+        // affordable, so this is the decision that turns a good summer into a
+        // bigger map — and it is bottom of the list because a colony under
+        // siege or short for winter has more pressing things to be asked.
+        if scoutDecisionOpen {
+            let rumoured = world.terrain?.rumoured.count ?? 0
+            return WatchDecision(
+                kind: .scout,
+                title: "Ground they have not seen",
+                detail: "The dancers are pointing at \(rumoured) "
+                    + (rumoured == 1 ? "stretch" : "stretches")
+                    + " of country nobody has been to. A tenth of the foragers "
+                    + "for \(config.scoutDays) days would bring back all of it, "
+                    + "and that is honey they do not gather.",
+                options: [.init(identifier: "colony.scout", title: "Send Scouts")]
             )
         }
 

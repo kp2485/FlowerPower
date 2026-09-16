@@ -63,6 +63,15 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
     /// so. `FeedDecisionCard` is where an amount can be chosen.
     case feed
 
+    /// Send a tenth of the foragers to look at the country, for three days.
+    ///
+    /// The one decision the world adds, and the only one the game ever offers
+    /// while things are going *well*: it is available during a flow, because a
+    /// flow is when a colony can spare them. Carries nothing, because there is
+    /// nothing to choose — the party goes to the ring of rumoured ground and
+    /// comes back with all of it.
+    case scout
+
     /// Following a swarm is deliberately absent. It needs a site chosen, and a
     /// site cannot be chosen from a notification or a watch face, so that one
     /// opens the app. See `NotificationActions.Action.followSwarm`.
@@ -87,6 +96,7 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
         case .sealEntrance: return "entrance.seal"
         case .openEntrance: return "entrance.open"
         case .feed: return "colony.feed"
+        case .scout: return "colony.scout"
         }
     }
 
@@ -110,6 +120,7 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
         case "entrance.seal": self = .sealEntrance
         case "entrance.open": self = .openEntrance
         case "colony.feed": self = .feed
+        case "colony.scout": self = .scout
         default: return nil
         }
     }
@@ -127,6 +138,7 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
         case .sealEntrance: return "Seal It"
         case .openEntrance: return "Keep It Open"
         case .feed: return "Feed Them"
+        case .scout: return "Send Scouts"
         }
     }
 
@@ -134,7 +146,7 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
     public static var all: [DecisionAction] {
         HivePosture.allCases.map(DecisionAction.posture) + [
             .discourageSwarm, .addComb, .split, .letSwarmGo,
-            .staySwarm, .sealEntrance, .openEntrance, .feed
+            .staySwarm, .sealEntrance, .openEntrance, .feed, .scout
         ]
     }
 }
@@ -206,6 +218,15 @@ extension GameStore {
             // put it in.
             guard snapshot.storesShortfall > 0, snapshot.feedOnOffer > 0 else { return false }
             guard feed(snapshot.storesShortfall) > 0 else { return false }
+
+        case .scout:
+            // Stale in the ordinary way: the flow may have ended while the
+            // notification sat on the lock screen, or the foragers may have
+            // found the last of the rumoured ground on their own. Both are
+            // reasons to do nothing rather than to send a party after
+            // something that is already on the map.
+            guard snapshot.scoutDecisionOpen else { return false }
+            guard sendScouts() else { return false }
 
         case .sealEntrance, .openEntrance:
             // Autumn only. Out of season there is nothing to decide: the bees

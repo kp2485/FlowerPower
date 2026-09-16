@@ -72,6 +72,11 @@ enum PlayerPolicy: String, CaseIterable {
     /// before anybody feeds it.
     case harvestEagerlyAndFeed
 
+    /// Answers "send scouts" every time it is offered — which is every flow,
+    /// while there is ground nobody has been to. The row that says whether the
+    /// one decision the world adds is worth its tenth of the forager force.
+    case scout
+
     var addsComb: Bool { self == .addComb || self == .addCombEagerly || self == .roomThenSplit }
 
     /// Whether this player takes one crop, late in autumn.
@@ -87,6 +92,8 @@ enum PlayerPolicy: String, CaseIterable {
     /// notification does, or acts on crowding alone.
     var waitsForAFullCavity: Bool { self != .addCombEagerly }
     var splits: Bool { self == .split || self == .roomThenSplit }
+    /// Whether this player answers the world's decision.
+    var scouts: Bool { self == .scout }
 }
 
 struct TrialOutcome {
@@ -133,6 +140,14 @@ struct TrialOutcome {
     /// before the world existed byte for byte the report it was.
     var homeBiome: Biome?
 
+    /// How much country the colony ended up knowing: seven at founding, more
+    /// for every parish its foragers or its scouts reached.
+    var discoveredChunks = 0
+
+    /// Scouting parties the player sent, so the cost side of `--policy scout`
+    /// is visible rather than inferred.
+    var scoutingTrips = 0
+
     /// Best single explanation for the colony's death, inferred from what
     /// killed the most bees plus the colony-level events.
     var causeOfDeath: String = "survived"
@@ -167,7 +182,8 @@ enum Trials {
         shared: Bool = false,
         policy: PlayerPolicy = .instinct,
         world: Bool = false,
-        worldSeed: UInt64? = nil
+        worldSeed: UInt64? = nil,
+        biome: Biome? = nil
     ) -> [TrialOutcome] {
 
         (0..<trials).map { trial in
@@ -185,6 +201,14 @@ enum Trials {
             // what a survival-by-biome table will want.
             if let worldSeed {
                 simulation.setTerrainSeed(worldSeed)
+            }
+
+            // Asked for a particular kind of ground: the search starts from
+            // the seed this trial would have had, so every row of a
+            // survival-by-biome table is the same colonies on different
+            // country rather than the same country throughout.
+            if let biome {
+                simulation.setTerrainBiome(biome)
             }
 
             // With the world off, every patch is held at `--distance`, which
@@ -331,6 +355,14 @@ enum Trials {
                 // there is honey banked. Checked every day, because a colony
                 // that was provisioned in November can still be short in
                 // February, and that is the winter a guardian is for.
+                // The world's decision, answered on exactly the cue the
+                // interface gives: a flow is on and there is ground nobody has
+                // been to. Instinct is to do nothing, and a colony that never
+                // scouts still finds whatever its foragers reach.
+                if policy.scouts, simulation.scoutDecisionOpen {
+                    if simulation.sendScouts() { outcome.scoutingTrips += 1 }
+                }
+
                 if policy.feeds, simulation.feedDecisionOpen {
                     let short = simulation.storesShortfall
                     outcome.honeyFed += simulation.feed(short)
@@ -348,6 +380,7 @@ enum Trials {
 
             outcome.survived = !simulation.hive.bees.isEmpty && simulation.hive.adultWorkerCount > 5
             outcome.finalPopulation = simulation.hive.population
+            outcome.discoveredChunks = simulation.terrain?.discovered.count ?? 0
 
             // Attribute by the state the colony actually died in, not by
             // anything that ever happened to it. Labelling every colony that
@@ -382,16 +415,18 @@ enum Trials {
     /// One line per colony, for picking one to trace.
     static func list(_ outcomes: [TrialOutcome]) {
         print("")
-        let ground = outcomes.contains { $0.homeBiome != nil } ? "     biome" : ""
+        let ground = outcomes.contains { $0.homeBiome != nil } ? "     biome      known" : ""
         print("  #   seed        outcome          collapsed  season" + ground)
-        print("  " + String(repeating: "-", count: ground.isEmpty ? 52 : 63))
+        print("  " + String(repeating: "-", count: ground.isEmpty ? 52 : 74))
         for (index, outcome) in outcomes.enumerated() {
             let day = outcome.dayOfCollapse.map { "\($0)" } ?? "-"
             let season = outcome.seasonOfCollapse?.rawValue ?? "-"
             // The ground it lived on, added only when there is one, so a list
             // printed with the world off is byte for byte the list it was —
             // trailing spaces included.
-            let tail = outcome.homeBiome.map { pad(season, 11) + $0.rawValue } ?? season
+            let tail = outcome.homeBiome.map {
+                pad(season, 11) + pad($0.rawValue, 11) + "\(outcome.discoveredChunks)"
+            } ?? season
             print("  " + pad("\(index)", 4)
                   + pad("\(outcome.seed)", 12)
                   + pad(outcome.causeOfDeath, 17)
@@ -434,6 +469,16 @@ enum Trials {
                      attacks > 0 ? Double(repelled) / Double(attacks) * 100 : 0))
         print(String(format: "Mean nectar in:       %.1f", mean(outcomes.map(\.totalNectar))))
         print(String(format: "Mean swarms:          %.2f", mean(outcomes.map { Double($0.swarms) })))
+        // Printed only when the world is on, so every report taken before the
+        // country existed is byte for byte the report it was.
+        if outcomes.contains(where: { $0.homeBiome != nil }) {
+            print(String(format: "Mean chunks known:    %.2f",
+                         mean(outcomes.map { Double($0.discoveredChunks) })))
+        }
+        if outcomes.contains(where: { $0.scoutingTrips > 0 }) {
+            print(String(format: "Mean scouting trips:  %.2f",
+                         mean(outcomes.map { Double($0.scoutingTrips) })))
+        }
         print(String(format: "Mean comb additions:  %.2f", mean(outcomes.map { Double($0.combAdditions) })))
         print(String(format: "Mean splits:          %.2f", mean(outcomes.map { Double($0.splits) })))
         // Printed only for a player who touches the larder, so the report for

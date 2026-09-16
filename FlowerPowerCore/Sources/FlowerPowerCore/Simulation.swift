@@ -81,6 +81,17 @@ public struct Simulation: Codable, Equatable, Sendable {
         // untouched by anything the generator does.
         world.terrain = Terrain(seed: Self.terrainSeed(from: seed))
 
+        // And what grows in it. A founding swarm's scouts have already been
+        // over the home chunk and the six around it, so those six parishes'
+        // hedges are on the map before the first bee flies — the home chunk
+        // itself grows nothing wild, because its cells are the garden. The
+        // patches are created here rather than derived on demand because they
+        // have state: how much of the stand has been worked, and how much has
+        // grown back. See `World.discover(_:ids:config:on:at:)`.
+        for chunk in world.terrain?.discovered ?? [] {
+            world.plantWildFlowers(of: chunk, ids: &ids, config: config, on: 0, at: date)
+        }
+
         var simulation = Simulation(
             world: world,
             clock: SimClock(epoch: date),
@@ -133,6 +144,10 @@ public struct Simulation: Codable, Equatable, Sendable {
         WeatherSystem(),
         PatchSystem(),
         ForagingSystem(),
+        // After foraging and once a day, at the day boundary — which is before
+        // any of the day's daylight ticks, so the share it commits is a share
+        // the day's foraging never sees.
+        ExplorationSystem(),
         ProcessingSystem(),
         ConstructionSystem(),
         ThermoregulationSystem(),
@@ -172,7 +187,24 @@ public struct Simulation: Codable, Equatable, Sendable {
         set { clock.maxCatchUpDays = max(1, newValue) }
     }
 
-    public var patches: [FlowerPatch] { world.patches }
+    /// The player's flowers: what they photographed, and what was sent them.
+    ///
+    /// **Not everything the bees work.** Since the country exists, `world`
+    /// holds wild stands as patches too, and almost nothing that asks for
+    /// "the patches" means those: the garden is a record of photographs, the
+    /// collection is built from it, a new colony inherits it, and an archive
+    /// exports it. Handing a wild hedge to any of those would turn the ground
+    /// into somebody's photograph — `newGame(inheriting:)` would re-register
+    /// it as one — so the plain name keeps the plain meaning and the country
+    /// has to be asked for by name.
+    public var patches: [FlowerPatch] { world.patches.filter { !$0.isWild } }
+
+    /// What grows wild on the ground the colony has found.
+    public var wildPatches: [FlowerPatch] { world.patches.filter(\.isWild) }
+
+    /// Everything the bees can fly to, garden and country together. The
+    /// engine's own view, and what `ForagingSystem` works from.
+    public var allPatches: [FlowerPatch] { world.patches }
     public var weather: Weather { world.weather }
     /// What this colony has done for the first time.
     public var milestones: Milestones { world.milestones }
@@ -284,6 +316,7 @@ public struct Simulation: Codable, Equatable, Sendable {
             cell: placement
         )
 
+        if let placement { clearWildPatch(at: placement) }
         world.patches.append(patch)
         return patch
     }
@@ -327,6 +360,13 @@ public struct Simulation: Codable, Equatable, Sendable {
         let config = self.config
         var taken = Set<HexCoordinate>()
         for patch in world.patches {
+            // A wild stand does not hold a garden cell against a photograph.
+            // The country grows right up to the nest — see
+            // `World.plantWildFlowers` — and the alternative was a garden that
+            // pushed the player's flowers outward to get round a patch of
+            // nettles. The nettles are dug up instead; `clearWildPatch(at:)`
+            // does it the moment the flower is planted.
+            guard !patch.isWild else { continue }
             guard let cell = patch.cell, !patch.hasFaded(onDay: day, config: config) else { continue }
             taken.insert(cell)
         }
@@ -344,12 +384,26 @@ public struct Simulation: Codable, Equatable, Sendable {
     }
 
     /// Whether any patch still standing is in this cell.
+    ///
+    /// Wild stands do not count. They are the ground rather than the garden,
+    /// and planting on one clears it.
     public func isCellOccupied(_ cell: HexCoordinate) -> Bool {
         let day = clock.day
         let config = self.config
         return world.patches.contains {
-            $0.cell == cell && !$0.hasFaded(onDay: day, config: config)
+            !$0.isWild && $0.cell == cell && !$0.hasFaded(onDay: day, config: config)
         }
+    }
+
+    /// Digs up whatever was growing wild in a cell the player has just planted.
+    ///
+    /// One patch to a cell is what gives a garden of thirty flowers a shape,
+    /// and the shape has to be the player's. Removing it outright rather than
+    /// hiding it: the wild stand is regenerable, so it comes back the next
+    /// time the ground is planted afresh, and a cell holding two patches would
+    /// quietly double the forage there.
+    private mutating func clearWildPatch(at cell: HexCoordinate) {
+        world.patches.removeAll { $0.isWild && $0.cell == cell }
     }
 
     /// Moves a patch to a cell, and its distance with it.
@@ -368,6 +422,8 @@ public struct Simulation: Codable, Equatable, Sendable {
         guard world.patches[index].cell != cell else { return true }
         guard !isCellOccupied(cell) else { return false }
 
+        clearWildPatch(at: cell)
+        guard let index = world.patches.firstIndex(where: { $0.id == id }) else { return false }
         world.patches[index].cell = cell
         world.patches[index].distanceMetres = cell.metresFromOrigin
         return true
@@ -424,6 +480,7 @@ public struct Simulation: Codable, Equatable, Sendable {
             cell: placement
         )
 
+        if let placement { clearWildPatch(at: placement) }
         world.patches.append(patch)
         world.importedShares.insert(shareID)
         return patch
@@ -1024,7 +1081,11 @@ public struct Simulation: Codable, Equatable, Sendable {
             startingAt: date,
             config: config,
             seed: seed,
-            inheriting: world.patches,
+            // The player's flowers, not the country's. A swarm takes the
+            // garden with it; the hedges stay where they are and the new
+            // colony finds its own. Handing `world.patches` over would
+            // re-register every wild stand as a photograph.
+            inheriting: patches,
             generation: world.lineage.generation + 1
         )
     }
@@ -1109,6 +1170,56 @@ public struct Simulation: Codable, Equatable, Sendable {
         } else {
             world.terrain?.seed = seed
         }
+
+        // The old country's hedges go with the old country. Photographed and
+        // shared flowers stay: they are the player's, and they are planted in
+        // a garden whose cells belong to the nest rather than to the ground.
+        world.removeWildPatches()
+        replantWildFlowers()
+        clearWildPatchesUnderTheGarden()
+    }
+
+    /// Puts a particular kind of ground under the nest.
+    ///
+    /// Scans upward from the terrain seed the colony already has for the first
+    /// world whose home chunk is this biome, so two colonies asked for the same
+    /// biome still get different neighbours — the biome is fixed and the
+    /// country around it is not, which is what makes a survival-by-biome table
+    /// a measurement of the biome rather than of one map.
+    ///
+    /// - Returns: whether such a world was found.
+    @discardableResult
+    public mutating func setTerrainBiome(_ biome: Biome) -> Bool {
+        let start = world.terrain?.seed ?? Self.terrainSeed(from: 0)
+        guard let found = WorldGenerator.seed(producing: biome, from: start) else { return false }
+        setTerrainSeed(found)
+        return true
+    }
+
+    /// Creates the wild patches of every chunk already on the map.
+    ///
+    /// For a change of world seed and for migration. Not for discovery, which
+    /// goes through `World.discover(_:ids:config:on:at:)` so that finding
+    /// ground and planting it are one act.
+    /// Digs up every wild stand standing where a planted flower is.
+    ///
+    /// For the paths that plant the country in bulk — a change of world seed,
+    /// and migration — where doing it flower by flower would mean walking the
+    /// patch list once per cell.
+    private mutating func clearWildPatchesUnderTheGarden() {
+        let plantedCells = Set(world.patches.compactMap { $0.isWild ? nil : $0.cell })
+        guard !plantedCells.isEmpty else { return }
+        world.patches.removeAll { $0.isWild && $0.cell.map(plantedCells.contains) == true }
+    }
+
+    private mutating func replantWildFlowers() {
+        guard let discovered = world.terrain?.discovered else { return }
+        let date = clock.date(atTick: clock.tick)
+        for chunk in discovered {
+            world.plantWildFlowers(
+                of: chunk, ids: &ids, config: config, on: clock.day, at: date
+            )
+        }
     }
 
     /// Gives a colony that has none a world to live in, and plants its flowers
@@ -1161,6 +1272,17 @@ public struct Simulation: Codable, Equatable, Sendable {
             world.patches[index].distanceMetres = cell.metresFromOrigin
         }
 
+        // And the country the colony has apparently been living in all along.
+        // A migrated save's seven founding chunks come with their hedges, the
+        // same as a colony founded today — the alternative is an old colony
+        // that can see the map and has nothing on it to work.
+        replantWildFlowers()
+
+        // The country grows up to the nest, so a migrated garden lands on wild
+        // stands. The garden wins, the same as it does when a flower is planted
+        // today.
+        clearWildPatchesUnderTheGarden()
+
         return true
     }
 
@@ -1195,8 +1317,62 @@ public struct Simulation: Codable, Equatable, Sendable {
         let day = clock.day
         let config = self.config
         world.patches.removeAll {
-            ($0.isDepleted && !$0.isInBloom(during: currentSeason))
+            // A wild stand is never pruned. It is the ground rather than a
+            // photograph: it comes back every year, and deleting it out of
+            // season would quietly empty the countryside over a long run —
+            // which is exactly what the balance tooling does, every restock,
+            // for hundreds of simulated years.
+            guard !$0.isWild else { return false }
+            return ($0.isDepleted && !$0.isInBloom(during: currentSeason))
                 || $0.hasFaded(onDay: day, config: config)
         }
+    }
+
+    // MARK: - Scouts
+
+    /// Whether the "send scouts" decision is in front of the player.
+    ///
+    /// Three conditions and each one is a reason rather than a gate. A *flow*,
+    /// because a tenth of the force is affordable when the nectar is coming in
+    /// and is not when it is not — this is the one decision the game offers
+    /// while things are going well. *Rumoured ground*, because otherwise there
+    /// is nothing to find. And *nobody already out*, because a second party
+    /// would be asking the player to pay twice for one answer.
+    public var scoutDecisionOpen: Bool {
+        guard let terrain = world.terrain else { return false }
+        guard world.scoutingParty == nil else { return false }
+        guard world.isInFlow(config) else { return false }
+        return !terrain.rumoured.isEmpty
+    }
+
+    /// Whether a party is in the field.
+    public var scoutsOut: Bool { world.scoutingParty != nil }
+
+    /// Days until they are back, or nil when nobody is out.
+    public var scoutsDaysRemaining: Int? {
+        world.scoutingParty.map { $0.daysRemaining(on: clock.day) }
+    }
+
+    /// Ground the dancers have pointed at and nobody has been to.
+    public var rumouredChunks: [ChunkCoordinate] { world.terrain?.rumoured ?? [] }
+
+    /// Sends a scouting party: a tenth of the forager force, for three days.
+    ///
+    /// What they cost is immediate and what they find is not. From today the
+    /// colony gathers `scoutShare` less, and on the third day every rumoured
+    /// chunk is on the map — see `ExplorationSystem.returnScouts`. Instinct is
+    /// to do nothing, as it is for every other decision, and a colony that
+    /// never scouts still finds what its foragers reach.
+    ///
+    /// - Returns: whether they went.
+    @discardableResult
+    public mutating func sendScouts() -> Bool {
+        guard scoutDecisionOpen else { return false }
+
+        world.scoutingParty = ScoutingParty(
+            leftOnDay: clock.day,
+            returnsOnDay: clock.day + max(1, config.scoutDays)
+        )
+        return true
     }
 }

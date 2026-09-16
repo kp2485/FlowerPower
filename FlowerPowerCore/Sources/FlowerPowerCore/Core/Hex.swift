@@ -116,6 +116,54 @@ public struct HexCoordinate: Codable, Hashable, Equatable, Sendable, Comparable 
         Self.directions.map { self + $0 }
     }
 
+    /// What each of the six steps is called, in `directions` order.
+    ///
+    /// With `r` increasing southward: east, south-east, south-west, west,
+    /// north-west, north-east. The same list the garden is planted in, read
+    /// aloud — which is what makes "Heather is out on Heather Bank, to the
+    /// north-east" a fact about the map rather than a decoration.
+    public static let compassNames: [String] = [
+        "east", "south-east", "south-west", "west", "north-west", "north-east"
+    ]
+
+    /// Which way another cell lies, as a word.
+    ///
+    /// Nil for the cell itself, which has no direction from itself.
+    ///
+    /// Six directions rather than eight, because the lattice has six. The
+    /// answer is whichever of `directions` the offset points most nearly
+    /// along, measured in the plane the hexagons actually sit in — axial
+    /// coordinates are skewed, so comparing `q` and `r` directly would call
+    /// the same bearing two different things depending on which way it ran.
+    /// Ties go to the earlier direction, so the walk order decides and nothing
+    /// else can.
+    public func direction(to other: HexCoordinate) -> String? {
+        let offset = other - self
+        guard offset != HexCoordinate(q: 0, r: 0) else { return nil }
+
+        // Pointy-top hexagons: a step in `r` moves down and half a cell right.
+        func plane(_ cell: HexCoordinate) -> (x: Double, y: Double) {
+            (x: Double(cell.q) + Double(cell.r) * 0.5,
+             y: Double(cell.r) * 0.866_025_403_784_438_6)
+        }
+
+        let target = plane(offset)
+        let length = (target.x * target.x + target.y * target.y).squareRoot()
+        guard length > 0 else { return nil }
+
+        var best = 0
+        var bestDot = -Double.infinity
+        for (index, step) in Self.directions.enumerated() {
+            let candidate = plane(step)
+            let dot = (target.x * candidate.x + target.y * candidate.y) / length
+            if dot > bestDot {
+                bestDot = dot
+                best = index
+            }
+        }
+        return Self.compassNames[best]
+    }
+
     /// The cells at exactly `radius` from this one, clockwise from the
     /// eastmost.
     ///

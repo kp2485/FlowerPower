@@ -72,6 +72,13 @@ public struct ColonyNews: Equatable, Sendable {
         /// How far short, so the news can say the number.
         public var storesShortfall: Double = 0
 
+        /// A flow is on, there is ground nobody has been to, and nobody is
+        /// already out looking at it. `Simulation.scoutDecisionOpen`.
+        public var scoutDecisionOpen: Bool = false
+        /// How many stretches of country the dancers are pointing at, so the
+        /// news can say the number.
+        public var rumouredChunks: Int = 0
+
         public init(
             status: ColonyStatus,
             headline: String = "",
@@ -87,7 +94,9 @@ public struct ColonyNews: Equatable, Sendable {
             nestIsFull: Bool = false,
             canAddComb: Bool = false,
             feedDecisionOpen: Bool = false,
-            storesShortfall: Double = 0
+            storesShortfall: Double = 0,
+            scoutDecisionOpen: Bool = false,
+            rumouredChunks: Int = 0
         ) {
             self.status = status
             self.headline = headline
@@ -104,6 +113,8 @@ public struct ColonyNews: Equatable, Sendable {
             self.canAddComb = canAddComb
             self.feedDecisionOpen = feedDecisionOpen
             self.storesShortfall = storesShortfall
+            self.scoutDecisionOpen = scoutDecisionOpen
+            self.rumouredChunks = rumouredChunks
         }
     }
 
@@ -175,6 +186,22 @@ public struct ColonyNews: Equatable, Sendable {
                         + "honey put by. Feeding them is the only thing left that helps.",
                     after.storesShortfall
                 )
+            )
+        }
+        // The one piece of good news the game ever interrupts anybody with,
+        // and it is here rather than higher up because it can always wait.
+        // Once a year, like the entrance and the feeding: a flow comes and
+        // goes several times a summer, and a colony that rumours fresh ground
+        // every fortnight would otherwise ping every fortnight.
+        if after.scoutDecisionOpen, !before.scoutDecisionOpen, after.rumouredChunks > 0 {
+            return ColonyNews(
+                identifier: "scout-\(after.day / Season.daysPerYear)",
+                title: "The nectar is flowing",
+                body: "They can spare a few. The dancers are pointing at "
+                    + "\(after.rumouredChunks) "
+                    + (after.rumouredChunks == 1 ? "stretch" : "stretches")
+                    + " of country nobody has been to, and scouts would bring "
+                    + "back all of it."
             )
         }
         if after.entranceDecisionOpen, !before.entranceDecisionOpen {
@@ -263,7 +290,9 @@ public extension ColonySnapshot {
             nestIsFull: nest.combOccupancy >= 0.9 && nest.builtCells >= nest.capacity,
             canAddComb: canAddComb,
             feedDecisionOpen: feedDecisionOpen,
-            storesShortfall: storesShortfall
+            storesShortfall: storesShortfall,
+            scoutDecisionOpen: scoutDecisionOpen,
+            rumouredChunks: terrain?.rumoured.count ?? 0
         )
     }
 }

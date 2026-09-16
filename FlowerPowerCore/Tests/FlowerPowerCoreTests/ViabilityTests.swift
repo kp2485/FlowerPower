@@ -277,12 +277,16 @@ final class ViabilityTests: XCTestCase {
     }
 
     /// And a colony given nothing to eat must die. The photo loop has to matter.
+    ///
+    /// Nothing to eat means nothing wild in the country either, so the barren
+    /// fixture, which strips the wild stands a founding colony now gets in its
+    /// seven parishes. With them a colony that never sees a photograph lives
+    /// through its first year 46% of the time — a measured number that belongs
+    /// in PLAN.md's balance tables, where it is — and this test is about the
+    /// engine starving a colony that truly has nothing, which is a different
+    /// claim.
     func testColonyWithNoForageDies() {
-        var simulation = Simulation.newGame(
-            at: HiveLocation(type: .livingTreeCavity),
-            startingAt: epoch,
-            seed: 4
-        )
+        var simulation = Fixture.barrenSimulation(seed: 4)
 
         for _ in 0..<200 {
             _ = simulation.stepDay()

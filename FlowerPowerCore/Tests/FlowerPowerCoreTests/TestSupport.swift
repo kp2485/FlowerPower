@@ -87,8 +87,20 @@ enum Fixture {
     }
 
     /// A colony with no forage at all.
+    /// A colony with nothing at all to work.
+    ///
+    /// The country has to be taken away by hand since Phase 2: a founding
+    /// colony now knows seven parishes and the wild stands in them are real
+    /// patches. Every test built on this one is about the handful of flowers
+    /// it plants itself — which patch the dance picks, what a distance is
+    /// worth — and a hedge two parishes over competing for the same foragers
+    /// would make each of them a measurement of something else.
     static func barrenSimulation(seed: UInt64 = 7) -> Simulation {
-        Simulation.newGame(at: HiveLocation(type: .livingTreeCavity), startingAt: epoch, seed: seed)
+        var simulation = Simulation.newGame(
+            at: HiveLocation(type: .livingTreeCavity), startingAt: epoch, seed: seed
+        )
+        simulation.mutateWorld { $0.removeWildPatches() }
+        return simulation
     }
 }
 
