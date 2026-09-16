@@ -291,6 +291,26 @@ struct KeepEntranceOpenIntent: AppIntent {
     }
 }
 
+// MARK: - Looking at the country
+
+struct SendScoutsIntent: AppIntent {
+    static var title: LocalizedStringResource { "Send Scouts" }
+
+    /// A literal, like every other description here: the App Intents metadata
+    /// step extracts these at build time without running anything, and an
+    /// interpolated string is not something it can read.
+    static var description: IntentDescription {
+        IntentDescription("Sends a tenth of the foragers to look at the ground nobody has been to. They are gone for three days and come back with all of it.")
+    }
+
+    static var openAppWhenRun: Bool { false }
+
+    func perform() async throws -> some IntentResult {
+        ColonyIntents.sendScouts()
+        return .result()
+    }
+}
+
 // MARK: - Acting on the save
 
 enum ColonyIntents {
@@ -355,6 +375,21 @@ enum ColonyIntents {
         }
     }
 
+    /// The one decision the world adds.
+    ///
+    /// Stale in the ordinary way — a Shortcut can run long after the flow that
+    /// paid for the party has ended, and the foragers may have found the last
+    /// of the rumoured ground themselves. `Simulation.sendScouts` checks it
+    /// again and returns false rather than sending anybody; the guard here
+    /// says so where it can be read.
+    @discardableResult
+    static func sendScouts() -> Bool {
+        decide { simulation in
+            guard simulation.scoutDecisionOpen else { return false }
+            return simulation.sendScouts()
+        }
+    }
+
     /// The autumn decision.
     ///
     /// Gated on the season because that is the only time the engine honours it
@@ -382,17 +417,22 @@ enum ColonyIntents {
 ///
 /// Ordered siege before swarm, matching `ColonyNews`: a siege resolves in a
 /// day or two and a swarm takes the better part of a week, so the tighter
-/// window goes first.
+/// window goes first. Scouting goes last, matching the engine's own priority:
+/// it is the only one of the three that is offered while things are going
+/// well, and it can wait for the length of the flow.
 enum OpenDecision: Equatable, Sendable {
 
     case siege(HivePosture)
     case swarm
+    case scout
 
     init?(_ snapshot: ColonySnapshot) {
         if let posture = snapshot.activeThreat?.options.first(where: { $0 != .instinct }) {
             self = .siege(posture)
         } else if let swarm = snapshot.pendingSwarm, !swarm.discouraged {
             self = .swarm
+        } else if snapshot.scoutDecisionOpen {
+            self = .scout
         } else {
             return nil
         }
@@ -428,6 +468,10 @@ struct BestAnswerButton: View {
                     systemImage: "arrow.up.and.down.and.arrow.left.and.right"
                 )
             }
+        case .scout:
+            Button(intent: SendScoutsIntent()) {
+                Label(DecisionAction.scout.title, systemImage: "binoculars.fill")
+            }
         case .siege(let posture):
             siegeButton(posture)
         }
@@ -437,6 +481,8 @@ struct BestAnswerButton: View {
         switch decision {
         case .swarm:
             return "\(HivePosture.makeRoom.displayName). Answers the swarm the colony is preparing."
+        case .scout:
+            return "\(DecisionAction.scout.title). Sends a party to the ground nobody has been to."
         case .siege(let posture):
             return "\(posture.displayName). Answers what is at the entrance."
         }

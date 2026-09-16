@@ -49,6 +49,7 @@ enum NotificationActions {
         case swarmDeparted = "swarm.departed"
         case entrance = "entrance.autumn"
         case feed = "colony.short"
+        case scout = "colony.scouting"
         case digest = "digest"
 
         static func forThreat(_ style: AttackStyle) -> Category? {
@@ -154,6 +155,15 @@ enum NotificationActions {
             intentIdentifiers: [], options: []
         ))
 
+        // Ground nobody has walked, and a flow on to pay for the walking. One
+        // button, because there is nothing to choose: the party goes to the
+        // whole ring of rumoured country and comes back with all of it.
+        categories.insert(UNNotificationCategory(
+            identifier: Category.scout.rawValue,
+            actions: [button(.scout)],
+            intentIdentifiers: [], options: []
+        ))
+
         categories.insert(UNNotificationCategory(
             identifier: Category.digest.rawValue, actions: [],
             intentIdentifiers: [], options: []
@@ -180,6 +190,12 @@ enum NotificationActions {
             // could do. A colony with no comb free cannot be fed however much
             // is banked.
             return snapshot.feedOnOffer >= 1 ? .feed : nil
+        }
+        if news.identifier.hasPrefix("scout-") {
+            // Same rule again: the flow may have ended, or the foragers may
+            // have found the last of the rumoured ground themselves, between
+            // the news being written and the notification being posted.
+            return snapshot.scoutDecisionOpen ? .scout : nil
         }
         return nil
     }
