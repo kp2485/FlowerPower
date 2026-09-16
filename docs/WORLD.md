@@ -9,10 +9,13 @@ where it would come from if not from where the player was standing.* This is
 where.
 
 **Phase 1, "the ground", was built the same day** — see section 11, and PLAN.md
-under "the ground" for the record of it. Everything from Phase 2 on is still a
-design. Every number that is not marked as the engine's own, or as measured, is
-a starting point to be measured in the manner PLAN.md section 4 describes; the
-first of them has been, and it is under section 10 item 1.
+under "the ground" for the record of it. **Phase 2, "the country", was built on
+2026-09-16**: wild forage, the fog, exploration, scouts as a decision, and the
+biome multipliers. PLAN.md's "the country" is the record, section 11 below lists
+what was done differently and why, and every one of section 10's measurements
+has now been taken. Everything from Phase 3 on is still a design. Every number
+that is not marked as the engine's own, or as measured, is a starting point to
+be measured in the manner PLAN.md section 4 describes.
 
 ---
 
@@ -52,6 +55,24 @@ own flowers were at 0.67 and the trials' were at 0.80, and the recorded baseline
 was never the app's. And the lever has been pulled: Phase 1 plants a photograph
 in a cell of the garden, and the cell's distance from the nest is the patch's
 `distanceMetres`. Section 10 item 1 has the measurement.
+
+*A third correction, 2026-09-16, and it is about the dance rather than about the
+measurement.* The paragraph above says the dance weights patches by `richness ×
+distance efficiency × …`, and that is exactly what was wrong: the recruitment
+weight fell off with distance at the same gentle `1 / (1 + m / 1600)` slope as
+the yield, so a full stand five kilometres out outranked a half-worked one at
+the door. Seeley's finding is that the dance threshold rises with distance far
+faster than the profit falls — a distant source has to be *much* better before
+anybody dances for it at all. Nothing before Phase 2 could see this, because
+every patch in every trial stood at one distance. `danceDistanceExponent` raises
+the distance term in the recruitment weight only, leaving the harvest on the
+plain efficiency, which is flight physics. Swept over 200 colonies, garden on at
+two years / `--policy scout` / wild forage alone in the first year: 1.0 → 56% /
+2% / 38%; 1.5 → 60 / 25 / 48; 2.0 → 64 / 55 / 52; 3.0 → 69 / 66 / 64. It ships
+at **3.0**. With a colony whose patches all stand at one distance the factor
+cancels when the shares are normalised, so every world-off number ever recorded
+is untouched by it — measured, not assumed: the 400 m baseline diffs clean at
+exponent 1 and at exponent 3.
 
 **More forage does not mean more survival.** This is the finding that sits
 under the whole balance (`SimulationConfig.sharedPatchYield`'s comment,
@@ -257,6 +278,21 @@ told. A chunk the colony has never worked but which borders a known one shows
 as *rumoured* — the dancers have pointed that way — with its biome guessed
 from what the neighbours are and nothing else drawn.
 
+*Built 2026-09-16, and with the trigger made explicit.* `ExplorationSystem`
+runs daily after foraging and only when the colony **is in a dearth**, which it
+asks `World.isInDearth` — the engine's own existing notion of being short,
+rather than a new constant that would drift away from `dearthThresholdPerBee`.
+A small share of the force (`explorationShare` 0.06) goes out; one rumoured
+chunk is sampled from the seeded RNG in fixed order and discovered with a
+probability proportional to how much wild forage is standing in it
+(`explorationChance` 0.03), and nothing past the 8 km range is ever discovered.
+The dearth condition is a deviation from the paragraph above, which implies
+discovery simply follows from foraging: it is cheaper, it is deterministic, and
+it means a fed colony stays home, which is what a fed colony does. At the
+shipped defaults an instinct colony knows **7.7 chunks** after two years,
+against the seven it was founded with — so exploration is a slow drift outward
+and not a second pair of scouts.
+
 **Scouts.** A decision, in the shape every other decision takes: during a
 flow, when the colony can spare them, the game offers *send scouts* — a
 tenth of the forager force for three days, which is honey not gathered — and
@@ -264,6 +300,19 @@ the ring of rumoured chunks around the known ones is revealed, sites and all.
 Instinct, as always, is to do nothing, and a colony that never scouts still
 finds what its foragers reach. This is the one new decision the world adds,
 and it costs exactly what it says.
+
+*Built 2026-09-16, exactly as written — and that is worth saying out loud,
+because "the ring of rumoured chunks" is a great deal of ground.* A party
+discovers **every** rumoured chunk on its return, so each time the decision is
+taken the known world grows by a whole ring. A player who takes it every year
+it is offered — `--policy scout`, six parties over two years — ends with about
+**133 chunks** known against instinct's 7.7, which is most of the eight-kilometre
+circle. That is what the design asked for, and it is also what made the decision
+a trap before the dance was corrected: 260 stands in range, the force split
+across all of them, and the colony starved with more forage available than any
+colony in the game's history. Corrected, it costs **four points** of two-year
+survival (64% against instinct's 68%) — a real price, one point past what
+section 10 item 5 hoped for, and a price rather than a punishment.
 
 **Swarms.** A swarm that leaves flies to a site. If the player follows it
 (section 8), the chunk it settles in is known and the circle is drawn again
@@ -348,10 +397,14 @@ in it needs an Apple framework.
   and `chunk(at:)`, pure and deterministic. Tested for determinism the way
   `DeterminismTests` tests the colony: same seed, same chunk, byte for byte,
   and different seeds differ.
-- **`ScoutSystem`**, a daily system after `ForagingSystem`, that spends the
-  scouting force and reveals chunks; and the decision plumbing —
-  `DecisionAction.scout`, the notification category, the watch's card — in
-  the shape the five existing decisions already have.
+- ~~**`ScoutSystem`**, a daily system after `ForagingSystem`, that spends the
+  scouting force and reveals chunks~~ — built on 2026-09-16 as two things:
+  `ExplorationSystem`, the daily system after `ForagingSystem` that sends a
+  share of the force into rumoured ground when the colony is in a dearth, and
+  `Simulation.sendScouts()`, the deliberate party the decision commits; the
+  decision plumbing — `DecisionAction.scout`, the notification category, the
+  intent, the widget's button, the watch's card — is in the shape the five
+  existing decisions already have.
 - **Biome multipliers** into the two hooks named in section 4, and nowhere
   else.
 - **Wild colonies**: a `WildColony` record and a seasonal fate roll from
@@ -374,10 +427,15 @@ starts creating patches in bulk:
   and `sharedBy`, so a late identification makes a flower fresh again.~~
   **Fixed 2026-09-15**, in Phase 1, with a failing test first. It now preserves
   those three and `cell`, and restores `capacityScale` for a shared patch.
-- Forage space is handed out in patch insertion order rather than quality order
+- ~~Forage space is handed out in patch insertion order rather than quality order
   when the colony is honey-bound, which a world that inserts wild patches ahead
-  of the garden would turn into a visible bias. **Still open**, and it is
-  Phase 2 that makes it matter.
+  of the garden would turn into a visible bias.~~ **Fixed 2026-09-16**, in
+  Phase 2, which is the phase that made it matter. Space now goes to candidates
+  in descending `forageQuality` with ties broken by id. Measured alone with the
+  world off: 66% to 66% at two years and 612 autumn stores to 613 — so the bias
+  was never costing much, but the run is *not* byte-identical, which is the
+  useful part: the colony is honey-bound often enough for the order to decide
+  something.
 - The winter bloom question above. **Still open.**
 
 ## 10. What to measure, and the order to measure it in
@@ -424,22 +482,77 @@ starts creating patches in bulk:
 2. **Wild forage alone.** `beesim --world --patches 0`: survival with no
    photographs, per biome. Target 40% first year; set wild `capacityScale`
    and density to reach it.
+
+   **Measured 2026-09-16.** The shipped answer is **46% first year**, at
+   `wildPatchYield` 1.6 and `wildPatchDensity` 0.15 — about one stand to a
+   parish. Density was the lever and yield was not: at 1.6 / 1.0 / 0.6 the
+   answer is 64 / 59 / 60%, which is section 1's "more forage does not mean more
+   survival" arriving from a new direction — income is bounded by foragers and
+   flight time, not by what is standing. Density moved it properly: 0.4 → 64%,
+   0.25 → 54%, 0.15 → 46%. 64% was rejected for a design reason rather than a
+   measured one: it is close enough to what a garden gives that the photograph
+   stops carrying the game. Whether 46 is the right floor is Kyle's, and it is
+   in PLAN.md section 3 under "Not decided".
+
+   **The per-biome table was taken at the earlier settings** — exponent 1,
+   density 0.4, before the dance was corrected — and has *not* been re-taken at
+   the shipped defaults, so read it for its shape and not for its numbers: wild
+   alone, first year, meadow 46, hedgerow 42, woodland 10, riverbank 54,
+   farmland 40, village 39, heath 38, mean 38.4%. Woodland at 10 against
+   riverbank at 54 is the separation this design wanted; re-measuring it is a
+   small item in PLAN.md section 3.
 3. **Wild forage plus the garden.** `--world --patches 9 --restock 45`:
    should land near the re-taken baseline. If it is well above, wild forage
    is too rich; if colonies swarm far more than 2.49 per two years, that is
    the abundance-breeds-swarms effect and the design *wants* some of it — the
    question is how much, and PLAN.md's "whether the two-year cliff is where it
    should sit" is the same question.
+
+   **Measured 2026-09-16: 90% first year, 68% second, 2.68 swarms per colony
+   per two years, 926 autumn stores, 378 winter cluster.** That is a little
+   above the Phase 1 baseline of 86/64 and a little above the world-off 400 m
+   run, which the same day's foraging corrections took from 66% to 62%. The
+   swarm rate is the effect this item was written to catch, and it is mild —
+   2.68 against 2.49 — because the country is sparse and mostly further away
+   than the garden. At the first tuning, before the dance was corrected, the
+   same run measured 78%/56% with 1.69 swarms, which is *worse than the garden
+   alone*: the country cost the colony until the recruitment slope was right.
 4. **Biomes differ, and by the right amount.** A survival-by-biome table.
    The village should winter best and be robbed most; the moor should be a
    gamble that pays in autumn; the wood should be safe and hungry. If the
    biomes do not separate by at least ten points, the multipliers are too
    timid to be worth having.
+
+   **Measured 2026-09-16, at the earlier settings — exponent 1, density 0.4 —
+   and not re-taken since**, so this too is a shape rather than a set of
+   numbers. With the garden on, at two years: heath 42, meadow 50,
+   riverbank 54, farmland 55, hedgerow 57, woodland 60, village 64. A 22-point
+   spread, against a floor of ten, so the multipliers were left where they
+   were and nothing was widened. The village winters best, as designed; heath
+   is the gamble and it loses more often than it wins. `biomeThreatScale` is
+   the one dial over all of it — 1.0 as shipped, 0 to switch the whole effect
+   off, which is what the threat tests use so that they measure sites rather
+   than geography.
 5. **Scouting is worth its cost, and only just.** `--policy scout` against
    instinct, as every decision has been measured. Two or three points is
    right; ten means a colony that never scouts is being punished for the
    player's absence.
+
+   **Measured 2026-09-16: 64% against instinct's 68% at two years, with 2.35
+   swarms against 2.68 and 133 chunks known against 7.7.** A four-point price,
+   one point past what this item hoped for, and worth leaving there until
+   somebody decides the price is wrong. This is the measurement the whole phase
+   turned on: at the first tuning it was **2%**, and the diagnosis is in
+   section 1 above and in PLAN.md's "the country". A decision measuring at 2%
+   was not a decision that needed tuning — it was the first thing in the game
+   ever to ask the dance about distance, and the dance had the wrong answer.
+
 6. **Determinism.** Two runs, a diff, nothing printed — with the world on.
+
+   **Checked 2026-09-16**: two `--world` runs of the built binary diff to
+   nothing. And leaving `--world` off now forces `wildPatchDensity = 0`, so
+   every `--distance` baseline ever recorded stays comparable with every later
+   one.
 
 ## 11. Phases
 
@@ -476,9 +589,50 @@ And one thing the measurement found that has nothing to do with the world:
 uses**, so every balance number recorded since 2026-09-06 was taken a ring
 closer than the game was played. See item 1 above and PLAN.md section 1.
 
-**Phase 2 — the country.** Wild patches, the fog, discovery by foragers,
-scouts as a decision, biome multipliers on threats and disease, chunk names,
-the bloom prompt with directions in it.
+**Phase 2 — the country. Built 2026-09-16.** Wild stands generated per chunk
+and registered only when the chunk is discovered, the fog in three states,
+`ExplorationSystem`, scouts as the game's sixth decision, biome multipliers at
+the two hooks section 4 names, the bloom prompt with a direction in it, and the
+World tab drawing all of it. All six of section 10's measurements were taken and
+are recorded there; the phase cost three corrections to the foraging model
+before any of them could be believed, and PLAN.md's "the country" is the full
+record. The package half is tested; the app half is not verified here beyond a
+simulator.
+
+Four deviations from this document, each deliberate:
+
+- **Exploration is triggered by a dearth**, where section 7 above has chunks
+  becoming known simply because a forager worked one. `World.isInDearth` is the
+  engine's own notion of being short and does not drift from
+  `dearthThresholdPerBee`; a fed colony stays home, which is what a fed colony
+  does; and it is cheap and deterministic. It drifts outward slowly — 7.7 chunks
+  known after two years, from seven at founding.
+- **`danceFloorPatches = 16`.** Nothing in this document anticipated that a
+  colony might have 260 stands in range and split its force across all of them
+  and die. The dance now recruits onto the best sixteen only, which is above
+  anything the game produced before the world existed.
+- **`danceDistanceExponent`, defaulting to 3.0.** The correction in section 1
+  above, and the largest single thing this phase changed. It is a change to the
+  model rather than to the world, and it leaves every world-off number ever
+  recorded untouched.
+- **Density 0.15, not the "`capacityScale` and density" pair section 10 item 2
+  proposed tuning together.** Yield turned out not to be a lever at all — 1.6,
+  1.0 and 0.6 give 64, 59 and 60% — so it stayed at 1.6 and density did the
+  whole job.
+
+And two things this phase forced that have nothing to do with the world: a
+forager whom a stripped patch cannot serve now follows the next dance rather
+than not foraging at all, and forage space goes out in quality order (section 9
+above). Together those cost four points of world-off two-year survival, 66% to
+62%, and that is a correction rather than a tuning.
+
+**And one finding nothing in this document predicted.** A better-fed colony
+rears more brood and therefore carries more mite:
+`VarroaTests.testVarroaBuildsTowardDamagingLevels` failed at 0.327 against its
+0.3 one-year ceiling the moment the fixture colony had wild stands. The test now
+pins `wildPatchDensity = 0`, because it is about mite dynamics on a known
+colony; the finding — **wild forage brings varroa on sooner** — is real and has
+not been measured at any scale beyond that one test.
 
 **Phase 3 — colonising.** Following a swarm to a site on the map; wild
 colonies with seasonal fates; going back; the garden left behind.

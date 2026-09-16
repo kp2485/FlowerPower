@@ -271,19 +271,51 @@ aggregate and every one was obvious within a few lines of a trace.
 
 Sweeps any listed constant without a rebuild. An unknown key is a hard error,
 deliberately: a silently ignored override produces a sweep whose rows all
-secretly used the same value.
+secretly used the same value. The world adds nine keys of its own:
+`wildPatchYield` and `wildPatchDensity` (how rich a wild stand is, and how many
+there are — density is the lever, yield mostly is not), `danceFloorPatches`
+(how many patches the dance will recruit onto at once), `danceDistanceExponent`
+(how much harder a distant patch has to work to be danced for),
+`biomeThreatScale` (1.0 as shipped; 0 switches the biome multipliers on
+predators and pathogens off entirely, which is what a test measuring sites
+rather than geography wants), `scoutShare` and `scoutDays`, and
+`explorationShare` and `explorationChance`.
 
 ```bash
 ... beesim --trials 200 --days 730 --patches 9 --restock 45 --world
 ... beesim --world --world-seed 2026 --list
+... beesim --world --patches 0 --biome heath --trials 200 --days 365
+... beesim --world --patches 9 --restock 45 --policy scout
 ```
 
 `--world` gives the trial colony the generated world of
-[docs/WORLD.md](docs/WORLD.md) — a home chunk, and a garden of hex cells around
-the nest that photographed patches are planted into, at 200 m in the first ring
-and 400 m in the second — instead of putting every patch at one distance.
+[docs/WORLD.md](docs/WORLD.md) — a home chunk, a garden of hex cells around the
+nest that photographed patches are planted into at 200 m in the first ring and
+400 m in the second, and, since Phase 2, the wild forage standing in every chunk
+the colony has discovered — instead of putting every patch at one distance.
 `--world-seed` picks which world; without it every run is the same one. With the
-world on, `--list` also names the home biome.
+world on, `--list` also names the home biome and says how many chunks the colony
+ended up knowing.
+
+`--patches 0 --world` is wild forage alone: a colony that has never been
+photographed, living on what it finds. That is the run behind the 46% first-year
+figure in PLAN.md, and it is the number the whole identity of the game rests on.
+
+`--biome <name>` forces the home biome instead of taking whatever the seed
+generated, which is the only way to get a survival-by-biome table out of one
+world. The seven names are the ones in `Biome`: meadow, hedgerow, woodland,
+riverbank, farmland, village, heath.
+
+`--policy scout` measures a player who answers the one decision the world adds,
+alongside the congestion and larder policies above: it sends scouts whenever the
+game offers to. Each party costs a tenth of the foragers for three days and reveals every
+rumoured chunk, so a colony that always scouts ends two years knowing about 133
+chunks against instinct's 7.7 — and four points worse off for it.
+
+**Leaving `--world` off forces `wildPatchDensity = 0`.** That is deliberate: a
+`--distance` measurement is meant to isolate one lever, and a world-off run that
+quietly grew wild flowers would not be comparable with any baseline recorded
+before 2026-09-16.
 
 `--world` is the only way to measure the game as the app actually plays it,
 because the garden's patches are not all at one distance: they fill ring 1 at
@@ -292,7 +324,7 @@ not a distance the app has ever used** — every balance number recorded before
 2026-09-15 was taken there, and the app's own flowers were at 800 m. If a
 measurement is meant to be about the game rather than about one lever, use
 `--world`; if it is meant to isolate distance, name `--distance` and it will
-suppress garden placement. See PLAN.md, "the ground".
+suppress garden placement. See PLAN.md, "the ground" and "the country".
 
 Habits worth keeping:
 

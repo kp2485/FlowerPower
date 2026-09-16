@@ -8,11 +8,16 @@ permission — as unnecessary and off-putting, after the first run on a phone.
 Phase 1 of the world — the ground, `docs/WORLD.md` — was built the same day, so
 that the distance location was supposed to supply comes from a generated hex
 world instead: the garden is a ring of cells at 200 m around the nest, and a
-flower is planted in one of them. The engine's full suite runs on Windows and
-on macOS. The Xcode side compiles with Xcode 27, its tests pass on an iOS 27
+flower is planted in one of them. Phase 2, the country, followed on 2026-09-16:
+wild forage in the chunks around the nest, fog that lifts as bees go there,
+scouts as the game's sixth decision, and biomes that decide what hunts the
+colony and what infects it. It cost three corrections to the foraging model,
+one of which — the dance being far too willing to send bees a long way — had
+been wrong since long before there was a world. The engine's full suite runs on
+Windows and on macOS. The Xcode side compiles with Xcode 27, its tests pass on an iOS 27
 simulator, and it has been signed and installed on an iPhone on iOS 27 — though
 most of what it does there is still to be walked. See "The first Mac build",
-"Xcode 27", "location removed" and "the ground" below.
+"Xcode 27", "location removed", "the ground" and "the country" below.
 
 ---
 
@@ -22,20 +27,23 @@ most of what it does there is still to be walked. See "The first Mac build",
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76); 240 XCTest + 282 Swift Testing, 0 failures (2026-09-15, after geography was removed), with `beesim` byte-identical across that change; 572 in total, 0 failures (2026-09-15, after the world's Phase 1 — 522 → 572), with `beesim` byte-identical across that change too when the world is off |
+| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76); 240 XCTest + 282 Swift Testing, 0 failures (2026-09-15, after geography was removed), with `beesim` byte-identical across that change; 572 in total, 0 failures (2026-09-15, after the world's Phase 1 — 522 → 572), with `beesim` byte-identical across that change too when the world is off; 615 in total, 0 failures (2026-09-16, after the world's Phase 2 — 244 XCTest + 371 Swift Testing, with `CountryTests` and `ScoutingTests` new). Phase 2 is *not* byte-identical with the world off: two of its three foraging corrections change the colony, and what they cost is in the ledger below |
 | Xcode targets | All four compile, and the test targets (Xcode 26.5, 2026-09-14; Xcode 27 against the iOS 27 SDK, 2026-09-15, one warning left — see "Xcode 27"). 10 unit tests and 5 UI test runs pass on an iOS 27 simulator. Four tabs since 2026-09-15: Colony, Nest, World, Garden |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
-| Balance, standard preset | 89% first year, 66% second, 2.49 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-06; reproduced byte for byte on 2026-09-12 after the record-keeping systems were added) |
-| Balance, other presets | Gentle 92% / 60%, harsh 64% / 14% (200 colonies, 2026-09-12). Gentle is *worse* at two years: better-fed colonies swarm more |
-| Balance, distance | Every number above was measured at `beesim`'s default 400 m, which is the recorded 89% / 66% baseline. The app's own flowers sat at the engine's nominal 800 m, which measures 86% / 54%. The garden the world plants them in now measures 86% / 64% (200 colonies, 2026-09-15). See "the ground" in section 2 |
-| `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale` |
+| Balance, standard preset, world off | 89% first year, **62%** second, 2.50 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-16). It was 89% / 66% / 2.49 from 2026-09-06 to 2026-09-15, reproduced byte for byte across the record-keeping systems and across the world's Phase 1; the four points went on two foraging corrections that Phase 2 forced. See the ledger below |
+| Balance, the world | The garden and the country together, which is what the app now plays: **90% first year, 68% second**, 2.68 swarms, 926 autumn stores, 378 winter cluster, 7.7 chunks known. Wild forage with no photographs at all: **46%** first year. `--policy scout` against instinct: **64%** at two years, a four-point price (200 colonies, 2026-09-16). See "the country" in section 2 |
+| Balance, other presets | Gentle 92% / 60%, harsh 64% / 14% (200 colonies, 2026-09-12, before the Phase 2 foraging corrections and not re-taken since). Gentle is *worse* at two years: better-fed colonies swarm more |
+| Balance, distance | Every world-off number above was measured at `beesim`'s default 400 m, which was the recorded 89% / 66% baseline until 2026-09-16 and is 89% / 62% now. The app's own flowers sat at the engine's nominal 800 m, which measured 86% / 54%. The garden the world plants them in measured 86% / 64% on 2026-09-15. Phase 2's corrections and its dance-distance exponent moved all of that again, and the garden with the country around it is the row above. See "the ground" and "the country" in section 2 |
+| `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale`; `--world` for the world as the app plays it, `--world --patches 0` for wild forage alone, `--biome <name>` to force the home biome |
 
 #### The balance baseline, and why the numbers moved
 
-Twice, for two different reasons, and it is worth keeping them apart — and a
+Twice, for two different reasons, and it is worth keeping them apart — a
 third time on 2026-09-15, when it turned out the numbers had never been
-measured where the game was actually being played.
+measured where the game was actually being played — and a fourth on 2026-09-16,
+when the country arrived and the dance turned out to have been wrong about
+distance all along.
 
 **The measurement changed first.** The previously recorded baseline — 75% first
 year, 37% second — was taken before the determinism fix above and in a debug
@@ -68,10 +76,27 @@ The world's garden puts them at 200 m and a ring or two out, which measures 86%
 and 64%; the four-row table is under "the ground" in section 2, and where the
 baseline should now sit is in section 3.
 
+**Then, on 2026-09-16, the dance was corrected twice and the model changed
+under the world-off baseline too.** Phase 2's forty-odd wild stands broke two
+things that nine patches at one distance had never exercised: a forager whom a
+stripped patch could not serve simply did not forage, and the dance recruited
+onto every patch in range at once. Fixing both took the world-off 400 m colony
+from 66% to **62%** at two years, first year unchanged at 89% — so that is the
+world-off baseline from today, and everything in this section above it was
+measured on an engine that had those two faults. This is the second kind of move
+again: the colony changed, because the model was wrong. The third correction,
+handing forage space out in quality order rather than insertion order, moved
+66% to 66% and 612 stores to 613 — but it is not byte-identical, which is worth
+knowing about how often the colony is honey-bound. And a fourth change,
+`danceDistanceExponent`, leaves the world-off numbers alone entirely: a colony
+whose patches all stand at one distance cancels the factor when the shares are
+normalised, and the 400 m run diffs clean at exponent 1 and at exponent 3. Its
+effect is on the country, and it is in "the country" in section 2.
+
 Every balance number in this document is now from `beesim --trials 200 --days
 730 --patches 9 --restock 45` on a release build, at that command's default
-400 m unless a distance is named, and every one of them reproduces byte for
-byte. Anything quoted at 60 trials says so, and should be treated as
+400 m unless a distance is named or `--world` is passed, and every one of them
+reproduces byte for byte. Anything quoted at 60 trials says so, and should be treated as
 indicative: a 60-colony sample moves five points on nothing.
 
 ### Not verified, and cannot be here
@@ -930,6 +955,237 @@ about 23 pt across on a phone, under the 44 pt a finger wants, so a zoom or
 a snap-to-nearest-cell tolerance is the first Phase 2 follow-up. The UI test
 that walks the first run now asserts four tabs and taps into World.
 
+### 2026-09-16 — the country (world, phase 2)
+
+Phase 2 of `docs/WORLD.md` — wild forage, the fog, scouts as a decision, biome
+multipliers on threats and disease — built over 2026-09-15 and 2026-09-16. All
+of it is additive, no save-format version moved, and every old save still opens.
+Phase 1 gave the colony ground; this gives it country to forage in, and it
+turned out to need three corrections to the foraging model before any of it
+could be measured honestly.
+
+**What was built.**
+
+- **Wild stands.** `PatchOrigin.wild`, `FlowerPatch.isWild`, and a photo
+  identifier of `"wild:q,r"` (`FlowerPatch.wildPhotoPrefix`).
+  `Simulation.patches` now means the player's flowers alone, with `wildPatches`
+  and `allPatches` beside it, and the same split on `ColonySnapshot`
+  (`patches` / `wildPatches`). That split is what keeps every count, grid and
+  calendar in the app meaning the collection without one of them being touched.
+- **`WorldGenerator.wildPatches(in:density:)`.** Per chunk, a deterministic
+  sparse set of stands: cells from the chunk, species from `Biome.species`
+  weighted by the catalogue's rarity, `capacityScale` around `wildPatchYield`.
+  Wild stands never fade (`registeredOnDay: nil`), regrow on the seasonal
+  schedule, and are exempt from `pruneDepletedPatches`; planting a photograph on
+  one digs it up. They are registered into `world.patches` only when their chunk
+  is discovered — the seven founding chunks at founding, and on migration — so
+  the save holds their state and nothing that can be regenerated.
+- **The fog, in three states.** Discovered (`Terrain.discovered`), rumoured
+  (`Terrain.rumoured`, derived: an undiscovered neighbour of known ground), and
+  unknown.
+- **`ExplorationSystem`**, daily, after foraging. When the colony is in a
+  dearth — `World.isInDearth`, the engine's own existing notion of "short",
+  chosen over a new constant that would drift away from
+  `dearthThresholdPerBee` — a small share of the force (`explorationShare` 0.06)
+  explores: one rumoured chunk is sampled from the seeded RNG in fixed order and
+  discovered with a probability proportional to its wild richness
+  (`explorationChance` 0.03). Nothing beyond the 8 km range is ever discovered.
+- **Scouts as a decision**, in the shape of the five existing ones:
+  `DecisionAction.scout` (identifier `"colony.scout"`, title "Send Scouts"),
+  `GameStore.sendScouts()`, `Simulation.sendScouts()`,
+  `WatchDecision.Kind.scout` (`binoculars.fill`, "Ground they have not seen"),
+  `ColonyNews` offering it once a year when a flow is on and there is rumoured
+  ground and no party already out, `ColonySnapshot.scoutDecisionOpen`,
+  `scoutsOut` and `scoutsDaysRemaining`, and `World.ScoutingParty`. A party is a
+  tenth of the force (`scoutShare` 0.10) for three days (`scoutDays`), gathers
+  nothing, and discovers every rumoured chunk when it returns.
+- **Biome multipliers**, at exactly the two hooks section 4 of that document
+  names and nowhere else: `ThreatSystem.encounterChance` and
+  `SimulationConfig.baseArrivalChance(for:)`, read off the home chunk's biome
+  and scaled by `biomeThreatScale` (1.0; 0 switches the effect off, and is
+  tested neutral). `Biome.predatorMultiplier(for:)` puts each biome's named
+  predator — the "who hunts there" column of section 4 — at 1.5–2.0 in its own
+  biome and about 0.6 elsewhere; `pathogenMultiplier(for:)` raises nosema in
+  riverbank and in wet burrows and chalkbrood in damp woodland, and leaves
+  varroa alone.
+- **Presentation.** `TerrainSummary` gains `discovered: [Chunk]`, `rumoured`,
+  `scoutsOut`, `scoutsDaysRemaining` and `chunk(containing:)`;
+  `BloomPrompt.wildKeystone` says where the wild keystone is — "Heather is out
+  on Long Moor, to the north-east." — on `HexCoordinate.compassNames` and
+  `direction(to:)`.
+- **`beesim`.** `--world` now includes wild forage; `--patches 0 --world` is
+  wild forage alone; `--biome <name>` forces the home biome; `--policy scout`;
+  and `--list` gains a column for how many chunks are known. `--world` *off*
+  now forces `wildPatchDensity = 0`, so every baseline recorded at a
+  `--distance` stays comparable with every later one. New `--set` keys:
+  `wildPatchYield`, `wildPatchDensity`, `danceFloorPatches`, `biomeThreatScale`,
+  `scoutShare`, `scoutDays`, `explorationShare`, `explorationChance`,
+  `danceDistanceExponent`.
+
+**Three corrections to the foraging model, each measured alone with the world
+off, at 400 m, 200 colonies, two years.** These are modelling corrections rather
+than tuning: each is the engine doing what the dance already meant, and each was
+forced by the country rather than chosen for a number.
+
+1. **Forage space goes to candidates in quality order** — descending
+   `forageQuality`, ties broken by id — rather than in insertion order. That is
+   what the dance means, and `docs/WORLD.md` section 9 listed it as a thing to
+   fix before the world started creating patches in bulk. It barely moved
+   anything: 66% to 66% at two years, 612 to 613 autumn stores. But it is not
+   byte-identical, because the colony is honey-bound often enough for the order
+   to matter.
+2. **A forager whom a stripped patch cannot serve follows the next dance**,
+   rather than not foraging at all. With forty small wild stands in range the
+   old behaviour cut nectar income sevenfold, with more forage on offer than the
+   game had ever had. A colony whose patches all absorb their share — which is
+   every colony measured before today — is unaffected.
+3. **`danceFloorPatches = 16`:** the dance recruits onto the best sixteen
+   patches only. A colony that had scouted the whole circle held 260 stands,
+   split its force across all of them, and died. Sixteen is above anything the
+   game produced before the world existed.
+
+Corrections 2 and 3 together cost four points with the world off: **66% → 62%**
+at two years, with swarms 2.49 → 2.50 and nectar 12683 → 12354, and the first
+year unchanged at 89%. **The recorded world-off baseline at 400 m is therefore
+now 89% and 62%**, and the ledger in section 1 says so. Also tried and reverted:
+weighting the dance by standing crop instead of by relative fill, which cost 28
+points. The comment in `forageQuality` records that, so nobody tries it twice.
+
+**The scout trap, and what was actually wrong.** At the first tuning
+(`wildPatchYield` 1.6, `wildPatchDensity` 0.4) the country made the colony
+*worse*. Wild forage alone, first year, per biome: meadow 46, hedgerow 42,
+woodland 10, riverbank 54, farmland 40, village 39, heath 38 — mean 38.4%, which
+is the design's 40 almost exactly. Garden plus country: 78% first year and 56%
+second with 1.69 swarms, **against 86/62 for the garden alone** — which is
+Phase 1's 86/64 with the two corrections above already in it. Biomes with the
+garden on, at two years: heath 42, meadow 50, riverbank 54, farmland 55,
+hedgerow 57, woodland 60, village 64 — a 22-point spread, well past the ten
+points section 10 asked for, so the tables were not widened. And `--policy
+scout` measured **2%**: six parties reveal about 132 parishes, and the colony
+then works distant untouched stands in preference to its own worked garden, and
+starves.
+
+A decision that measures at 2% is not a decision that wants tuning.
+`forageQuality` ranked a patch by the *fraction* of it left times the yield's
+gentle distance term, so a full stand five kilometres out beat a half-worked one
+at the door. Seeley's finding is that a distant source has to be much more
+profitable before it recruits at all — the dance threshold rises with distance
+far faster than the yield falls — and the engine had the two on the same slope.
+`SimulationConfig.danceDistanceExponent` raises the distance term in the
+*recruitment weight only*; the harvest keeps the plain efficiency, which is
+flight physics and was never in question. Swept 2026-09-16 — garden on at two
+years, then `--policy scout`, then wild alone in the first year:
+
+| `danceDistanceExponent` | garden + country, 2 yr | `--policy scout` | wild alone, 1 yr |
+|---|---|---|---|
+| 1.0 | 56% | 2% | 38% |
+| 1.5 | 60% | 25% | 48% |
+| 2.0 | 64% | 55% | 52% |
+| 3.0 | 69% | 66% | 64% |
+
+The default is **3.0**. With the world off the exponent changes nothing, and not
+approximately: a world-off colony's patches all stand at one distance, so the
+factor cancels when the shares are normalised. That was measured rather than
+assumed — the 400 m baseline diffs clean at exponent 1 and at exponent 3.
+
+**The density retune.** At exponent 3 wild forage alone had risen to 64%, which
+is too near what a garden gives; the photograph has to carry the game. Yield was
+not the lever — `wildPatchYield` 1.6 / 1.0 / 0.6 gave 64 / 59 / 60% — because
+income is bounded by foragers and flight time rather than by what is standing,
+which is section 1 of `docs/WORLD.md` arriving again from a new direction.
+Density was the lever: `wildPatchDensity` 0.4 → 64%, 0.25 → 54%, **0.15 → 46%**,
+which ships. That is about one stand to a parish.
+
+**Where it ended, at the shipped defaults, 200 colonies:**
+
+| Run | year 1 | year 2 | swarms / 2 yr | and |
+|---|---|---|---|---|
+| garden + country, instinct | 90% | 68% | 2.68 | 926 autumn stores, 378 winter cluster, 7.7 chunks known |
+| garden + country, `--policy scout` | — | 64% | 2.35 | 133 chunks known |
+| wild forage alone | 46% | — | — | `--world --patches 0` |
+| world off, 400 m | 89% | 62% | 2.50 | byte-identical before and after the exponent |
+
+Two identical `--world` runs diff to nothing. Scouting is a four-point price
+where the design asked for two or three — a price now rather than a trap, and
+whether four is the right one is a tuning question rather than a modelling one.
+**The per-biome tables above were taken at the earlier settings — exponent 1,
+density 0.4 — and have not been re-measured at the shipped defaults**, so the
+22-point spread is a fact about a world that no longer exists. Re-taking them is
+a small item in section 3.
+
+**One test moved, and the finding under it belongs in the balance record.**
+`VarroaTests.testVarroaBuildsTowardDamagingLevels` failed at 0.327 against its
+0.3 one-year ceiling once the fixture colony had wild stands and the steeper
+dance, and the reason is real rather than incidental: a better-fed colony rears
+more brood, and more brood is more mite. The test now holds the colony's
+composition fixed with `wildPatchDensity = 0`, because it is about mite dynamics
+on a known colony rather than about what that colony eats. **Wild forage brings
+varroa on sooner** is the finding, and this is where it is recorded; it has not
+been measured at scale, only met in one test.
+
+**Tests: 615, 0 failures** — 244 XCTest (172 engine + 72 game) + 371 Swift Testing (274 + 97), with
+`CountryTests` (31) and `ScoutingTests` (12) new. That count is from the run
+before the exponent was added, and the full suite was being re-run on the final
+tree as this was written, so treat it as the last count seen rather than the
+final one. It is also *fewer* than the 572 recorded after Phase 1, and nobody
+has accounted for the difference; both numbers are as the runner reported them.
+Three existing tests were adjusted to the new truth rather than deleted:
+`Fixture.barrenSimulation` strips the country,
+`testGoodSitesRepelMoreOfWhatComes` sets `biomeThreatScale = 0` and
+`wildPatchDensity = 0`, and the varroa test above.
+
+**The app half**, built alongside, and — as always — verified only as far as a
+simulator can verify it:
+
+- **The World tab** draws every discovered chunk rather than the founding seven,
+  rumoured chunks as paper with a wax outline (the bounds include them, so they
+  can be panned to), and wild stands as small `Theme.wild` leaf-green triangles:
+  solid in bloom, hollow out of it, opacity following what is left, and
+  deliberately unlike the garden's honey dots. Tapping a stand gives a card with
+  the species, the chunk's name, "N bees working it" and the bloom state, and
+  "Scouts are out — back in N days." sits under the header.
+- **A camera on the map**, earlier the same day: pinch between fit-to-width and
+  a cell 80 pt across, a drag clamped so the nest can always be brought back, a
+  double-tap, and a "Centre on the Nest" button, none of it animated under
+  Reduce Motion. A tap snaps to the nearest garden cell within half a cell while
+  cells are narrower than a fingertip — which is the follow-up the Phase 1 entry
+  above asked for, and the reason it was asked for. The VoiceOver representation
+  lists the discovered chunks by name and biome, the rumoured count, and the
+  wild blooms grouped one item per chunk.
+- **`ScoutDecisionCard`** on the dashboard after the feed card, in the feed
+  card's shape: "Ground they have not seen", the detail — "The dancers are
+  pointing at N stretches of country nobody has been to. A tenth of the foragers
+  for 3 days would bring back all of it, and that is honey they do not gather."
+  — one "Send Scouts" button, and the house do-nothing line, "Or let the
+  foragers find it in their own time, which is what happens if you do nothing."
+  While a party is away it says so quietly: "The scouts are out. They are back
+  in N days."
+- **`BloomPromptCard`** carries the wild keystone line with a compass glyph.
+  `CollectionView`'s bloom-calendar gap sentence and `GardenView`'s empty state
+  now say the bees are living on what they find wild, rather than "no forage",
+  when there is wild forage to live on. The Garden's grid and counts stay the
+  player's flowers only.
+- **Plumbing.** A `colony.scouting` notification category with one action, "Send
+  Scouts" (`colony.scout`); `SendScoutsIntent`, acting on the save file and
+  checking the decision is open, with a literal description; the widget's
+  best-answer button showing it after siege and swarm. No Siri phrase — the
+  project keeps two. The watch needed no change at all: its decision page
+  renders whatever `WatchDecision` the engine hands it, which is what that shape
+  was for.
+- The 10 unit tests and 5 UI test runs pass on an iOS 27 simulator on the final
+  tree.
+
+**Not built, deliberately.** Phase 3 of the design — features, nest sites,
+following a swarm to a site, wild colonies — is untouched, so that what Phase 2
+moved could be measured on its own, exactly as Phase 1 was.
+
+**Still Kyle's**, and in section 3 under "Not decided": whether 46% is the
+wild-forage floor he wants — he did not choose, so the design's 40 was taken as
+the default and density set to the nearest thing to it; winter forage, where
+three keystones bloom and the multiplier is still zero; and the predator
+roster's nationality, which the biome tables answer for now by giving the
+American animals British biomes.
+
 ---
 
 ## 3. What is next
@@ -959,12 +1215,13 @@ that walks the first run now asserts four tabs and taps into World.
 ### Then
 
 Items 4, 5 and 6 — second-year survival, something to do about swarming, and
-winter — were done on 2026-09-06 and are written up under "Done since" below.
-The numbering of what is left is unchanged so it still matches what you knew it
-as. **Item 12 is the next thing to do**, and it is last in the list only because
-the numbers are ages rather than priorities: it is package work and needs none
-of a Mac, a device, real photographs or a trained model. Everything from 7 to 11
-needs one of those, so none of it could be started here.
+winter — were done on 2026-09-06 and are written up under "Done since" below,
+and item 12, the world's Phase 2, was done on 2026-09-16 and is written up in
+section 2. The numbering of what is left is unchanged so it still matches what
+you knew it as. **Item 13 is the next thing to do**, for the reason item 12 was:
+it is package work and needs none of a Mac, a device, real photographs or a
+trained model. Everything from 7 to 11 needs one of those, so none of it can be
+started here.
 
 7. **Curate reference photographs.** Still the cheapest real win for devices
    without Apple Intelligence: the feature-print classifier works but ships
@@ -985,39 +1242,46 @@ needs one of those, so none of it could be started here.
 11. **App icon.** A generated placeholder is in the appiconset now
    (`tools/make_app_icon.py`) so the build does not fail on an empty set. It
    is not a design; replace it.
-12. **Phase 2 of the world — the country**, and the next thing to do.
-    `docs/WORLD.md` section 11: wild patches placed per cell from the biome's
-    species list at `origin: .wild` and a `capacityScale` well under the
-    photographed 1.0; the fog, and chunks becoming known because a forager
-    worked one; scouts as a decision, in the shape the five existing decisions
-    take; and biome multipliers into the two hooks that document's section 4
-    names — `ThreatSystem.encounterChance` and the pathogen arrival lookup —
-    and nowhere else. Phase 1 deliberately did none of it, so that the numbers
-    it moved could be measured alone. Four things to measure, from section 10
-    of that document, in its order:
+12. **~~Phase 2 of the world — the country.~~ Done on 2026-09-16**, and
+    written up in section 2 under "the country": wild stands placed per chunk
+    from the biome's species list at `origin: .wild`, the fog and the three
+    states of a chunk, exploration in a dearth, scouts as the sixth decision,
+    and biome multipliers into the two hooks `docs/WORLD.md` section 4 names
+    and nowhere else. All four of that document's measurements were taken. The
+    first three landed where it hoped — wild alone at 46% against a target of
+    40, the garden and the country together at 90%/68%, the biomes separating
+    by 22 points against a floor of ten — and the fourth, scouting, only after
+    the dance was corrected: it measured 2% before that and 64% after, against
+    a design that asked for a two- or three-point price and got four.
 
-    - **Wild forage alone.** `--world --patches 0`, per biome. The design's
-      target is 40% first-year survival: enough that a colony in a real
-      hedgerow does not starve because nobody photographed anything, and far
-      enough below the garden's 86% that the photograph still carries the
-      game. Wild `capacityScale` and wild patch density are the two levers.
-      Today a colony with no photographs survives at 0%, which is why this
-      document calls photography load-bearing, and that number is the one this
-      changes.
-    - **Wild forage plus the garden.** `--world --patches 9 --restock 45`
-      against the 86%/64% Phase 1 measured. Well above it means wild forage is
-      too rich. More than the garden's 2.77 swarms per colony per two years is
-      the abundance-breeds-swarms effect again, and the design wants some of
-      it; how much is the same question as the two-year cliff below.
-    - **Biomes differ, and by the right amount.** A survival-by-biome table.
-      The village should winter best and be robbed most, the moor should be a
-      gamble that pays in autumn, the wood should be safe and hungry. Under
-      ten points of separation and the multipliers are too timid to be worth
-      having.
-    - **Scouting is worth its cost, and only just.** `--policy scout` against
-      instinct, as every decision has been measured. Two or three points is
-      right; ten means a colony that never scouts is being punished for the
-      player's absence.
+13. **Phase 3 of the world — colonising**, and the next thing to do.
+    `docs/WORLD.md` section 8. Today `World` holds one `Hive` and following a
+    swarm *replaces* the simulation; in the world the map persists and colonies
+    come and go on it. Following a swarm becomes choosing a **site** — a cavity
+    in a known chunk, at a distance the swarm can fly — which is the
+    new-colony screen the game already has, with its three bars for room,
+    warmth and safety, but with the ground deciding what the year will be like:
+    the church wall in the village winters on mahonia and is robbed by wasps,
+    the outcrop on the moor has nothing until August and then more than it can
+    store. **The colony that stayed becomes a wild colony on the map**, not
+    simulated hour by hour but given a fate each season from survival tables
+    that `beesim` itself produces, so the coarse model is calibrated against
+    the fine one; it shows as thriving, quiet or gone, and the player can go
+    back to it — and if it has died, its cavity is a site again with the comb
+    still in it, which is how wild colonies actually get re-founded. Two things
+    persist across every colony the player ever has: the map, and the garden —
+    so following a swarm two kilometres leaves the flowers behind at two
+    kilometres, which is the real cost of moving and the reason a beekeeper
+    does not. Several live colonies at once is affordable (a colony-year is
+    about 0.11 seconds in release) but is the step after, and the widget and
+    the watch would show one colony while the phone carried the rest.
+
+14. **Re-take the per-biome tables at the shipped defaults.** Both of them —
+    wild alone per biome, and survival per biome with the garden on — were
+    measured at exponent 1 and density 0.4, which is a world that no longer
+    exists, and the 22-point spread quoted above is from that world. A `--biome`
+    sweep at the shipped defaults is half an hour of wall time and nothing else.
+
 
 ### Done since
 
@@ -1281,6 +1545,33 @@ about them matters most.
   should be tuned until it is decided what the game is aiming at, and Phase 2's
   wild forage will move all of it again.
 
+  **It did, on 2026-09-16.** The garden and the country together measure
+  90%/68%, and the world-off 400 m comparison is 89%/62% rather than the
+  89%/66% it was. So the game now plays a little *above* the number this
+  document quoted for nine days rather than ten points below it, and the gap
+  between the app and the trial colony has changed sign. The three ways to go
+  are unchanged and so is the question; only the arithmetic moved.
+
+- **Whether 46% is the floor wild forage should hold a colony at.** This is the
+  identity question `docs/WORLD.md` section 14 puts first: whether a player who
+  photographs nothing should have a colony at all, and how good it should be.
+  Kyle has not answered it, so the design's own 40% was taken as the default and
+  `wildPatchDensity` was set to 0.15 — the nearest thing to it the sweep offered,
+  against 0.25 for 54% and 0.4 for 64%. 64% is close enough to what a garden
+  gives that the photograph stops carrying the game, which is the reason not to
+  go higher rather than a measurement of where it should be. The lever is one
+  `--set` key and re-measuring is one run, so this is cheap to change and should
+  be changed on a decision rather than drifted into.
+
+- **Whether winter forage should exist.** Three keystones bloom in winter —
+  crocus, winter heather and mahonia — and the village biome's whole character
+  is that it is the only place with something out all year; and winter's forage
+  multiplier is zero, so none of them does anything. Every balance number in
+  this document, Phase 2's included, was measured with winter empty. Turning it
+  on would make the village materially better than the other six in exactly the
+  season that kills colonies, which is either the point or a problem.
+  `docs/WORLD.md` carries it open in section 4 and again in section 9.
+
 ---
 
 ## 4. Working rules
@@ -1316,6 +1607,16 @@ about them matters most.
   in the summary and obvious in `beesim --every 8 --seed N`.
 - **A sharp edge in a survival curve is a bug.** Attrition is gradual; 75% to
   25% in sixty days was three modelling errors.
+- **When a mechanic measures as a trap, check the model before the mechanic.**
+  The scout decision measured at 2% against instinct's 56% on 2026-09-16, and no
+  tuning of the decision could have fixed it: the dance ranked a full patch five
+  kilometres out above a half-worked one at the door, so revealing country was
+  handing the colony a better way to starve. The mechanic was the only thing
+  that had ever asked the dance that question. This is the same lesson as
+  "a mechanic that looks strong is a reason to check the model" under item 5 in
+  section 3, and as the narrower one beside it about measuring the policy the
+  interface actually asks for — three times now, in both directions, which is
+  why it is a rule and not an anecdote.
 - **If it can live in the package, put it there.** That is the part that can be
   compiled and tested without a Mac.
 - **Relative values come from the science; the absolute scale is calibrated.**
