@@ -62,14 +62,21 @@ struct WorldView: View {
 
     private var snapshot: ColonySnapshot { store.snapshot }
 
+    /// A stand of something wild the player tapped. Shown in a card under the
+    /// map beside the chunk's, for the same reason: it is three short facts,
+    /// and a sheet to read three facts is the wrong trade.
+    @State private var selectedWild: PatchSummary?
+
     /// Every chunk the map draws.
     ///
-    /// Phase 1 knows exactly seven and this is the line that says so. Phase 2
-    /// replaces it with the discovered list — and nothing downstream of it
-    /// needs to know that the list got longer.
+    /// Everything the colony has been to, in the order it came to know it —
+    /// the home chunk and its six to begin with, and whatever the foragers and
+    /// the scouts have added since. Nothing downstream of this needs to know
+    /// that the list got longer: the frame, the fit and the pan limits are all
+    /// measured from whatever it holds.
     private var chunks: [Chunk] {
         guard let terrain = snapshot.terrain else { return [] }
-        return [terrain.home] + terrain.neighbours
+        return terrain.discovered
     }
 
     var body: some View {
@@ -86,9 +93,23 @@ struct WorldView: View {
                             snapshot: snapshot,
                             camera: $camera,
                             onSelectPatch: { selectedPatch = $0 },
-                            onSelectChunk: { selectedChunk = $0 },
+                            onSelectChunk: {
+                                selectedChunk = $0
+                                selectedWild = nil
+                            },
+                            onSelectWild: {
+                                selectedWild = $0
+                                selectedChunk = nil
+                            },
                             onPhotograph: onPhotograph
                         )
+
+                        if let wild = selectedWild {
+                            WildStandCard(
+                                patch: wild,
+                                chunk: terrain.chunk(containing: wild.cell ?? .origin)
+                            ) { selectedWild = nil }
+                        }
 
                         if let chunk = selectedChunk {
                             NeighbourCard(chunk: chunk) { selectedChunk = nil }
@@ -174,6 +195,14 @@ private struct GroundHeader: View {
         }
     }
 
+    /// Where the scouting party is, when there is one out.
+    private var scoutsLine: String {
+        guard let days = terrain.scoutsDaysRemaining, days > 0 else {
+            return "Scouts are out — back today."
+        }
+        return "Scouts are out — back in \(days) day\(days == 1 ? "" : "s")."
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(terrain.homeBiome.displayName)
@@ -188,6 +217,16 @@ private struct GroundHeader: View {
                 .font(.caption)
                 .foregroundStyle(Theme.honey)
                 .fixedSize(horizontal: false, vertical: true)
+
+            // A tenth of the force is away, and the map is about to get
+            // bigger. Under the header rather than over the map, because it
+            // is a fact about the colony and not about the drawing.
+            if terrain.scoutsOut {
+                Label(scoutsLine, systemImage: "figure.walk.departure")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
@@ -226,6 +265,59 @@ private struct NeighbourCard: View {
     }
 }
 
+/// A stand of something the bees found for themselves, after a tap on it.
+///
+/// Deliberately not the Garden's flower sheet: there is no photograph behind
+/// it, no identification to argue with and nothing to share. What there is is
+/// what a forager would report — what it is, where it is, whether it is out,
+/// and how many of them are on it.
+private struct WildStandCard: View {
+
+    let patch: PatchSummary
+    let chunk: Chunk?
+    var onDismiss: () -> Void
+
+    private var workingLine: String {
+        let bees = patch.foragersWorkingIt
+        return "\(bees) bee\(bees == 1 ? "" : "s") working it"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(patch.speciesName)
+                    .font(.headline)
+                Spacer()
+                Button("Close", systemImage: "xmark", action: onDismiss)
+                    .labelStyle(.iconOnly)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let chunk {
+                Text(chunk.name)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.wild)
+            }
+
+            HStack(spacing: 10) {
+                Label(
+                    patch.isInBloom ? "In bloom" : "Not in bloom",
+                    systemImage: patch.isInBloom ? "sun.max.fill" : "moon.zzz.fill"
+                )
+                .foregroundStyle(patch.isInBloom ? Theme.wild : .secondary)
+
+                Text(workingLine)
+                    .foregroundStyle(.secondary)
+            }
+            .font(.caption)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // MARK: - The map
 
 /// The chunks, the garden and the nest, drawn in one `Canvas`.
@@ -257,6 +349,7 @@ private struct WorldMap: View {
 
     var onSelectPatch: (PatchSummary) -> Void
     var onSelectChunk: (Chunk?) -> Void
+    var onSelectWild: (PatchSummary) -> Void
     var onPhotograph: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -271,7 +364,28 @@ private struct WorldMap: View {
     /// The box the chunks fill, in units of one hexagon's radius. Everything
     /// else — the frame's shape, the fit, how far the map may be dragged —
     /// comes from this one rectangle.
-    private var bounds: CGRect { MapGeometry.bounds(for: chunks.map(\.coordinate)) }
+    ///
+    /// Rumoured ground counts towards it. A rumour is drawn, so it has to have
+    /// room: leaving it out would put the ring of paper the dancers pointed at
+    /// half off the edge of the frame, where it could not be seen and could
+    /// not be panned to.
+    private var bounds: CGRect {
+        MapGeometry.bounds(for: chunks.map(\.coordinate) + terrain.rumoured)
+    }
+
+    /// Everything standing wild in a cell the map is drawing, found once per
+    /// redraw rather than searched for cell by cell.
+    ///
+    /// Keyed by cell because that is how both the drawing and the tap ask for
+    /// it. A cell holds one patch, so the last writer wins and there is
+    /// nothing to reconcile.
+    private var wildByCell: [HexCoordinate: PatchSummary] {
+        var found: [HexCoordinate: PatchSummary] = [:]
+        for patch in snapshot.wildPatches {
+            if let cell = patch.cell { found[cell] = patch }
+        }
+        return found
+    }
 
     var body: some View {
         let bounds = self.bounds
@@ -333,6 +447,11 @@ private struct WorldMap: View {
         // Everything past the known chunks: paper to the edge of the frame.
         context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Theme.fog))
 
+        // Ground the dancers have pointed at, under the ground the bees have
+        // actually walked over: paper with an outline on it, and no biome,
+        // because the biome is a guess until somebody goes.
+        drawRumoured(terrain.rumoured, in: &context, layout: layout)
+
         // The ground. Everything that is not home is washed out against it,
         // because the colony lives in one of these and only visits the others.
         for chunk in chunks {
@@ -370,6 +489,28 @@ private struct WorldMap: View {
             )
         }
 
+        // What the bees found for themselves. A small upright triangle rather
+        // than the garden's round dot, and leaf green rather than pollen
+        // gold: a stand of heather nobody photographed must not be mistaken
+        // at a glance for a flower the player went out and found. Solid while
+        // it is in flower, an outline when it is not, and either way carried
+        // at what is left of it — a stripped patch fades towards the ground
+        // it stands on without ever quite leaving the map, because it will be
+        // back next year and the garden's plantings will not.
+        for (cell, patch) in wildByCell {
+            let mark = wildMark(in: layout.dot(at: cell, fraction: 0.34))
+            let strength = 0.35 + 0.65 * max(0, min(1, patch.remainingFraction))
+            if patch.isInBloom {
+                context.fill(mark, with: .color(Theme.wild.opacity(strength)))
+            } else {
+                context.stroke(
+                    mark,
+                    with: .color(Theme.wild.opacity(strength * 0.8)),
+                    lineWidth: max(0.5, layout.radius * 0.1)
+                )
+            }
+        }
+
         // The nest, at the origin, in honey.
         let nest = layout.path(for: .origin)
         context.fill(nest, with: .color(Theme.honey))
@@ -388,20 +529,32 @@ private struct WorldMap: View {
         )
     }
 
+    /// The mark a wild stand is drawn as, inside the box a garden dot would
+    /// have filled.
+    ///
+    /// An upright triangle, which is the shape a map has meant "something
+    /// growing here that nobody planted" for as long as there have been maps.
+    /// Narrower than the box it is given so that, side by side with a garden
+    /// dot of the same nominal size, it reads as the smaller mark.
+    private func wildMark(in box: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: box.midX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.maxY))
+        path.addLine(to: CGPoint(x: box.minX, y: box.maxY))
+        path.closeSubpath()
+        return path
+    }
+
     /// Country the dancers have pointed at and nobody has walked over.
     ///
-    /// Nothing calls this yet, because Phase 1 has no fog: there is nothing
-    /// past the seven chunks to be rumoured about. It is here so that the
-    /// drawing is not the part Phase 2 has to reopen — section 7 of
-    /// docs/WORLD.md wants a rumoured chunk to show its outline and its
-    /// guessed name and nothing else, and this is that outline.
+    /// Called from the top of `draw(in:size:layout:)`, after the paper and
+    /// before the ground, with the same coordinates `bounds` is measured from
+    /// — `MapGeometry.bounds(for:)` takes coordinates rather than chunks
+    /// precisely so that a rumour, which has no biome and no name to speak of,
+    /// can still make room for itself in the frame.
     ///
-    /// To use it: call it from the top of `draw(in:size:layout:)`, after the
-    /// paper and before the ground, and add the same coordinates to the list
-    /// `bounds` is computed from — `MapGeometry.bounds(for:)` takes
-    /// coordinates rather than chunks precisely so that a rumour, which has no
-    /// biome and no name to speak of, can still make room for itself in the
-    /// frame.
+    /// Section 7 of docs/WORLD.md wants a rumoured chunk to show its outline
+    /// and nothing else, and this is that outline.
     private func drawRumoured(
         _ rumoured: [ChunkCoordinate],
         in context: inout GraphicsContext,
@@ -439,6 +592,14 @@ private struct WorldMap: View {
             } else {
                 onPhotograph()
             }
+            return
+        }
+
+        // Something the bees found. Ahead of the chunk, because a stand is the
+        // smaller and more particular thing to have aimed at: a player who
+        // wanted the parish can tap the ground beside it.
+        if let wild = wildByCell[cell] {
+            onSelectWild(wild)
             return
         }
 
@@ -542,6 +703,29 @@ private struct WorldMap: View {
                 }
             }
 
+            // Everything past the six. Named and placed by biome only, which
+            // is all a stretch of country the colony has merely been to is —
+            // the six around home get a direction because they are the ones a
+            // player can hold in their head.
+            ForEach(furtherAfield) { chunk in
+                Button {
+                    onSelectChunk(chunk)
+                } label: {
+                    Text("\(chunk.name), \(chunk.biome.displayName.lowercased()), found since.")
+                }
+            }
+
+            if !terrain.rumoured.isEmpty {
+                Text("\(terrain.rumoured.count) stretches of country the dancers have pointed at and nobody has been to.")
+            }
+
+            // One line per stretch of country rather than one per stand:
+            // there are hundreds of these and a list of them is not a map. A
+            // parish and what is out in it is what a forager would say.
+            ForEach(wildInBloom, id: \.name) { chunk in
+                Text("\(chunk.name): \(chunk.species.spokenList) in bloom.")
+            }
+
             ForEach(planted) { cell in
                 Button {
                     onSelectPatch(cell.patch)
@@ -584,6 +768,35 @@ private struct WorldMap: View {
     private var planted: [PlantedCell] {
         terrain.garden.compactMap { garden in
             patch(in: garden).map { PlantedCell(garden: garden, patch: $0) }
+        }
+    }
+
+    /// Discovered ground that is not home and not one of the six: what the
+    /// foragers and the scouts have added since the colony arrived.
+    private var furtherAfield: [Chunk] {
+        let first = Set([terrain.home.coordinate] + terrain.neighbours.map(\.coordinate))
+        return terrain.discovered.filter { !first.contains($0.coordinate) }
+    }
+
+    /// What is in flower out in the country, one line to a parish.
+    private struct WildChunk {
+        let name: String
+        let species: [String]
+    }
+
+    private var wildInBloom: [WildChunk] {
+        var species: [ChunkCoordinate: Set<String>] = [:]
+        for patch in snapshot.wildPatches where patch.isInBloom {
+            guard let cell = patch.cell else { continue }
+            species[ChunkCoordinate.containing(cell), default: []].insert(patch.speciesName)
+        }
+
+        // Walked in the discovered order so the reading is stable between
+        // ticks, and named from the terrain so a stand in ground that has
+        // somehow gone unknown is left out rather than given a coordinate.
+        return terrain.discovered.compactMap { chunk in
+            guard let names = species[chunk.coordinate], !names.isEmpty else { return nil }
+            return WildChunk(name: chunk.name, species: names.sorted())
         }
     }
 }

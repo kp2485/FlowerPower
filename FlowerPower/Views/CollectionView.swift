@@ -21,7 +21,12 @@ struct CollectionView: View {
     private var collection: BotanyCollection { BotanyCollection(patches: store.snapshot.patches) }
     private var hemisphere: Hemisphere { Hemisphere(rawValue: hemisphereRaw) ?? .northern }
     private var prompt: BloomPrompt {
-        BloomPrompt(hemisphere: hemisphere, patches: store.snapshot.patches)
+        BloomPrompt(
+            hemisphere: hemisphere,
+            patches: store.snapshot.patches,
+            terrain: store.snapshot.terrain,
+            wildPatches: store.snapshot.wildPatches
+        )
     }
 
     var body: some View {
@@ -101,6 +106,10 @@ struct CollectionView: View {
         .navigationTitle("Collection")
     }
 
+    /// Whether the bees have anything of their own to fly to — a stand out in
+    /// the country that nobody photographed.
+    private var hasWildForage: Bool { !store.snapshot.wildPatches.isEmpty }
+
     private var calendar: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Bloom calendar")
@@ -127,7 +136,16 @@ struct CollectionView: View {
                 }
             }
             if !collection.seasonsMissing.isEmpty {
-                Text("Nothing in the garden flowers in \(collection.seasonsMissing.map { $0.rawValue }.spokenList). The colony has no forage then.")
+                // The gap is in the *garden*, and since the world was drawn
+                // that is no longer the same thing as a gap in the forage: a
+                // colony with wild ground around it has something to fly to
+                // in a season the shelf has nothing for. Saying otherwise
+                // would be telling the player their bees are starving while
+                // the foragers are out on the heath.
+                Text("Nothing in the garden flowers in \(collection.seasonsMissing.map { $0.rawValue }.spokenList). "
+                     + (hasWildForage
+                        ? "The bees are left with whatever they can find wild."
+                        : "The colony has no forage then."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -158,6 +176,17 @@ struct BloomPromptCard: View {
             Label(prompt.headline, systemImage: "camera.macro")
                 .font(.subheadline.weight(.medium))
                 .fixedSize(horizontal: false, vertical: true)
+
+            // Where the flow is, out in the country. Its own line, above the
+            // advice about the garden, because it is not advice: nothing is
+            // being asked for. The bees have found heather and this says so,
+            // and it is the one sentence in the game that gives a direction.
+            if let wild = prompt.wildKeystone {
+                Label(wild, systemImage: "location.north.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.wild)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if !prompt.notYetPhotographed.isEmpty {
                 Text("Worth looking for")

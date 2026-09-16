@@ -46,6 +46,15 @@ struct ColonyDashboardView: View {
                     if snapshot.feedDecisionOpen {
                         FeedDecisionCard(snapshot: snapshot)
                     }
+                    // Last of the decisions, and the only one that arrives
+                    // while things are going well: a flow is when a tenth of
+                    // the force is affordable. Kept on screen while the party
+                    // is away so that the answer is reported where the
+                    // question was asked.
+                    if let terrain = snapshot.terrain,
+                       snapshot.scoutDecisionOpen || snapshot.scoutsOut {
+                        ScoutDecisionCard(snapshot: snapshot, terrain: terrain)
+                    }
 
                     if !snapshot.alerts.isEmpty {
                         AlertsSection(alerts: snapshot.alerts)
@@ -97,7 +106,9 @@ struct ColonyDashboardView: View {
                     // told.
                     BloomPromptCard(prompt: BloomPrompt(
                         hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern,
-                        patches: snapshot.patches
+                        patches: snapshot.patches,
+                        terrain: snapshot.terrain,
+                        wildPatches: snapshot.wildPatches
                     ))
                 }
                 .padding()

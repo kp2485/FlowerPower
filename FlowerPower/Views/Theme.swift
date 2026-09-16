@@ -100,6 +100,17 @@ enum Theme {
         }
     }
 
+    /// What grows in the country rather than in the garden.
+    ///
+    /// A leaf green, kept well away from the honey golds the garden's own
+    /// plantings are drawn in: on the map the difference between a flower the
+    /// player photographed and a stand of heather the bees simply found is the
+    /// difference between something they did and something that was there, and
+    /// the two must not be read as the same mark. Darker and less saturated
+    /// than `healthy`, because there are far more of these than there are
+    /// garden cells and a bright one repeated two hundred times is a rash.
+    static let wild = Color(red: 0.24, green: 0.45, blue: 0.29)
+
     /// Ground no bee has been over, and everything past the edge of the world.
     ///
     /// The colour of old wax paper: a map that stops rather than a darkness

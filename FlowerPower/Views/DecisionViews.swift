@@ -478,3 +478,92 @@ struct FeedDecisionCard: View {
         }
     }
 }
+
+// MARK: - Scouts
+
+/// The one decision the world adds: a tenth of the foragers, for three days,
+/// to see the ground the dancers keep pointing at.
+///
+/// In the shape of the feed card because it is the same kind of question — a
+/// cost stated plainly, one button, and instinct is to do nothing. It is the
+/// only decision here that arrives while things are going *well*: the engine
+/// opens it during a flow, which is the only time a colony can spare anybody,
+/// and the card does not second-guess that.
+struct ScoutDecisionCard: View {
+
+    let snapshot: ColonySnapshot
+    let terrain: TerrainSummary
+
+    @Environment(GameStore.self) private var store
+    @State private var sendings = 0
+
+    /// Word for word the sentence the watch uses. Two screens describing the
+    /// same decision differently is two decisions as far as the player is
+    /// concerned.
+    private var detail: String {
+        let rumoured = terrain.rumoured.count
+        return "The dancers are pointing at \(rumoured) "
+            + (rumoured == 1 ? "stretch" : "stretches")
+            + " of country nobody has been to. A tenth of the foragers "
+            + "for 3 days would bring back all of it, "
+            + "and that is honey they do not gather."
+    }
+
+    private var awayLine: String {
+        guard let days = terrain.scoutsDaysRemaining, days > 0 else {
+            return "The scouts are out. They are back today."
+        }
+        return "The scouts are out. They are back in \(days) day\(days == 1 ? "" : "s")."
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "map.fill")
+                    .foregroundStyle(Theme.wild)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ground they have not seen").font(.headline)
+                    Text("\(terrain.discovered.count) stretches known")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer()
+            }
+            .accessibilityElement(children: .combine)
+
+            if terrain.scoutsOut {
+                // Nothing to answer while they are away. The card stays so
+                // that the place the question was asked is the place the
+                // answer to it is reported.
+                Text(awayLine)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack {
+                    Spacer()
+                    Button(DecisionAction.scout.title) {
+                        store.sendScouts()
+                        sendings += 1
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.honey)
+                }
+
+                Text("Or let the foragers find it in their own time, which is what happens if you do nothing.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .card()
+        .sensoryFeedback(.success, trigger: sendings)
+    }
+}

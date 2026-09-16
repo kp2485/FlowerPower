@@ -47,7 +47,14 @@ struct GardenView: View {
         NavigationStack {
             Group {
                 if snapshot.patches.isEmpty {
-                    EmptyGardenView(onPhotograph: onPhotograph)
+                    // The garden is the player's own flowers and stays that
+                    // way — but what it says when it is empty depends on
+                    // whether the bees have anything else, and since the
+                    // world was drawn they usually do.
+                    EmptyGardenView(
+                        hasWildForage: !snapshot.wildPatches.isEmpty,
+                        onPhotograph: onPhotograph
+                    )
                 } else {
                     gardenGrid
                 }
@@ -483,13 +490,19 @@ private struct FlowerFactsCard: View {
 
 private struct EmptyGardenView: View {
 
+    /// Whether there is anything standing wild within flying range. A colony
+    /// with a heath at the end of the lane is not being starved by an empty
+    /// garden, and telling it so would be a lie the map contradicts.
+    var hasWildForage = false
     var onPhotograph: () -> Void
 
     var body: some View {
         ContentUnavailableView {
             Label("No Flowers Yet", systemImage: "camera.macro")
         } description: {
-            Text("Your bees can only eat what you find for them. Photograph a flower to start.")
+            Text(hasWildForage
+                 ? "Your bees are living on what they can find in the country around them. A flower you photograph is far richer than anything wild — it is the difference between getting through the year and getting through the winter."
+                 : "Your bees can only eat what you find for them. Photograph a flower to start.")
         } actions: {
             Button("Photograph a Flower", action: onPhotograph)
                 .buttonStyle(.borderedProminent)
