@@ -171,6 +171,64 @@ public struct StoresSummary: Codable, Equatable, Sendable {
     public let isWinterReady: Bool
 }
 
+/// One cell with something developing in it.
+///
+/// The engine keeps bees, not cells, but a brood bee *is* a cell: she is in
+/// one, she cannot leave it, and she will be in it until she emerges. So this
+/// is the one place the nest can be described cell by cell without inventing
+/// anything — which is what the comb needed in order to be worth touching.
+public struct BroodCell: Codable, Equatable, Sendable {
+
+    public let kind: BeeKind
+    public let stage: DevelopmentStage
+
+    /// Days she has been at this stage.
+    public let daysInStage: Int
+
+    /// Days before she moves to the next one — hatching, being capped, or
+    /// chewing her way out.
+    public let daysRemainingInStage: Int
+
+    /// Days until an adult walks out of the cell, at the colony's current
+    /// brood-development upgrade. Resolved here rather than in the interface
+    /// because the upgrade is engine state and `BeeDevelopment` is the only
+    /// thing that should be doing this arithmetic.
+    public let daysToEmergence: Int
+
+    public init(
+        kind: BeeKind,
+        stage: DevelopmentStage,
+        daysInStage: Int,
+        daysRemainingInStage: Int,
+        daysToEmergence: Int
+    ) {
+        self.kind = kind
+        self.stage = stage
+        self.daysInStage = daysInStage
+        self.daysRemainingInStage = daysRemainingInStage
+        self.daysToEmergence = daysToEmergence
+    }
+}
+
+/// A queen cell and how far along it is.
+///
+/// `NestSummary.queenCells` carries only the purposes, which is all the
+/// dashboard ever wanted. A cell the player can put a finger on wants the rest
+/// of it: when she emerges is the whole difference between a warning and a
+/// report.
+public struct QueenCellProgress: Codable, Equatable, Sendable {
+
+    public let purpose: QueenCell.Purpose
+    public let daysDeveloped: Int
+    public let daysToEmergence: Int
+
+    public init(purpose: QueenCell.Purpose, daysDeveloped: Int, daysToEmergence: Int) {
+        self.purpose = purpose
+        self.daysDeveloped = daysDeveloped
+        self.daysToEmergence = daysToEmergence
+    }
+}
+
 public struct NestSummary: Codable, Equatable, Sendable {
     public let siteType: HiveLocationType
     public let builtCells: Int
@@ -185,6 +243,48 @@ public struct NestSummary: Codable, Equatable, Sendable {
     /// Cells of room the *site* could still be given. Zero where it has none
     /// to give — a colony in a cliff face has nowhere to go.
     public let combExtensionRemaining: Int
+
+    /// Every cell of brood, in the order the hive holds its bees.
+    ///
+    /// Deliberately an array rather than the counts `PopulationSummary`
+    /// already carries: `CombLayout` draws one hexagon per entry, and a player
+    /// holding a finger on one of them is owed the age of the larva actually
+    /// in it rather than the average of all of them.
+    public let brood: [BroodCell]
+
+    /// The queen cells, with their ages. Parallel to `queenCells`, which keeps
+    /// the shorter shape the other screens read.
+    public let queenCellProgress: [QueenCellProgress]
+
+    /// Written out rather than left to the memberwise initialiser so that the
+    /// two arrays above could be added without touching any existing caller.
+    public init(
+        siteType: HiveLocationType,
+        builtCells: Int,
+        capacity: Int,
+        freeCells: Int,
+        combOccupancy: Double,
+        temperatureCelsius: Double,
+        humidity: Double,
+        propolisEnvelope: Double,
+        queenCells: [QueenCell.Purpose],
+        combExtensionRemaining: Int,
+        brood: [BroodCell] = [],
+        queenCellProgress: [QueenCellProgress] = []
+    ) {
+        self.siteType = siteType
+        self.builtCells = builtCells
+        self.capacity = capacity
+        self.freeCells = freeCells
+        self.combOccupancy = combOccupancy
+        self.temperatureCelsius = temperatureCelsius
+        self.humidity = humidity
+        self.propolisEnvelope = propolisEnvelope
+        self.queenCells = queenCells
+        self.combExtensionRemaining = combExtensionRemaining
+        self.brood = brood
+        self.queenCellProgress = queenCellProgress
+    }
 
     /// Whether the site itself can be opened up any further.
     ///
@@ -677,8 +777,56 @@ extension Simulation {
             humidity: hive.humidity,
             propolisEnvelope: hive.propolisEnvelope,
             queenCells: hive.comb.queenCells.map(\.purpose),
-            combExtensionRemaining: combExtensionRemaining
+            combExtensionRemaining: combExtensionRemaining,
+            brood: broodCells(),
+            queenCellProgress: hive.comb.queenCells.map { cell in
+                QueenCellProgress(
+                    purpose: cell.purpose,
+                    daysDeveloped: cell.daysDeveloped,
+                    daysToEmergence: max(0, QueenCell.daysToEmergence - cell.daysDeveloped)
+                )
+            }
         )
+    }
+
+    /// The brood, cell by cell, in the hive's own order.
+    ///
+    /// The order is `hive.bees` and nothing else — no sort. `Array.sorted` is
+    /// not a stable sort, so sorting brood by age would have shuffled equal
+    /// ages differently between two runs of the same seed, and the comb would
+    /// have rearranged itself under the player's finger for no reason.
+    private func broodCells() -> [BroodCell] {
+        let hive = world.hive
+        let upgrade = hive.broodUpgrade
+
+        return hive.bees.compactMap { bee in
+            guard bee.isBrood else { return nil }
+
+            let required = BeeDevelopment.days(
+                for: bee.kind, stage: bee.stage, upgrade: upgrade
+            )
+            let remainingHere = max(0, required - bee.daysInStage)
+
+            // Everything still ahead of her, stage by stage. `.adult` is not a
+            // stage with a duration — `BeeDevelopment.days` returns `Int.max`
+            // for it — so the walk stops at its door.
+            var toEmergence = remainingHere
+            var ahead = bee.stage.next
+            while let stage = ahead, stage != .adult {
+                toEmergence += BeeDevelopment.days(
+                    for: bee.kind, stage: stage, upgrade: upgrade
+                )
+                ahead = stage.next
+            }
+
+            return BroodCell(
+                kind: bee.kind,
+                stage: bee.stage,
+                daysInStage: bee.daysInStage,
+                daysRemainingInStage: remainingHere,
+                daysToEmergence: toEmergence
+            )
+        }
     }
 
     private func healthSummary() -> HealthSummary {
