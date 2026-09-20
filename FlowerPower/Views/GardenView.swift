@@ -8,6 +8,13 @@
 //  garden is a year of walks. It is also where sharing lives — a flower you
 //  found, with what your bees made of it, sent to somebody.
 //
+//  Every tile is pressable and every tile is holdable. A long press shows the
+//  photograph large with the flower's name and state under it, and the three
+//  things there are to do with a flower — send it, say what it is, look it up
+//  — without opening anything. None of those actions are new; they are the
+//  ones already on the detail sheet and in the capture flow, brought within
+//  reach of the grid.
+//
 
 import SwiftUI
 import Photos
@@ -18,10 +25,38 @@ import FlowerPowerGame
 struct GardenView: View {
 
     @Environment(GameStore.self) private var store
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
     var onPhotograph: () -> Void
 
     @State private var filter: Filter = .all
-    @State private var selected: PatchSummary?
+    /// What the grid has opened, if anything. One piece of state rather than
+    /// four booleans, because several `.sheet` modifiers stacked on one view
+    /// is a way of finding out which of them SwiftUI honours.
+    @State private var route: Route?
+    /// Bumped when a tile is opened, so the grid ticks under a finger the way
+    /// the rest of the app does.
+    @State private var opens = 0
+
+    /// Where a tile can lead. Every case is a screen that already existed.
+    enum Route: Identifiable {
+        /// The flower, at length.
+        case detail(PatchSummary)
+        /// Sending it to somebody — the same sheet the detail's toolbar opens.
+        case share(PatchSummary)
+        /// Saying what it is, as the capture flow lets the player do.
+        case identify(PatchSummary)
+        /// The catalogue's page for it.
+        case guideEntry(FieldGuideEntry)
+
+        var id: String {
+            switch self {
+            case .detail(let patch): return "detail-\(patch.id.rawValue)"
+            case .share(let patch): return "share-\(patch.id.rawValue)"
+            case .identify(let patch): return "identify-\(patch.id.rawValue)"
+            case .guideEntry(let entry): return "guide-\(entry.id)"
+            }
+        }
+    }
 
     enum Filter: String, CaseIterable, Identifiable {
         case all = "All"
@@ -78,11 +113,42 @@ struct GardenView: View {
                     Button("Photograph", systemImage: "camera.fill", action: onPhotograph)
                 }
             }
-            .sheet(item: $selected) { patch in
-                FlowerDetailView(patch: patch)
+            .sensoryFeedback(.selection, trigger: opens)
+            .sheet(item: $route) { route in
+                switch route {
+                case .detail(let patch):
+                    FlowerDetailView(patch: patch)
+                case .share(let patch):
+                    ShareFlowerView(patch: patch)
+                case .identify(let patch):
+                    SpeciesPickerView { species in
+                        store.attachIdentification(
+                            species,
+                            confidence: SpeciesPickerView.manualConfidence,
+                            to: patch.id
+                        )
+                    }
+                case .guideEntry(let entry):
+                    NavigationStack {
+                        FieldGuideDetailView(entry: entry, hemisphere: hemisphere)
+                            .toolbar {
+                                ToolbarItem(placement: .confirmationAction) {
+                                    // `dismiss` here would close the garden,
+                                    // not the sheet: this closure is part of
+                                    // the garden's own body.
+                                    Button("Done") { self.route = nil }
+                                }
+                            }
+                    }
+                }
             }
         }
     }
+
+    /// Which half of the world the player is in, for the guide's bloom
+    /// calendar. The same preference `FieldGuideView` and `CollectionView`
+    /// read, under the same key.
+    private var hemisphere: Hemisphere { Hemisphere(rawValue: hemisphereRaw) ?? .northern }
 
     private var gardenGrid: some View {
         ScrollView {
@@ -111,11 +177,17 @@ struct GardenView: View {
                     ) {
                         ForEach(patches) { patch in
                             Button {
-                                selected = patch
+                                route = .detail(patch)
+                                opens += 1
                             } label: {
                                 FlowerThumbnail(patch: patch)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressableTile)
+                            .contextMenu {
+                                menu(for: patch)
+                            } preview: {
+                                FlowerPreview(patch: patch)
+                            }
                         }
                     }
                 }
@@ -123,6 +195,49 @@ struct GardenView: View {
             .padding()
         }
         .background(Color(.systemGroupedBackground))
+    }
+
+    /// What a held tile offers.
+    ///
+    /// Nothing here is invented: opening it is the tap, sharing is the button
+    /// in `FlowerDetailView`'s toolbar, naming it is `SpeciesPickerView` as
+    /// the capture flow uses it, and the guide page is the one
+    /// `FieldGuideView` pushes. The menu is a shortcut past a sheet, not a
+    /// second set of features.
+    @ViewBuilder
+    private func menu(for patch: PatchSummary) -> some View {
+        Button("Open", systemImage: "info.circle") {
+            route = .detail(patch)
+        }
+
+        Button("Send to a Friend", systemImage: "square.and.arrow.up") {
+            route = .share(patch)
+        }
+
+        // Offered whatever the placement, because a plant put to a family is
+        // not identified either and the player may well know the species.
+        // The title is bound to a `String` first: a ternary of two string
+        // literals passed straight in has two initialisers to choose from.
+        let naming: String = patch.isIdentified ? "Name It Again" : "Name It Yourself"
+        Button(naming, systemImage: "text.magnifyingglass") {
+            route = .identify(patch)
+        }
+
+        if let entry = guideEntry(for: patch) {
+            Button("Field Guide Entry", systemImage: "book.closed") {
+                route = .guideEntry(entry)
+            }
+        }
+    }
+
+    /// The guide's page for this flower, when the plant was placed finely
+    /// enough for the catalogue to have one. A patch known only to a family
+    /// has no species page to open, and offering one would be a lie.
+    private func guideEntry(for patch: PatchSummary) -> FieldGuideEntry? {
+        guard let taxon = patch.taxon, taxon.rank == .species,
+              let species = FlowerCatalogue.all.first(where: { $0.taxon == taxon })
+        else { return nil }
+        return FieldGuide(patches: snapshot.patches).entry(id: species.id)
     }
 }
 
@@ -235,6 +350,63 @@ private struct FlowerThumbnail: View {
     }
 }
 
+/// What a held tile lifts off the grid: the photograph, large, and the three
+/// things about it that are true today.
+///
+/// Deliberately not the detail sheet in miniature. A context-menu preview is
+/// read in the second before a finger moves to the menu, so it carries the
+/// picture and a line, and everything else waits for the tap.
+private struct FlowerPreview: View {
+
+    let patch: PatchSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PhotoThumbnail(localIdentifier: patch.photoLocalIdentifier)
+                .aspectRatio(1, contentMode: .fit)
+                .frame(width: 260, height: 260)
+                .clipped()
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(patch.speciesName)
+                    .font(.headline)
+                    .lineLimit(2)
+
+                if let scientific = patch.scientificName {
+                    Text(scientific)
+                        .font(.caption.italic())
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(state)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .frame(width: 260, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(patch.speciesName)
+        // The middle dot is a typographic join, not a word.
+        .accessibilityValue(parts.joined(separator: ", "))
+    }
+
+    /// Where this flower stands today: in bloom or not, how much is left, and
+    /// who is on it.
+    private var state: String { parts.joined(separator: " · ") }
+
+    private var parts: [String] {
+        var parts: [String] = [patch.isInBloom ? "In bloom" : "Out of season"]
+        parts.append("\(Int(patch.remainingFraction * 100))% forage left")
+        if patch.foragersWorkingIt > 0 {
+            parts.append("\(patch.foragersWorkingIt) bees on it")
+        }
+        if !patch.isIdentified { parts.append("not yet named") }
+        return parts
+    }
+}
+
 /// Loads a thumbnail for a patch.
 ///
 /// Two sources behind one view. A flower the player photographed is a
@@ -280,6 +452,14 @@ struct PhotoThumbnail: View {
 /// One flower, at length. Not private: the World map opens the same sheet for
 /// the same patch, and a flower tapped on the map and a flower tapped in the
 /// garden should not be two different descriptions of it.
+///
+/// At length, but not all at once. This screen used to open with three full
+/// cards under the photograph — the patch's state, the species' yield, and
+/// the trait diagram — which is four scrolls of text for a question that is
+/// usually "is there anything left on it". So the figures worth glancing at
+/// sit in a row under the name, and the two cards of prose behind them open
+/// on a tap. The diagram is left alone: it is a picture rather than a list,
+/// and a picture folded shut says nothing at all.
 struct FlowerDetailView: View {
 
     let patch: PatchSummary
@@ -330,6 +510,8 @@ struct FlowerDetailView: View {
                         }
                     }
 
+                    GlanceRow(patch: patch)
+
                     PatchStateCard(patch: patch)
 
                     if let species {
@@ -371,6 +553,127 @@ struct FlowerDetailView: View {
     }
 }
 
+/// The three figures somebody opened this sheet for, on one line.
+///
+/// A player tapping a thumbnail almost always wants one of: is it flowering,
+/// is there anything left, is anyone on it. Answering that above the fold is
+/// what lets the cards underneath stay shut.
+private struct GlanceRow: View {
+
+    let patch: PatchSummary
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Figure(
+                value: "\(Int(patch.remainingFraction * 100))%",
+                label: "Forage left",
+                tint: Theme.nectar,
+                symbolName: "drop.fill"
+            )
+            Figure(
+                value: "\(patch.foragersWorkingIt)",
+                label: "Bees on it",
+                tint: Theme.worker,
+                symbolName: "circle.hexagongrid.fill"
+            )
+            Figure(
+                value: patch.isInBloom ? "Yes" : "No",
+                label: "In bloom",
+                tint: patch.isInBloom ? Theme.healthy : Theme.caution,
+                symbolName: patch.isInBloom ? "sun.max.fill" : "calendar.badge.exclamationmark"
+            )
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private struct Figure: View {
+
+        let value: String
+        let label: String
+        let tint: Color
+        let symbolName: String
+
+        var body: some View {
+            VStack(spacing: 4) {
+                Image(systemName: symbolName)
+                    .foregroundStyle(tint)
+                    .imageScale(.small)
+                Text(value)
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.6)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
+            .accessibilityValue(value)
+        }
+    }
+}
+
+/// A card that stays shut until it is asked for.
+///
+/// One line of summary on the closed row, so that folding a card away never
+/// hides the answer — only the working. The chevron and the whole row are the
+/// control, which is what `DisclosureGroup` gives for free.
+private struct ExpandableCard<Content: View>: View {
+
+    let title: String
+    let symbolName: String
+    /// The gist, read without opening it.
+    let summary: String
+    let content: Content
+
+    /// Written out rather than left to the memberwise one, so the trailing
+    /// closure is a view builder without relying on the synthesised
+    /// initialiser to carry the attribute across.
+    init(
+        title: String,
+        symbolName: String,
+        summary: String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.symbolName = symbolName
+        self.summary = summary
+        self.content = content()
+    }
+
+    /// Shut to begin with, every time. A card that opens by default is the
+    /// thing this type exists to stop.
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            content
+                .padding(.top, 10)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Label(title, systemImage: symbolName)
+                    .font(.subheadline.weight(.semibold))
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(isExpanded ? "Collapses the details" : "Expands the details")
+        }
+        .tint(Theme.honey)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .sensoryFeedback(.selection, trigger: isExpanded)
+    }
+}
+
 /// What this one patch is doing today, as against what the species is like in
 /// general: how much of it is left, how many bees are on it, and whether it is
 /// flowering at all. These are facts about the flower in the photograph rather
@@ -380,9 +683,28 @@ private struct PatchStateCard: View {
     let patch: PatchSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionTitle("Right now", systemImage: "clock.fill")
+        ExpandableCard(
+            title: "Right now",
+            symbolName: "clock.fill",
+            summary: summary
+        ) {
+            details
+        }
+    }
 
+    /// The closed row's line: where it stands and how far off it is.
+    private var summary: String {
+        var parts: [String] = ["\(Int(patch.remainingFraction * 100))% of the stand left"]
+        if let cell = patch.cell {
+            let metres = Int(Double(HexCoordinate.origin.distance(to: cell)) * HexCoordinate.cellMetres)
+            parts.append("\(metres) m from the nest")
+        }
+        if !patch.isInBloom { parts.append("not in bloom") }
+        return parts.joined(separator: ", ")
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 14) {
             MeterView(
                 label: "Forage remaining",
                 value: patch.remainingFraction,
@@ -423,7 +745,6 @@ private struct PatchStateCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 }
 
@@ -433,9 +754,31 @@ private struct FlowerFactsCard: View {
     let patch: PatchSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionTitle("What your bees make of it", systemImage: "drop.fill")
+        ExpandableCard(
+            title: "What your bees make of it",
+            symbolName: "drop.fill",
+            summary: summary
+        ) {
+            details
+        }
+    }
 
+    /// The closed row: the yield in a phrase, when it flowers, and the one
+    /// word that changes how the plant is worth having.
+    private var summary: String {
+        var parts: [String] = [
+            species.nectarRichness == 0 ? "No nectar, pollen only" : "Nectar and pollen"
+        ]
+        parts.append(species.bloomSeasons
+            .sorted { $0.rawValue < $1.rawValue }
+            .map(\.displayName)
+            .formatted(.list(type: .and)))
+        if species.isKeystone { parts.append("keystone") }
+        return parts.joined(separator: " · ")
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 14) {
             MeterView(
                 label: "Nectar",
                 value: min(1, species.nectarRichness / 2.5),
@@ -482,7 +825,6 @@ private struct FlowerFactsCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 }
 

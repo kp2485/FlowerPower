@@ -9,6 +9,15 @@
 //  events — a swarm, a new queen, a raid — and treats the raw counts of births
 //  and deaths as background.
 //
+//  It used to lead with all of them, in arrival order, up to sixty sentences
+//  deep, which made the screen a wall: a fortnight away put the line saying
+//  the queen was lost somewhere between two saying the weather turned, and
+//  any chatty kind of event could fill the cap on its own. So the lines come
+//  through `ReportDigest`, in the package, which groups them by what a player
+//  would call them, counts each group, orders them by how much they matter
+//  and caps each one separately. The screen opens as a headline, four
+//  numbers, and a row per group that expands on a tap.
+//
 
 import SwiftUI
 import FlowerPowerCore
@@ -18,6 +27,17 @@ struct CatchUpReportView: View {
 
     let report: CatchUpReport
     var onDismiss: () -> Void
+
+    /// The grouping is the package's, done once when the sheet is built
+    /// rather than on every redraw: it is a pass over up to sixty events, and
+    /// this view redraws each time a group is opened.
+    private let digest: ReportDigest
+
+    init(report: CatchUpReport, onDismiss: @escaping () -> Void) {
+        self.report = report
+        self.onDismiss = onDismiss
+        digest = ReportDigest(report: report)
+    }
 
     @Environment(GameStore.self) private var store
 
@@ -32,12 +52,15 @@ struct CatchUpReportView: View {
                 VStack(spacing: 16) {
                     Header(report: report, headline: store.snapshot.headline)
 
-                    if !report.highlights.isEmpty {
-                        HighlightsCard(events: report.highlights)
-                    }
-
                     PopulationChangeCard(report: report)
 
+                    if !digest.isEmpty {
+                        HighlightsCard(digest: digest)
+                    }
+
+                    // The raids and the infections have their own cards
+                    // still, because a count of stores taken and a pathogen's
+                    // name are figures the digest's sentences do not carry.
                     if report.storesRaided > 0 || !report.attacks.isEmpty {
                         RaidsCard(report: report)
                     }
@@ -97,30 +120,100 @@ private struct Header: View {
 
 private struct HighlightsCard: View {
 
-    let events: [SimEvent]
+    let digest: ReportDigest
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
             SectionTitle("What happened", systemImage: "sparkles")
+                .padding(.bottom, 6)
 
-            ForEach(Array(events.enumerated()), id: \.offset) { _, event in
-                HStack(alignment: .top, spacing: 10) {
-                    Circle()
-                        .fill(Theme.colour(for: event.severity))
-                        .frame(width: 7, height: 7)
-                        .padding(.top, 6)
+            ForEach(digest.groups) { group in
+                HighlightGroupRow(group: group)
 
-                    Text(event.narration)
-                        .font(.subheadline)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Spacer(minLength: 0)
+                if group.id != digest.groups.last?.id {
+                    Divider()
                 }
-                .accessibilityElement(children: .combine)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+}
+
+/// One heading, shut: a dot for how bad it is, the heading, and the count.
+/// Open: the sentences behind it, capped, with a line saying what is left.
+private struct HighlightGroupRow: View {
+
+    let group: ReportDigest.Group
+
+    /// The gravest group opens by itself. The one thing this screen must not
+    /// do is make a player tap to find out their colony collapsed.
+    @State private var isExpanded: Bool
+
+    init(group: ReportDigest.Group) {
+        self.group = group
+        _isExpanded = State(initialValue: group.severity >= .critical)
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(group.visibleLines) { line in
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle()
+                            .fill(Theme.colour(for: line.severity))
+                            .frame(width: 7, height: 7)
+                            .padding(.top, 6)
+                            .accessibilityHidden(true)
+
+                        Text(line.display)
+                            .font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Spacer(minLength: 0)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+
+                if let overflow = group.overflowLine {
+                    Text(overflow)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 17)
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+        } label: {
+            HStack(spacing: 10) {
+                // The heading's own symbol, tinted by the worst thing under
+                // it — so the row says what kind of news it is and how bad
+                // it is without being read.
+                Image(systemName: group.category.symbolName)
+                    .foregroundStyle(Theme.colour(for: group.severity))
+                    .imageScale(.small)
+                    .frame(width: 20)
+                    .accessibilityHidden(true)
+
+                Text(group.category.displayName)
+                    .font(.subheadline.weight(.medium))
+
+                Spacer(minLength: 8)
+
+                Text(group.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.trailing)
+            }
+            .padding(.vertical, 4)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(group.category.displayName)
+            .accessibilityValue(group.summary)
+            .accessibilityHint(isExpanded ? "Collapses the lines" : "Expands the lines")
+        }
+        .tint(Theme.honey)
+        .sensoryFeedback(.selection, trigger: isExpanded)
     }
 }
 
@@ -147,21 +240,35 @@ private struct PopulationChangeCard: View {
             .font(.subheadline.weight(.medium))
             .foregroundStyle(net >= 0 ? Theme.healthy : Theme.caution)
 
+            // The causes of death, folded away. Nine rows of them under four
+            // figures is the sort of thing that makes this screen a wall,
+            // and the answer a player wants — how many, and did it grow — is
+            // already above. The breakdown is for the one morning in ten
+            // when it is not.
             if !report.died.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(report.died.sorted(by: { $0.value > $1.value }), id: \.key) { cause, count in
-                        HStack {
-                            Text(cause.displayName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("\(count)")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(report.died.sorted(by: { $0.value > $1.value }), id: \.key) { cause, count in
+                            HStack {
+                                Text(cause.displayName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("\(count)")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            .accessibilityElement(children: .combine)
                         }
-                        .accessibilityElement(children: .combine)
                     }
+                    .padding(.top, 6)
+                } label: {
+                    Text("What they died of")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHint("Expands the causes of death")
                 }
+                .tint(Theme.honey)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

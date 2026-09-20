@@ -8,6 +8,11 @@
 //  gaps, and what is out this month that the garden has none of. The gaps are
 //  the whole point: not a task, just a space that a walk would fill.
 //
+//  Every family is a row that opens. Shut, it is the family's name and a
+//  tally; open, it is which genera and which species the garden actually
+//  holds — or, for one not yet found, which plants of that family the game
+//  knows, which is the one useful thing a gap can say.
+//
 
 import SwiftUI
 import FlowerPowerCore
@@ -54,39 +59,19 @@ struct CollectionView: View {
 
             Section("Families in the garden") {
                 ForEach(collection.families) { entry in
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
-                            Text(entry.family.commonName).font(.headline)
-                            Spacer()
-                            Text(entry.family.scientificName)
-                                .font(.caption.italic())
-                                .foregroundStyle(.secondary)
-                        }
-                        Text(entry.family.forageNote)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(detail(entry))
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(.vertical, 2)
-                    .accessibilityElement(children: .combine)
+                    FoundFamilyRow(entry: entry, tally: detail(entry))
                 }
             }
 
             if !collection.missingFamilies.isEmpty {
-                Section("Not yet found") {
+                Section {
                     ForEach(collection.missingFamilies, id: \.self) { family in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(family.commonName).font(.subheadline)
-                            Text(family.forageNote)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .accessibilityElement(children: .combine)
+                        MissingFamilyRow(family: family)
                     }
+                } header: {
+                    Text("Not yet found")
+                } footer: {
+                    Text("Open one to see which of its plants the game knows.")
                 }
             }
 
@@ -163,6 +148,144 @@ struct CollectionView: View {
         }
         parts.append("placed to \(entry.bestRank.displayName.lowercased())")
         return parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - A family, open and shut
+
+/// A family the garden holds.
+///
+/// Shut it is the name and the tally; open it is the family's forage note and
+/// the genera and species actually photographed. The note used to be on every
+/// row at once, which made eighteen families eighteen paragraphs.
+private struct FoundFamilyRow: View {
+
+    let entry: BotanyCollection.FamilyEntry
+    /// The counted line the collection already wrote.
+    let tally: String
+
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(entry.family.forageNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if !genera.isEmpty {
+                    LabeledContent("Genera") {
+                        Text(genera.spokenList)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .font(.caption)
+                }
+
+                if !species.isEmpty {
+                    LabeledContent("Named to species") {
+                        Text(species.spokenList)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .font(.caption)
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(entry.family.commonName).font(.headline)
+                    Spacer()
+                    Text(entry.family.scientificName)
+                        .font(.caption.italic())
+                        .foregroundStyle(.secondary)
+                }
+                Text(tally)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.vertical, 2)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(isExpanded ? "Collapses the family" : "Expands the family")
+        }
+        .tint(Theme.honey)
+        .sensoryFeedback(.selection, trigger: isExpanded)
+    }
+
+    /// Sorted, because a `Set`'s own order differs between runs and a list
+    /// that reshuffles itself is a list nobody trusts.
+    private var genera: [String] { entry.genera.sorted() }
+
+    /// Catalogue identifiers turned back into names a person would use.
+    private var species: [String] {
+        entry.speciesIDs
+            .compactMap { id in FlowerCatalogue.all.first { $0.id == id }?.commonName }
+            .sorted()
+    }
+}
+
+/// A family the garden has none of.
+///
+/// Open, it says what the game knows of that family — which is the only
+/// useful thing an empty space can offer somebody about to go for a walk.
+private struct MissingFamilyRow: View {
+
+    let family: PlantFamily
+
+    @State private var isExpanded = false
+
+    private var members: [FlowerSpecies] {
+        FlowerCatalogue.all
+            .filter { $0.family == family }
+            .sorted { $0.commonName < $1.commonName }
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(family.forageNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                ForEach(members, id: \.id) { species in
+                    HStack {
+                        Text(species.commonName).font(.caption)
+                        if species.isKeystone {
+                            Image(systemName: "star.fill")
+                                .foregroundStyle(Theme.queen)
+                                .imageScale(.small)
+                                .accessibilityLabel("keystone")
+                        }
+                        Spacer()
+                        Text(species.bloomSeasons
+                            .sorted { $0.rawValue < $1.rawValue }
+                            .map(\.displayName)
+                            .formatted(.list(type: .and)))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            HStack {
+                Text(family.commonName).font(.subheadline)
+                Spacer()
+                Text("\(members.count)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(family.commonName)
+            .accessibilityValue("\(members.count) plants the game knows, none found")
+            .accessibilityHint(isExpanded ? "Collapses the family" : "Expands the family")
+        }
+        .tint(Theme.honey)
+        .sensoryFeedback(.selection, trigger: isExpanded)
     }
 }
 

@@ -199,6 +199,48 @@ public struct ColonyHistory: Codable, Equatable, Sendable {
     public func offers(_ range: HistoryRange, endingOn day: Int) -> Bool {
         !samples(in: range, endingOn: day).isEmpty
     }
+
+    /// The recorded day closest to the one asked for.
+    ///
+    /// A finger dragged across a chart lands between days, on a fractional x
+    /// the record has no sample for, and what the readout must show is the
+    /// nearest day it does have. That is arithmetic about the record rather
+    /// than about a gesture, so it lives here where it is compiled and tested
+    /// rather than in a view on a machine that has never built one.
+    ///
+    /// A day past either end clamps to that end: dragging off the edge of a
+    /// chart should hold the last reading, not blank the readout.
+    public func sample(nearestTo day: Int) -> DailySample? {
+        Self.sample(nearestTo: day, in: samples)
+    }
+
+    /// The same, over a slice of the record — which is what a chart actually
+    /// draws, since every one of them is showing a range rather than the
+    /// whole thing.
+    ///
+    /// Assumes the samples are in day order, oldest first, which is the only
+    /// order `append` and every reader above produce.
+    public static func sample(nearestTo day: Int, in samples: [DailySample]) -> DailySample? {
+        guard let first = samples.first, let last = samples.last else { return nil }
+        if day <= first.day { return first }
+        if day >= last.day { return last }
+
+        // Narrow to the pair of samples the day falls between. A linear scan
+        // would do at two years of dailies, but a scrub asks this on every
+        // touch event and the record is sorted, so it is a binary search.
+        var below = 0
+        var above = samples.count - 1
+        while above - below > 1 {
+            let middle = (below + above) / 2
+            if samples[middle].day <= day { below = middle } else { above = middle }
+        }
+
+        // Ties go to the earlier day, so a drag over a gap in the record
+        // resolves the same way every time rather than flickering.
+        let earlier = samples[below]
+        let later = samples[above]
+        return (day - earlier.day) <= (later.day - day) ? earlier : later
+    }
 }
 
 // MARK: - Ranges

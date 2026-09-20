@@ -39,6 +39,10 @@ struct MilestonesView: View {
 
     private var milestones: Milestones { store.milestones }
 
+    /// Counted so the grid ticks under a finger. The badge sheet itself is
+    /// the reward; this is only the acknowledgement that the tap landed.
+    @State private var opens = 0
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -52,10 +56,11 @@ struct MilestonesView: View {
                         let day = milestones.day(of: milestone)
                         Button {
                             reading = Reading(milestone: milestone, day: day)
+                            opens += 1
                         } label: {
                             BadgeTile(milestone: milestone, dayEarned: day)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressableTile)
                     }
                 }
             }
@@ -63,6 +68,7 @@ struct MilestonesView: View {
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Milestones")
+        .sensoryFeedback(.selection, trigger: opens)
         .sheet(item: $reading) { reading in
             BadgeDetail(milestone: reading.milestone, dayEarned: reading.day)
         }
