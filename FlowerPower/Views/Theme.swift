@@ -8,6 +8,7 @@
 
 import SwiftUI
 import FlowerPowerCore
+import FlowerPowerGame
 
 enum Theme {
 
@@ -117,6 +118,23 @@ enum Theme {
     /// that hides something. Nothing is drawn on it, so it is the one colour
     /// here that is allowed to be plain.
     static let fog = Color(red: 0.94, green: 0.91, blue: 0.83)
+
+    /// How worried a dashboard tile looks.
+    ///
+    /// A ramp rather than four unrelated colours, because the tiles are read as
+    /// a group: a glance across the grid should sort itself into what is fine,
+    /// what is worth a look and what is on fire without anything being read at
+    /// all. Green, the app's own gold, amber, red — and the judgement behind
+    /// which band a tile is in belongs to `DashboardSummary`, where it can be
+    /// tested, rather than to whatever view happens to be drawing it.
+    static func colour(for severity: DashboardSummary.Severity) -> Color {
+        switch severity {
+        case .calm: return healthy
+        case .notable: return honey
+        case .caution: return caution
+        case .alarm: return alarm
+        }
+    }
 
     static func colour(for severity: SimEvent.Severity) -> Color {
         switch severity {
