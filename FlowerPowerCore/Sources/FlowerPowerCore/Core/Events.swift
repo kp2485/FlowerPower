@@ -211,10 +211,16 @@ extension SimEvent {
         case .emerged, .died, .eggsLaid, .cellsBuilt, .overheating, .chilling,
              .starving, .patchDepleted, .groundedByWeather:
             return false
+        // A flower going out of season is the calendar doing what it does,
+        // and the garden already shows it on the flower. The first player to
+        // open the app after a week away said it was the only thing the
+        // report told them.
+        case .patchOutOfBloom:
+            return false
         case .queenCellStarted, .queenEmerged, .queenMated, .matingFlightFailed,
              .queenLost, .queenFailing, .swarmed, .absconded, .supersededQueen,
              .layingWorkersAppeared, .colonyCollapsed, .combLost,
-             .patchOutOfBloom, .nectarFlowBegan, .dearth, .weatherChanged,
+             .nectarFlowBegan, .dearth, .weatherChanged,
              .infectionDetected, .infectionCleared, .infectionCritical,
              .attacked, .attackRepelled, .raidSucceeded, .winterStoresLow,
              .threatBegan, .threatEnded, .swarmPreparing, .swarmAbandoned,

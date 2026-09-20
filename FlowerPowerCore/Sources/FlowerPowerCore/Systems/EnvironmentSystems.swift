@@ -48,7 +48,17 @@ public struct PatchSystem: DailySystem {
             let wasInBloom = world.patches[index].isInBloom(during: season)
 
             guard wasInBloom, seasonalRegrowth > 0 else {
-                if !wasInBloom && !world.patches[index].isDepleted {
+                // Said once, on the day the season turns and takes the flower
+                // with it. This used to be emitted every day for every patch
+                // that was out of bloom — so a player back after twelve days
+                // with nine flowers resting was handed a hundred and eight
+                // copies of "a flower went out of season", which filled the
+                // catch-up report's sixty places and left room for nothing
+                // that had actually happened.
+                if !wasInBloom,
+                   !world.patches[index].isDepleted,
+                   context.day > 0,
+                   world.patches[index].isInBloom(during: Season(day: context.day - 1)) {
                     context.emit(.patchOutOfBloom(world.patches[index].id))
                 }
                 continue

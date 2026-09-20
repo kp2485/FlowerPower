@@ -818,7 +818,7 @@ extension Simulation {
         if !world.weather.isFlyingWeather {
             return "Grounded by the weather — no foraging today."
         }
-        if world.patches.isEmpty { return "No flowers found yet. Photograph some." }
+        if world.patches.isEmpty { return ColonySnapshot.ForageHeadline.noneFound }
 
         let bloomingPatches = world.patches.filter {
             $0.isInBloom(during: season)
@@ -832,8 +832,8 @@ extension Simulation {
                 !$0.hasFaded(onDay: clock.day, config: config)
             }
             return anyStanding
-                ? "Nothing in bloom nearby."
-                : "The flowers you found have gone over. Photograph more."
+                ? ColonySnapshot.ForageHeadline.nothingInBloom
+                : ColonySnapshot.ForageHeadline.goneOver
         }
 
         if world.isInFlow(config) { return "The nectar is flowing." }
@@ -1112,4 +1112,33 @@ public extension ColonySnapshot {
 
     /// Whether there is enough in the record to be worth offering.
     var hasSomethingToRead: Bool { !review(year: year).isEmpty }
+}
+
+// MARK: - Headlines about forage
+
+public extension ColonySnapshot {
+
+    /// The sentences the headline falls back on when the only thing to say is
+    /// that there is nothing to work.
+    ///
+    /// They are right for the dashboard, where the player is looking at the
+    /// colony and the garden is one tab away. They are wrong for a
+    /// notification: flowers go over every season, a rested garden is not an
+    /// emergency, and a morning report that leads with it every morning is a
+    /// morning report that gets switched off. Named here so the layer that
+    /// writes notifications can tell which headline it has been handed
+    /// without matching on prose somebody may reword.
+    enum ForageHeadline {
+        public static let noneFound = "No flowers found yet. Photograph some."
+        public static let nothingInBloom = "Nothing in bloom nearby."
+        public static let goneOver = "The flowers you found have gone over. Photograph more."
+
+        static let all: Set<String> = [noneFound, nothingInBloom, goneOver]
+    }
+
+    /// Whether the headline is one of the forage sentences rather than
+    /// something about the colony.
+    var headlineIsAboutForage: Bool {
+        ForageHeadline.all.contains(headline)
+    }
 }

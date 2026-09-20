@@ -79,6 +79,10 @@ public struct ColonyNews: Equatable, Sendable {
         /// news can say the number.
         public var rumouredChunks: Int = 0
 
+        /// Whether `headline` is one of the sentences about forage rather
+        /// than about the colony. `ColonySnapshot.headlineIsAboutForage`.
+        public var headlineIsAboutForage: Bool = false
+
         public init(
             status: ColonyStatus,
             headline: String = "",
@@ -239,24 +243,29 @@ public struct ColonyNews: Equatable, Sendable {
             )
         }
 
-        // No specific alert, but worse than it was. By far the most common
-        // reason, now that photographed patches fade, is that there is nothing
-        // left to work — and that is the one thing a player fixes by going
-        // outside, which is the game.
-        if after.patchesInBloom == 0 {
+        // No specific alert, but worse than it was. A player who has never
+        // photographed anything is told the one thing the game is about.
+        if after.patchCount == 0 {
             return ColonyNews(
                 identifier: "no-forage",
                 title: "Nothing to work",
-                body: after.patchCount == 0
-                    ? "Your bees have no flowers at all. Photograph some."
-                    : "The flowers you found have gone over. Photograph some more."
+                body: "Your bees have no flowers at all. Photograph some."
             )
         }
 
+        // Flowers going out of season, or going over, is *not* said here, and
+        // used to be. Every flower does it every year; there is wild forage
+        // in the country around the nest now; and the first player to live
+        // with these notifications said that flowers going out of season was
+        // the only thing they ever said. So when the headline is one of the
+        // forage sentences, the news is the decline and not the garden — the
+        // garden says its own piece on the dashboard.
         return ColonyNews(
             identifier: "status-\(after.status.rawValue)",
             title: "The colony is \(after.status.displayName.lowercased())",
-            body: after.headline
+            body: after.headlineIsAboutForage
+                ? "It was \(before.status.displayName.lowercased()) when you last heard."
+                : after.headline
         )
     }
 
@@ -294,5 +303,17 @@ public extension ColonySnapshot {
             scoutDecisionOpen: scoutDecisionOpen,
             rumouredChunks: terrain?.rumoured.count ?? 0
         )
+        .with(headlineIsAboutForage: headlineIsAboutForage)
+    }
+}
+
+extension ColonyNews.Facts {
+
+    /// Set apart from the initialiser, which a dozen tests call by label and
+    /// which has no need of another parameter.
+    func with(headlineIsAboutForage: Bool) -> ColonyNews.Facts {
+        var copy = self
+        copy.headlineIsAboutForage = headlineIsAboutForage
+        return copy
     }
 }
