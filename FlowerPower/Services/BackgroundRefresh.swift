@@ -59,7 +59,14 @@ enum BackgroundRefresh {
 
     static func schedule() {
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: interval)
+
+        // Sooner than usual if there is a card on the lock screen, because a
+        // card has a stale date and something has to come back and take it
+        // down. The system treats this as the earliest it may run, not as an
+        // appointment — which is why the card also draws itself as finished
+        // once it is stale. See `LiveActivities`.
+        let usual = Date(timeIntervalSinceNow: interval)
+        request.earliestBeginDate = min(usual, LiveActivities.soonestExpiry() ?? usual)
 
         // iOS 27 replaced the throwing `submit(_:)` with this, which reports
         // errors it could not before. The handler is called "on an arbitrary
@@ -125,7 +132,14 @@ enum BackgroundRefresh {
         }
 
         watchLink.send(simulation, summary: simulation.watchSummary(now: now))
-        await MainActor.run { LiveActivities.reconcile(with: after) }
+        // A copy, because `simulation` is a `var` and a `var` cannot be
+        // captured by a closure that runs somewhere else.
+        let finished = simulation
+        await MainActor.run {
+            LiveActivities.reconcile(with: after) { days in
+                finished.date(afterSimulatedDays: days)
+            }
+        }
         await notifyIfNeeded(before: before, after: after)
         await digestIfDue(report: report, snapshot: after, now: now)
     }

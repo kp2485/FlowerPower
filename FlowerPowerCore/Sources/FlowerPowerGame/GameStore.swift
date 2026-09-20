@@ -348,6 +348,12 @@ public final class GameStore {
         refresh()
     }
 
+    /// The real instant a number of simulated days from now begins, under
+    /// the seasonal clock. What a Live Activity's stale date is made from.
+    public func date(afterSimulatedDays days: Int) -> Date {
+        simulation.date(afterSimulatedDays: days)
+    }
+
     /// Winter clock speed. See `SimClock.winterSpeed`.
     public var winterSpeed: Double {
         get { simulation.winterSpeed }

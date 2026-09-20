@@ -239,6 +239,14 @@ enum NotificationActions {
         store.catchUp()
 
         let applied = store.apply(action)
+
+        // The card on the lock screen was asking this question. It has been
+        // answered, from right beside it, so it comes down now rather than
+        // whenever the app is next opened.
+        LiveActivities.reconcile(with: store.snapshot) { days in
+            store.date(afterSimulatedDays: days)
+        }
+
         if let error = store.lastError {
             logger.error("could not save a decision: \(error)")
             return false

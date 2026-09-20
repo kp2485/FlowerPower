@@ -200,14 +200,21 @@ struct HiveActivity: Widget {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(context.attributes.title).font(.headline)
-                    Text(context.state.status).font(.subheadline).foregroundStyle(.secondary)
-                    if context.state.posture != "Instinct" {
+                    // Past its stale date nothing has come back to take the
+                    // card down — the app is suspended and the background
+                    // refresh has not been granted yet. It should at least
+                    // stop saying that something is happening.
+                    Text(context.isStale
+                         ? "The colony dealt with it. Open FlowerPower to see how."
+                         : context.state.status)
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    if !context.isStale, context.state.posture != "Instinct" {
                         Text(context.state.posture).font(.caption).foregroundStyle(WidgetTheme.healthy)
                     }
                 }
                 .accessibilityElement(children: .combine)
                 Spacer()
-                if let progress = context.state.progress {
+                if !context.isStale, let progress = context.state.progress {
                     ProgressView(value: progress)
                         .progressViewStyle(.circular)
                         .frame(width: 32, height: 32)
@@ -233,7 +240,10 @@ struct HiveActivity: Widget {
                     Text(context.attributes.title).font(.headline)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.state.status).font(.caption)
+                    Text(context.isStale
+                         ? "The colony dealt with it."
+                         : context.state.status)
+                        .font(.caption)
                 }
             } compactLeading: {
                 Image(systemName: context.attributes.symbol)

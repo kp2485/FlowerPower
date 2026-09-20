@@ -62,7 +62,9 @@ struct FlowerPowerApp: App {
                         store.simulationForTransfer,
                         summary: store.watchSummary()
                     )
-                    LiveActivities.reconcile(with: snapshot)
+                    LiveActivities.reconcile(with: snapshot) { days in
+                        store.date(afterSimulatedDays: days)
+                    }
                     HiveHum.shared.update(for: snapshot)
                 }
                 .onAppear {
