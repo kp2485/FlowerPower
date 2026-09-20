@@ -1186,6 +1186,82 @@ three keystones bloom and the multiplier is still zero; and the predator
 roster's nationality, which the biome tables answer for now by giving the
 American animals British biomes.
 
+### 2026-09-20 — the first week on a phone
+
+Kyle lived with the game for a week and came back with three things. All three
+were right, and two of them were bugs that had been there for some time.
+
+**"The only thing I see is flowers going out of season."** On opening the app,
+and in the hive's notifications. Two causes, neither of them the wording.
+`PatchSystem` emitted `.patchOutOfBloom` for every stand that was out of bloom
+on *every simulated day it stayed that way*, not on the day it happened — so a
+player back after twelve days with nine flowers resting was handed a hundred
+and eight of them, the catch-up report keeps sixty highlights, and the report
+had room for nothing that had actually happened. The country's wild stands made
+it worse the day they arrived. It is emitted once now, on the day the season
+turns, and is no longer a highlight: a flower going over is the calendar, and
+the garden shows it on the flower. Separately, the morning report opens with
+the colony's headline, and the headline of a healthy colony with a resting
+garden *is* "Nothing in bloom nearby". The three forage sentences have names
+now (`ColonySnapshot.ForageHeadline`), the digest leads with the colony's state
+instead, a resting garden is not by itself a reason to send one, and colony
+news reports a decline as a decline. The dashboard still says all of it.
+`beesim --world` over 200 colonies is byte-identical before and after (68%).
+
+**"The home screen window stayed active way too long when a skunk attacked."**
+The rule was that a Live Activity is up for as long as the thing it is about is
+happening — and a skunk works a nest for three simulated days, which is six
+real hours, after which the card was ended under `.default` dismissal, which
+keeps it on the lock screen for up to four more. And nothing ended it at all
+unless the app happened to run. `LiveActivityPlan`, in the package, now
+decides: a card is up only while there is something to decide, comes down the
+moment it is answered, and never outlasts one simulated day (about two real
+hours). Every card carries a stale date and the widget draws a stale card as
+finished; cards end with `.immediate`; a task sleeps to the stale date while
+the process lives, the background refresh asks to run no later than the
+soonest one, and answering from a notification button takes the card down
+there and then. iOS offers no way to book an activity's removal without a push
+server, so the last of those is a request, and the stale drawing is the
+backstop.
+
+**"More tappable, more condensed, tap and hold to see inside a cell."** Three
+agents in parallel, one tab each:
+
+- **The comb can be touched.** `CombLayout` in the package arranges the comb
+  deterministically — brood in the middle, pollen round it, honey outside —
+  and says what is in each cell. Nothing per-cell is invented: a brood bee *is*
+  a cell, so each larva carries its own age and each pupa its own days to
+  emergence, while stores cells give the hive's total and say that the colony
+  keeps a total rather than a ledger. `CombGeometry` is the spiral and its
+  inverse, in plain `Double`s so it is tested off-Mac. Tap and hold sweeps a
+  callout across cells; a tap opens the same thing as a sheet; tapping a
+  legend entry lights every cell of that kind. The old `HexGrid` overflowed
+  the canvas sideways and that is fixed, so the comb draws slightly smaller.
+- **The Colony tab is tiles.** Open decisions are single rows that open the
+  full card in a sheet; below them a grid of tiles — stores, population,
+  queen, nest, health, honey, forage, the record — each one number, one
+  caption and a colour, each opening a detail page that holds what the old
+  full-size section held plus a chart of that quantity from the history.
+  `DashboardSummary` in the package makes every judgement the tiles show
+  (severity bands, the population trend), so the view only draws.
+- **The rest.** History charts scrub, with a readout of the nearest day's
+  sample (`ColonyHistory.sample(nearestTo:)`). Garden thumbnails have a
+  context menu with a preview and the actions the detail page already had.
+  The catch-up report groups its highlights by kind with a count —
+  `ReportDigest`, capped per group, so no one kind of event can crowd out the
+  others again whatever the engine emits. Lineage, almanac and collection rows
+  open.
+
+All of the interface code in this round was written on Windows and has not
+been through Xcode. The constructs most likely to need attention on the Mac,
+by the agents' own ranking: `.chartXSelection` applied inside a generic
+`ChartCard`; the x-only `RuleMark`; the long-press-then-drag gesture on the
+comb and whether it fights the scroll view; `Gauge` with
+`.accessoryLinearCapacity` (the codebase's first — `MeterView` is the
+drop-in); and `ColonyDetailView`'s `switch` over eight fileprivate view types.
+There are also two pressed-state button styles now (`TilePressStyle` on the
+dashboard, `PressableTileStyle` elsewhere) that want to be one.
+
 ---
 
 ## 3. What is next
