@@ -115,33 +115,49 @@ struct GardenView: View {
             }
             .sensoryFeedback(.selection, trigger: opens)
             .sheet(item: $route) { route in
-                switch route {
-                case .detail(let patch):
-                    FlowerDetailView(patch: patch)
-                case .share(let patch):
-                    ShareFlowerView(patch: patch)
-                case .identify(let patch):
-                    SpeciesPickerView { species in
-                        store.attachIdentification(
-                            species,
-                            confidence: SpeciesPickerView.manualConfidence,
-                            to: patch.id
-                        )
-                    }
-                case .guideEntry(let entry):
-                    NavigationStack {
-                        FieldGuideDetailView(entry: entry, hemisphere: hemisphere)
-                            .toolbar {
-                                ToolbarItem(placement: .confirmationAction) {
-                                    // `dismiss` here would close the garden,
-                                    // not the sheet: this closure is part of
-                                    // the garden's own body.
-                                    Button("Done") { self.route = nil }
-                                }
-                            }
+                destination(for: route)
+            }
+        }
+    }
+
+    /// What each route opens.
+    ///
+    /// A function of its own rather than the switch written into `.sheet`'s
+    /// closure: four cases that bind a value, one of them with a trailing
+    /// closure and one a stack with a toolbar, is a lot to infer inside a
+    /// closure argument, and here the return type is written down. The
+    /// guide's page is the one case with a body of its own, for the same
+    /// reason.
+    @ViewBuilder
+    private func destination(for route: Route) -> some View {
+        switch route {
+        case .detail(let patch):
+            FlowerDetailView(patch: patch)
+        case .share(let patch):
+            ShareFlowerView(patch: patch)
+        case .identify(let patch):
+            SpeciesPickerView { species in
+                store.attachIdentification(
+                    species,
+                    confidence: SpeciesPickerView.manualConfidence,
+                    to: patch.id
+                )
+            }
+        case .guideEntry(let entry):
+            guidePage(for: entry)
+        }
+    }
+
+    private func guidePage(for entry: FieldGuideEntry) -> some View {
+        NavigationStack {
+            FieldGuideDetailView(entry: entry, hemisphere: hemisphere)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        // `dismiss` here would close the garden, not the
+                        // sheet: this is part of the garden's own view.
+                        Button("Done") { route = nil }
                     }
                 }
-            }
         }
     }
 

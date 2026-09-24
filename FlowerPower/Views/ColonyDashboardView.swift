@@ -32,7 +32,6 @@ import FlowerPowerGame
 struct ColonyDashboardView: View {
 
     @Environment(GameStore.self) private var store
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var onPhotograph: () -> Void
     @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
 
@@ -90,7 +89,9 @@ struct ColonyDashboardView: View {
                             NavigationLink(value: tile.kind) {
                                 ColonyTile(tile: tile)
                             }
-                            .buttonStyle(TilePressStyle(reduceMotion: reduceMotion))
+                            // Reduce Motion is read inside the style, from a
+                            // view of its own — see `PressableTile.swift`.
+                            .buttonStyle(PressableTileStyle(pressedScale: 0.97))
                             .contextMenu {
                                 Button {
                                     path.append(tile.kind)
@@ -154,7 +155,7 @@ struct ColonyTile: View {
 
     let tile: DashboardSummary.Tile
 
-    private var tint: Color { Theme.colour(for: tile.severity) }
+    private var tint: Color { Theme.colour(forDashboard: tile.severity) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -202,12 +203,8 @@ struct ColonyTile: View {
             Spacer(minLength: 0)
 
             if let gauge = tile.gauge {
-                Gauge(value: min(1, max(0, gauge)), in: 0...1) {
-                    EmptyView()
-                }
-                .gaugeStyle(.accessoryLinearCapacity)
-                .tint(tint)
-                .accessibilityHidden(true)
+                TileBar(value: gauge, tint: tint)
+                    .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 124, alignment: .leading)
@@ -222,25 +219,31 @@ struct ColonyTile: View {
     }
 }
 
-/// A tile that knows it has been pressed.
+/// How full a tile's quantity is, as a thin bar along its foot.
 ///
-/// The whole point of the rebuild is that the screen feels like something you
-/// touch, and a box that does not move under a finger does not. The scale is
-/// small on purpose — three per cent, which is felt rather than watched — and
-/// it is off entirely for anyone who has asked for less motion, who gets the
-/// dimming alone.
-struct TilePressStyle: ButtonStyle {
+/// Two capsules, the same idiom `MeterView` draws its bar with, rather than a
+/// `Gauge` in `.accessoryLinearCapacity` — which is a style made for widgets
+/// and complications, would have been the first of its kind in the app, and
+/// was never put in front of a compiler. `MeterView` itself is the wrong size
+/// here: it brings a label and a caption, and the tile already says both.
+private struct TileBar: View {
 
-    var reduceMotion = false
+    /// Nought to one. Clamped here, because the bar has to be drawn whatever
+    /// it is handed.
+    let value: Double
+    let tint: Color
 
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
-            .opacity(configuration.isPressed ? 0.88 : 1)
-            .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.12),
-                value: configuration.isPressed
-            )
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.quaternary)
+                Capsule()
+                    .fill(tint.gradient)
+                    .frame(width: geometry.size.width * min(1, max(0, value)))
+            }
+        }
+        .frame(height: 5)
     }
 }
 
@@ -260,58 +263,104 @@ private struct TilePreview: View {
         VStack(alignment: .leading, spacing: 12) {
             Label(tile.title, systemImage: tile.symbolName)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.colour(for: tile.severity))
+                .foregroundStyle(Theme.colour(forDashboard: tile.severity))
 
-            switch tile.kind {
-            case .stores:
-                let ordered = ResourceKind.allCases
-                    .filter { (snapshot.stores.resources[$0] ?? 0) > 0.5 }
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 76), spacing: 8)],
-                    spacing: 8
-                ) {
-                    ForEach(ordered, id: \.self) { kind in
-                        ResourceTile(kind: kind, amount: snapshot.stores.resources[kind] ?? 0)
-                    }
-                }
-            case .population:
-                HStack(spacing: 0) {
-                    CountPill(value: snapshot.population.adults, label: "Adults")
-                    CountPill(value: snapshot.population.brood, label: "Brood")
-                    CountPill(value: snapshot.population.drones, label: "Drones")
-                }
-                BroodBar(population: snapshot.population)
-            case .nest:
-                HStack(spacing: 20) {
-                    ReadingView(
-                        symbol: "thermometer.medium",
-                        value: String(format: "%.1f°C", snapshot.nest.temperatureCelsius),
-                        label: "Brood nest",
-                        tint: abs(snapshot.nest.temperatureCelsius - 35) < 2
-                            ? Theme.healthy : Theme.caution
-                    )
-                    ReadingView(
-                        symbol: "humidity.fill",
-                        value: String(format: "%.0f%%", snapshot.nest.humidity * 100),
-                        label: "Humidity",
-                        tint: Theme.colour(for: .water)
-                    )
-                    ReadingView(
-                        symbol: "hexagon.fill",
-                        value: "\(snapshot.nest.freeCells)",
-                        label: "Free cells",
-                        tint: Theme.comb
-                    )
-                }
-            default:
-                Text(tile.spoken)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            breakdown
         }
         .padding(16)
         .frame(width: 300, alignment: .leading)
+    }
+
+    /// Which breakdown, and nothing else. Each case is one view of its own,
+    /// so the switch holds no declarations and no layout and the type checker
+    /// has four plain calls to look at rather than four subtrees.
+    @ViewBuilder
+    private var breakdown: some View {
+        switch tile.kind {
+        case .stores:
+            StoresPeek(stores: snapshot.stores)
+        case .population:
+            PopulationPeek(population: snapshot.population)
+        case .nest:
+            NestPeek(nest: snapshot.nest)
+        default:
+            Text(tile.spoken)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// What is in the larder, one small tile per resource.
+private struct StoresPeek: View {
+
+    let stores: StoresSummary
+
+    private var ordered: [ResourceKind] {
+        ResourceKind.allCases.filter { (stores.resources[$0] ?? 0) > 0.5 }
+    }
+
+    var body: some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 76), spacing: 8)],
+            spacing: 8
+        ) {
+            ForEach(ordered, id: \.self) { kind in
+                ResourceTile(kind: kind, amount: stores.resources[kind] ?? 0)
+            }
+        }
+    }
+}
+
+/// The three counts, and the shape of the brood.
+private struct PopulationPeek: View {
+
+    let population: PopulationSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 0) {
+                CountPill(value: population.adults, label: "Adults")
+                CountPill(value: population.brood, label: "Brood")
+                CountPill(value: population.drones, label: "Drones")
+            }
+            BroodBar(population: population)
+        }
+    }
+}
+
+/// Temperature, humidity and room, as three readings.
+private struct NestPeek: View {
+
+    let nest: NestSummary
+
+    /// Within two degrees of thirty-five is where brood wants it.
+    private var temperatureTint: Color {
+        abs(nest.temperatureCelsius - 35) < 2 ? Theme.healthy : Theme.caution
+    }
+
+    var body: some View {
+        HStack(spacing: 20) {
+            ReadingView(
+                symbol: "thermometer.medium",
+                value: String(format: "%.1f°C", nest.temperatureCelsius),
+                label: "Brood nest",
+                tint: temperatureTint
+            )
+            ReadingView(
+                symbol: "humidity.fill",
+                value: String(format: "%.0f%%", nest.humidity * 100),
+                label: "Humidity",
+                tint: Theme.colour(for: .water)
+            )
+            ReadingView(
+                symbol: "hexagon.fill",
+                value: "\(nest.freeCells)",
+                label: "Free cells",
+                tint: Theme.comb
+            )
+        }
     }
 }
 
@@ -352,81 +401,110 @@ private struct DecisionRows: View {
     let snapshot: ColonySnapshot
     @Binding var open: DecisionKind?
 
+    /// Six rows, each of which may be absent. Every one is a property of its
+    /// own with its type written out, so the body is six plain expressions:
+    /// six `if`s in one builder, two of them binding and one of them with a
+    /// comma condition, is the shape that makes the type checker give up.
+    /// `Optional` is a `View` when what it wraps is, and draws nothing when
+    /// it is nil.
     var body: some View {
         VStack(spacing: 8) {
-            if let threat = snapshot.activeThreat {
-                DecisionRow(
-                    kind: .threat,
-                    title: "\(threat.predator.displayName) at the nest",
-                    detail: remaining(threat),
-                    symbolName: Theme.symbol(for: threat.predator),
-                    tint: Theme.alarm,
-                    open: $open
-                )
-            }
-            if let swarm = snapshot.pendingSwarm {
-                DecisionRow(
-                    kind: .swarm,
-                    title: swarm.discouraged
-                        ? "Making room — it may still go"
-                        : "Preparing to swarm",
-                    detail: days(swarm.daysRemaining(on: snapshot.day)),
-                    symbolName: "arrow.triangle.branch",
-                    tint: Theme.caution,
-                    open: $open
-                )
-            }
-            if snapshot.departedSwarm != nil {
-                DecisionRow(
-                    kind: .departed,
-                    title: "A swarm has left",
-                    detail: "stay, follow, or give it away",
-                    symbolName: "bird.fill",
-                    tint: Theme.queen,
-                    open: $open
-                )
-            }
-            if snapshot.entranceDecisionOpen {
-                DecisionRow(
-                    kind: .entrance,
-                    title: "Autumn: the entrance",
-                    detail: "seal it or keep it open",
-                    symbolName: "door.left.hand.closed",
-                    tint: Theme.propolis,
-                    open: $open
-                )
-            }
-            // Short for winter, with honey of theirs in the bank. The engine
-            // decides when this is open — the same judgement the winter-stores
-            // alert is raised from — so this asks rather than working it out
-            // again.
-            if snapshot.feedDecisionOpen {
-                DecisionRow(
-                    kind: .feed,
-                    title: "They are short for winter",
-                    detail: String(format: "%.0f units short", snapshot.storesShortfall),
-                    symbolName: "takeoutbag.and.cup.and.straw.fill",
-                    tint: Theme.caution,
-                    open: $open
-                )
-            }
-            // Last of them, and the only one that arrives while things are
-            // going well: a flow is when a tenth of the force is affordable.
-            // Kept on screen while the party is away so that the answer is
-            // reported where the question was asked.
-            if snapshot.terrain != nil, snapshot.scoutDecisionOpen || snapshot.scoutsOut {
-                DecisionRow(
-                    kind: .scout,
-                    title: snapshot.scoutsOut ? "The scouts are out" : "Ground they have not seen",
-                    detail: snapshot.scoutsOut
-                        ? back(in: snapshot.scoutsDaysRemaining)
-                        : "a tenth of the foragers, for 3 days",
-                    symbolName: "map.fill",
-                    tint: Theme.wild,
-                    open: $open
-                )
-            }
+            threatRow
+            swarmRow
+            departedRow
+            entranceRow
+            feedRow
+            scoutRow
         }
+    }
+
+    private var threatRow: DecisionRow? {
+        guard let threat = snapshot.activeThreat else { return nil }
+        return DecisionRow(
+            kind: .threat,
+            title: "\(threat.predator.displayName) at the nest",
+            detail: remaining(threat),
+            symbolName: Theme.symbol(for: threat.predator),
+            tint: Theme.alarm,
+            open: $open
+        )
+    }
+
+    private var swarmRow: DecisionRow? {
+        guard let swarm = snapshot.pendingSwarm else { return nil }
+        let title: String = swarm.discouraged
+            ? "Making room — it may still go"
+            : "Preparing to swarm"
+        return DecisionRow(
+            kind: .swarm,
+            title: title,
+            detail: days(swarm.daysRemaining(on: snapshot.day)),
+            symbolName: "arrow.triangle.branch",
+            tint: Theme.caution,
+            open: $open
+        )
+    }
+
+    private var departedRow: DecisionRow? {
+        guard snapshot.departedSwarm != nil else { return nil }
+        return DecisionRow(
+            kind: .departed,
+            title: "A swarm has left",
+            detail: "stay, follow, or give it away",
+            symbolName: "bird.fill",
+            tint: Theme.queen,
+            open: $open
+        )
+    }
+
+    private var entranceRow: DecisionRow? {
+        guard snapshot.entranceDecisionOpen else { return nil }
+        return DecisionRow(
+            kind: .entrance,
+            title: "Autumn: the entrance",
+            detail: "seal it or keep it open",
+            symbolName: "door.left.hand.closed",
+            tint: Theme.propolis,
+            open: $open
+        )
+    }
+
+    /// Short for winter, with honey of theirs in the bank. The engine decides
+    /// when this is open — the same judgement the winter-stores alert is
+    /// raised from — so this asks rather than working it out again.
+    private var feedRow: DecisionRow? {
+        guard snapshot.feedDecisionOpen else { return nil }
+        return DecisionRow(
+            kind: .feed,
+            title: "They are short for winter",
+            detail: String(format: "%.0f units short", snapshot.storesShortfall),
+            symbolName: "takeoutbag.and.cup.and.straw.fill",
+            tint: Theme.caution,
+            open: $open
+        )
+    }
+
+    /// Last of them, and the only one that arrives while things are going
+    /// well: a flow is when a tenth of the force is affordable. Kept on screen
+    /// while the party is away so that the answer is reported where the
+    /// question was asked.
+    private var scoutRow: DecisionRow? {
+        guard snapshot.terrain != nil,
+              snapshot.scoutDecisionOpen || snapshot.scoutsOut
+        else { return nil }
+        let out = snapshot.scoutsOut
+        let title: String = out ? "The scouts are out" : "Ground they have not seen"
+        let detail: String = out
+            ? back(in: snapshot.scoutsDaysRemaining)
+            : "a tenth of the foragers, for 3 days"
+        return DecisionRow(
+            kind: .scout,
+            title: title,
+            detail: detail,
+            symbolName: "map.fill",
+            tint: Theme.wild,
+            open: $open
+        )
     }
 
     private func remaining(_ threat: ActiveThreat) -> String {
@@ -453,8 +531,6 @@ private struct DecisionRow: View {
     let symbolName: String
     let tint: Color
     @Binding var open: DecisionKind?
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {
@@ -496,7 +572,7 @@ private struct DecisionRow: View {
                     .strokeBorder(tint.opacity(0.35), lineWidth: 1)
             )
         }
-        .buttonStyle(TilePressStyle(reduceMotion: reduceMotion))
+        .buttonStyle(PressableTileStyle(pressedScale: 0.97))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
         .accessibilityValue(detail)
@@ -536,45 +612,71 @@ private struct DecisionSheet: View {
         .presentationDetents([.medium, .large])
     }
 
+    /// The switch only picks; each case's "is it still open" lives in a
+    /// builder of its own, so no case of the switch binds anything.
     @ViewBuilder
     private func card(for kind: DecisionKind) -> some View {
         switch kind {
-        case .threat:
-            if let threat = snapshot.activeThreat {
-                ThreatDecisionCard(threat: threat, snapshot: snapshot)
-            } else {
-                Answered()
-            }
-        case .swarm:
-            if let swarm = snapshot.pendingSwarm {
-                SwarmDecisionCard(swarm: swarm, snapshot: snapshot)
-            } else {
-                Answered()
-            }
-        case .departed:
-            if let departed = snapshot.departedSwarm {
-                DepartedSwarmCard(swarm: departed)
-            } else {
-                Answered()
-            }
-        case .entrance:
-            if snapshot.entranceDecisionOpen {
-                EntranceDecisionCard(snapshot: snapshot)
-            } else {
-                Answered()
-            }
-        case .feed:
-            if snapshot.feedDecisionOpen {
-                FeedDecisionCard(snapshot: snapshot)
-            } else {
-                Answered()
-            }
-        case .scout:
-            if let terrain = snapshot.terrain {
-                ScoutDecisionCard(snapshot: snapshot, terrain: terrain)
-            } else {
-                Answered()
-            }
+        case .threat: threatCard
+        case .swarm: swarmCard
+        case .departed: departedCard
+        case .entrance: entranceCard
+        case .feed: feedCard
+        case .scout: scoutCard
+        }
+    }
+
+    @ViewBuilder
+    private var threatCard: some View {
+        if let threat = snapshot.activeThreat {
+            ThreatDecisionCard(threat: threat, snapshot: snapshot)
+        } else {
+            Answered()
+        }
+    }
+
+    @ViewBuilder
+    private var swarmCard: some View {
+        if let swarm = snapshot.pendingSwarm {
+            SwarmDecisionCard(swarm: swarm, snapshot: snapshot)
+        } else {
+            Answered()
+        }
+    }
+
+    @ViewBuilder
+    private var departedCard: some View {
+        if let departed = snapshot.departedSwarm {
+            DepartedSwarmCard(swarm: departed)
+        } else {
+            Answered()
+        }
+    }
+
+    @ViewBuilder
+    private var entranceCard: some View {
+        if snapshot.entranceDecisionOpen {
+            EntranceDecisionCard(snapshot: snapshot)
+        } else {
+            Answered()
+        }
+    }
+
+    @ViewBuilder
+    private var feedCard: some View {
+        if snapshot.feedDecisionOpen {
+            FeedDecisionCard(snapshot: snapshot)
+        } else {
+            Answered()
+        }
+    }
+
+    @ViewBuilder
+    private var scoutCard: some View {
+        if let terrain = snapshot.terrain {
+            ScoutDecisionCard(snapshot: snapshot, terrain: terrain)
+        } else {
+            Answered()
         }
     }
 }
@@ -686,7 +788,7 @@ private struct AttentionRow: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var tint: Color { Theme.colour(for: attention.severity) }
+    private var tint: Color { Theme.colour(forDashboard: attention.severity) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

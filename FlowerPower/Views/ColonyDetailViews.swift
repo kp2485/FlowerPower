@@ -35,21 +35,29 @@ import FlowerPowerGame
 /// One view rather than eight destinations registered on the stack, so that the
 /// dashboard has a single `navigationDestination` and the tile kind — which is
 /// the package's enum, not the view's — is the only thing that has to travel.
+///
+/// The switch sits in a `Group`, the way `HistoryView` and `GardenView` put
+/// their branches, so the body is one view with a builder inside it rather
+/// than a bare switch leaning on `body`'s implicit builder. Every page is
+/// `private` to this file, like everything else in it: nothing outside needs
+/// to name them, and this router is the only way in.
 struct ColonyDetailView: View {
 
     let kind: DashboardSummary.Tile.Kind
     var onPhotograph: () -> Void = {}
 
     var body: some View {
-        switch kind {
-        case .stores: StoresDetailView()
-        case .population: PopulationDetailView()
-        case .queen: QueenDetailView()
-        case .nest: NestDetailView()
-        case .health: HealthDetailView()
-        case .honey: HoneyDetailView()
-        case .forage: ForageDetailView(onPhotograph: onPhotograph)
-        case .record: RecordDetailView()
+        Group {
+            switch kind {
+            case .stores: StoresDetailView()
+            case .population: PopulationDetailView()
+            case .queen: QueenDetailView()
+            case .nest: NestDetailView()
+            case .health: HealthDetailView()
+            case .honey: HoneyDetailView()
+            case .forage: ForageDetailView(onPhotograph: onPhotograph)
+            case .record: RecordDetailView()
+            }
         }
     }
 }
@@ -300,11 +308,7 @@ private struct PatchLine: View {
                     .font(.subheadline.weight(.medium))
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("\(Int(patch.distanceMetres.rounded())) m"
-                     + (patch.foragersWorkingIt > 0
-                        ? " · \(patch.foragersWorkingIt) working it"
-                        : " · nobody on it")
-                     + (isWild ? " · wild" : ""))
+                Text(facts)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -322,6 +326,21 @@ private struct PatchLine: View {
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// How far, who is on it, and whether it is wild, joined with middle
+    /// dots. Built as a list of parts rather than one expression of `+` and
+    /// ternaries passed to `Text`, which is the shape of expression the type
+    /// checker gives up on.
+    private var facts: String {
+        var parts: [String] = ["\(Int(patch.distanceMetres.rounded())) m"]
+        if patch.foragersWorkingIt > 0 {
+            parts.append("\(patch.foragersWorkingIt) working it")
+        } else {
+            parts.append("nobody on it")
+        }
+        if isWild { parts.append("wild") }
+        return parts.joined(separator: " · ")
     }
 }
 

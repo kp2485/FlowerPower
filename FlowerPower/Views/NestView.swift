@@ -38,24 +38,54 @@ struct NestView: View {
     @Environment(GameStore.self) private var store
     @State private var showingJobs = false
 
+    /// A legend entry picked out, dimming everything on the comb that is not
+    /// it. Held here rather than in the panel because the legend and the comb
+    /// are no longer in the same container — see the body.
+    @State private var highlighted: CombCellFamily?
+
     private var snapshot: ColonySnapshot { store.snapshot }
 
+    /// The comb pinned, and everything else scrolling underneath it.
+    ///
+    /// The comb used to sit inside the `ScrollView` with the rest, and it
+    /// carries a hold-then-drag gesture. On a device a scroll view's own pan
+    /// wins a vertical drag that starts inside it — so the sweep would have
+    /// worked sideways and scrolled the page the moment a finger moved down
+    /// the comb. Rather than argue with that (a high-priority gesture, and
+    /// scrolling switched off while a cell is held), the comb is simply not
+    /// in a scroll view. It is the page's main content and it fits above the
+    /// fold on every phone this runs on, which are held upright: the app is
+    /// portrait-only. The legend, the tip and the jobs scroll below it.
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                // Laid out once here rather than inside `CombPanel`, because
-                // the panel re-renders on every gesture event and building six
-                // hundred summaries under a moving finger is work nobody asked
-                // for. This body runs when the snapshot changes, which is
-                // three times a minute at worst.
-                let layout = CombLayout(snapshot: snapshot)
+        // Laid out once here rather than inside `CombPanel`, because the
+        // panel re-renders on every gesture event and building six hundred
+        // summaries under a moving finger is work nobody asked for. This body
+        // runs when the snapshot changes, which is three times a minute at
+        // worst.
+        let layout = CombLayout(snapshot: snapshot)
 
-                VStack(spacing: 16) {
-                    TipView(AppTips.nest)
-                    CombPanel(snapshot: snapshot, layout: layout)
-                    JobBreakdown(population: snapshot.population)
+        NavigationStack {
+            VStack(spacing: 0) {
+                CombPanel(snapshot: snapshot, layout: layout, highlighted: highlighted)
+                    // Its own height, worked out from the width, exactly as
+                    // it was inside the scroll view — which proposes no
+                    // height either. Without this the stack would share the
+                    // screen out evenly between the comb and the scroll, and
+                    // the comb would come out narrower than the page.
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding([.horizontal, .top])
+                    .padding(.bottom, 8)
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        CombLegend(layout: layout, highlighted: $highlighted)
+                            .card()
+                        TipView(AppTips.nest)
+                        JobBreakdown(population: snapshot.population)
+                    }
+                    .padding([.horizontal, .bottom])
+                    .padding(.top, 8)
                 }
-                .padding()
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Nest")
@@ -83,6 +113,11 @@ private struct CombPanel: View {
     let snapshot: ColonySnapshot
     let layout: CombLayout
 
+    /// A legend entry picked out, dimming everything that is not it. Read
+    /// here and set by the legend, which lives in the scrolling part of the
+    /// page below — so `NestView` holds it and hands this down.
+    let highlighted: CombCellFamily?
+
     /// The cell under the finger during a long press, and the one a VoiceOver
     /// user has stepped to. One piece of state for both, so the highlight and
     /// the spoken value never disagree about where the player is.
@@ -91,9 +126,6 @@ private struct CombPanel: View {
     /// A cell the player tapped, which stays until it is dismissed.
     @State private var opened: CombCellSummary?
 
-    /// A legend entry picked out, dimming everything that is not it.
-    @State private var highlighted: CombCellFamily?
-
     /// Which band the adjustable action has reached.
     @State private var band = 0
 
@@ -101,7 +133,6 @@ private struct CombPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             comb
-            CombLegend(layout: layout, highlighted: $highlighted)
         }
         .card()
         .sheet(item: $opened) { cell in
@@ -145,8 +176,10 @@ private struct CombPanel: View {
             // A tap recogniser fails once a long press has succeeded, so this
             // should not fire at the end of a sweep; the guard is there
             // because a sheet opening as a finger lifts would be maddening and
-            // costs one comparison to rule out.
-            .onTapGesture(count: 1, coordinateSpace: .local) { point in
+            // costs one comparison to rule out. Written the way the World
+            // map's tap is, which has been through the compiler: the
+            // location comes in the view's own space by default.
+            .onTapGesture { point in
                 guard held == nil else { return }
                 let index = geometry.index(atX: Double(point.x), y: Double(point.y))
                 opened = layout.cell(at: index)
@@ -156,6 +189,11 @@ private struct CombPanel: View {
             }
         }
         .aspectRatio(1.15, contentMode: .fit)
+        // A ceiling that no phone reaches. The comb is no longer in a scroll
+        // view, so a comb as tall as a wide screen is wide would have
+        // nowhere to go; this keeps it on the screen if the app is ever run
+        // somewhere wider than a phone held upright.
+        .frame(maxWidth: 520)
         .frame(maxWidth: .infinity)
         // Only when the cell under the finger changes, not on every pixel of
         // the sweep: a haptic per pixel is a buzz, not a texture.
@@ -224,8 +262,10 @@ private struct CombPanel: View {
 
     // MARK: Touch
 
-    /// Hold, then sweep. The long press is what keeps this from fighting the
-    /// scroll view around it: until it succeeds, a drag is the page moving.
+    /// Hold, then sweep. There is no scroll view around the comb any more
+    /// (see `NestView`), so nothing else on the page wants this drag; the
+    /// long press is kept because it is what tells a sweep from a tap, and a
+    /// tap opens the sheet.
     ///
     /// The highlight appears on the first movement after the press rather than
     /// on the press itself, because `SequenceGesture` reports the press
@@ -432,11 +472,16 @@ private enum CombPalette {
 /// The legend, which is now a control rather than a key.
 ///
 /// It had nine fixed rows, several of which named something the comb was not
-/// showing, and it sat in a card of its own below the comb where the eye had
-/// to travel to it. It lists what is actually there, with the count, and
-/// tapping a row picks those cells out on the comb above — which is the
-/// cheapest way to answer "where is the pollen?" that does not involve
-/// another screen.
+/// showing. It lists what is actually there, with the count, and tapping a
+/// row picks those cells out on the comb above — which is the cheapest way to
+/// answer "where is the pollen?" that does not involve another screen.
+///
+/// It is in a card of its own again, the first thing in the scroll under the
+/// pinned comb. It was in the comb's card for a round, which put it where the
+/// eye already was; but on a small phone the comb and three rows of legend
+/// together leave almost nothing below them to scroll, and the legend is the
+/// part that can move. It still sits directly under the comb when the page
+/// opens.
 private struct CombLegend: View {
 
     let layout: CombLayout

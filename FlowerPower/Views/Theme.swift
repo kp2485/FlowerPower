@@ -127,7 +127,13 @@ enum Theme {
     /// all. Green, the app's own gold, amber, red — and the judgement behind
     /// which band a tile is in belongs to `DashboardSummary`, where it can be
     /// tested, rather than to whatever view happens to be drawing it.
-    static func colour(for severity: DashboardSummary.Severity) -> Color {
+    ///
+    /// Its own label rather than one more `colour(for:)`, because the engine
+    /// has a `Severity` too (`SimEvent.Severity`, below) and the two share a
+    /// case name: `Theme.colour(for: .notable)` would have been ambiguous,
+    /// and a leading-dot call that is fine today would become ambiguous the
+    /// day either enum gained a case the other already has.
+    static func colour(forDashboard severity: DashboardSummary.Severity) -> Color {
         switch severity {
         case .calm: return healthy
         case .notable: return honey

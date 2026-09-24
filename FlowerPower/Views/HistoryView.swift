@@ -146,13 +146,17 @@ private struct PopulationChart: View {
             symbolName: "person.3.fill",
             caption: samples.last.map { "\($0.adults) adults, \($0.brood) brood" },
             summary: summary,
-            selection: $selectedDay,
             selected: selected,
             readout: { "\($0.adults) adults, \($0.brood) brood, \($0.winterBees) winter bees" }
         ) {
             Chart {
                 SeasonBands(spans: spans, ceiling: ceiling)
-                SelectionRule(day: selected?.day)
+
+                if let day = selected?.day {
+                    RuleMark(x: .value("Day", Double(day)))
+                        .foregroundStyle(SelectionRule.colour)
+                        .lineStyle(SelectionRule.stroke)
+                }
 
                 ForEach(samples) { sample in
                     LineMark(
@@ -178,6 +182,11 @@ private struct PopulationChart: View {
                 }
                 .interpolationMethod(.monotone)
             }
+            // On the `Chart` itself, where the x values are known to be
+            // `Double`s — the day number — rather than on a generic card
+            // that only knows it holds some view. This hands back a
+            // fractional day, and the record turns it into one it holds.
+            .chartXSelection(value: $selectedDay)
             .chartYScale(domain: 0...ceiling)
             .chartForegroundStyleScale([
                 "Adults": Theme.honey,
@@ -214,25 +223,20 @@ private struct SeasonBands: ChartContent {
     }
 }
 
-/// The day under the finger, drawn on every chart the same way.
+/// How the day under the finger is drawn, on every chart the same way.
 ///
-/// Its own `ChartContent` rather than four copies of a `RuleMark`, because
-/// the four charts share an x axis — the day — and a mark that looked
-/// different on one of them would read as meaning something different.
-private struct SelectionRule: ChartContent {
-
-    /// Nil while nothing is selected, which is the ordinary state.
-    let day: Int?
-
-    var body: some ChartContent {
-        // `ForEach` over nothing or one thing rather than an `if`, so the
-        // mark's type does not depend on the selection.
-        ForEach(day.map { [$0] } ?? [], id: \.self) { day in
-            RuleMark(x: .value("Day", Double(day)))
-                .foregroundStyle(Color.secondary.opacity(0.55))
-                .lineStyle(StrokeStyle(lineWidth: 1))
-        }
-    }
+/// The four charts share an x axis — the day — and a mark that looked
+/// different on one of them would read as meaning something different. The
+/// mark itself is written out in each chart as `if let day { RuleMark(…) }`,
+/// the plain idiom, rather than as a `ChartContent` of its own wrapping a
+/// `ForEach` over nothing or one thing; what is shared is only its look.
+///
+/// Computed rather than stored: a stored `static let` has to be `Sendable`
+/// under Swift 6, and whether `StrokeStyle` is is a question for the SDK
+/// rather than one worth asking here.
+private enum SelectionRule {
+    static var colour: Color { Color.secondary.opacity(0.55) }
+    static var stroke: StrokeStyle { StrokeStyle(lineWidth: 1) }
 }
 
 private extension Array where Element == DailySample {
@@ -279,7 +283,6 @@ private struct StoresChart: View {
                 "\(Int($0.edibleEnergy.rounded())) of \(Int($0.winterRequirement.rounded())) units needed"
             },
             summary: summary,
-            selection: $selectedDay,
             selected: selected,
             readout: {
                 "\(Int($0.edibleEnergy.rounded())) units stored, "
@@ -287,7 +290,11 @@ private struct StoresChart: View {
             }
         ) {
             Chart {
-                SelectionRule(day: selected?.day)
+                if let day = selected?.day {
+                    RuleMark(x: .value("Day", Double(day)))
+                        .foregroundStyle(SelectionRule.colour)
+                        .lineStyle(SelectionRule.stroke)
+                }
 
                 ForEach(samples) { sample in
                     // The stores are the area; the requirement is the line to
@@ -316,6 +323,7 @@ private struct StoresChart: View {
                 }
                 .interpolationMethod(.monotone)
             }
+            .chartXSelection(value: $selectedDay)
             .chartForegroundStyleScale([
                 "Stores": Theme.honey,
                 "Winter needs": Theme.alarm
@@ -356,7 +364,6 @@ private struct TemperatureChart: View {
                     + "\(Int($0.outsideTemperature.rounded()))°C outside"
             },
             summary: summary,
-            selection: $selectedDay,
             selected: selected,
             readout: {
                 "\(Int($0.nestTemperature.rounded()))°C in the nest, "
@@ -364,7 +371,11 @@ private struct TemperatureChart: View {
             }
         ) {
             Chart {
-                SelectionRule(day: selected?.day)
+                if let day = selected?.day {
+                    RuleMark(x: .value("Day", Double(day)))
+                        .foregroundStyle(SelectionRule.colour)
+                        .lineStyle(SelectionRule.stroke)
+                }
 
                 ForEach(samples) { sample in
                     LineMark(
@@ -391,6 +402,7 @@ private struct TemperatureChart: View {
                     .foregroundStyle(Color.secondary.opacity(0.4))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
             }
+            .chartXSelection(value: $selectedDay)
             .chartForegroundStyleScale([
                 "Nest": Theme.broodNest,
                 "Outside": Color(red: 0.36, green: 0.65, blue: 0.85)
@@ -427,31 +439,60 @@ private struct IntakeChart: View {
             symbolName: "arrow.down.to.line",
             caption: samples.last.map { "\(Int($0.nectarIntake.rounded())) units on the last full day" },
             summary: summary,
-            selection: $selectedDay,
             selected: selected,
             readout: { "\(Int($0.nectarIntake.rounded())) units brought in" }
         ) {
             Chart {
-                SelectionRule(day: selected?.day)
+                if let day = selected?.day {
+                    RuleMark(x: .value("Day", Double(day)))
+                        .foregroundStyle(SelectionRule.colour)
+                        .lineStyle(SelectionRule.stroke)
+                }
 
-                ForEach(samples) { sample in
-                    // A bar a day reads well for a month and turns into a
-                    // smear for a year, so a long range is filled instead.
-                    if samples.count > 90 {
-                        AreaMark(
-                            x: .value("Day", Double(sample.day)),
-                            y: .value("Units", sample.nectarIntake)
-                        )
-                        .foregroundStyle(Theme.nectar.gradient)
-                    } else {
-                        BarMark(
-                            x: .value("Day", Double(sample.day)),
-                            y: .value("Units", sample.nectarIntake)
-                        )
-                        .foregroundStyle(Theme.nectar)
-                    }
+                // A bar a day reads well for a month and turns into a smear
+                // for a year, so a long range is filled instead. Decided once
+                // for the chart rather than once per day inside the `ForEach`,
+                // and each shape is its own `ChartContent`, so this builder
+                // holds two plain branches and no marks.
+                if samples.count > 90 {
+                    IntakeArea(samples: samples)
+                } else {
+                    IntakeBars(samples: samples)
                 }
             }
+            .chartXSelection(value: $selectedDay)
+        }
+    }
+}
+
+/// A long range's intake, filled.
+private struct IntakeArea: ChartContent {
+
+    let samples: [DailySample]
+
+    var body: some ChartContent {
+        ForEach(samples) { sample in
+            AreaMark(
+                x: .value("Day", Double(sample.day)),
+                y: .value("Units", sample.nectarIntake)
+            )
+            .foregroundStyle(Theme.nectar.gradient)
+        }
+    }
+}
+
+/// A short range's intake, a bar a day.
+private struct IntakeBars: ChartContent {
+
+    let samples: [DailySample]
+
+    var body: some ChartContent {
+        ForEach(samples) { sample in
+            BarMark(
+                x: .value("Day", Double(sample.day)),
+                y: .value("Units", sample.nectarIntake)
+            )
+            .foregroundStyle(Theme.nectar)
         }
     }
 }
@@ -469,10 +510,10 @@ private struct ChartCard<Content: View>: View {
     /// each say a number and none of which says what the chart shows. The
     /// chart is collapsed to one element and this is read for it.
     let summary: String
-    /// Where the finger is, in days. Owned by the chart above, because each
-    /// of the four is scrubbed on its own.
-    @Binding var selection: Double?
-    /// The day that x resolves to, found in the package.
+    /// The day under the finger, found in the package, or nil. Where the
+    /// finger is belongs to the chart above — each of the four is scrubbed
+    /// on its own, and `.chartXSelection` goes on its `Chart` — so the card
+    /// is only told the answer, and draws the readout and the tick from it.
     let selected: DailySample?
     /// That day's numbers, in the chart's own units.
     let readout: (DailySample) -> String
@@ -483,7 +524,6 @@ private struct ChartCard<Content: View>: View {
         symbolName: String,
         caption: String? = nil,
         summary: String,
-        selection: Binding<Double?>,
         selected: DailySample?,
         readout: @escaping (DailySample) -> String,
         @ViewBuilder content: () -> Content
@@ -492,7 +532,6 @@ private struct ChartCard<Content: View>: View {
         self.symbolName = symbolName
         self.caption = caption
         self.summary = summary
-        _selection = selection
         self.selected = selected
         self.readout = readout
         self.content = content()
@@ -518,12 +557,6 @@ private struct ChartCard<Content: View>: View {
             }
 
             content
-                // Straight onto the chart, before the frame, because it is a
-                // chart modifier rather than a layout one. The x values are
-                // plotted as `Double`s — the day number — so this hands back
-                // a fractional day, and the record turns it into a day it
-                // actually holds.
-                .chartXSelection(value: $selection)
                 .frame(height: 170)
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 4)) { value in

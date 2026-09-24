@@ -15,6 +15,14 @@
 //  the dimming is kept, because somebody who has turned motion off still
 //  needs to be told their finger landed.
 //
+//  This is the only pressed-state style in the app. The Colony tab grew a
+//  second one of its own, `TilePressStyle`, which did the same thing with
+//  slightly different numbers — and read Reduce Motion from a parameter the
+//  dashboard passed in, which works, but is the kind of thing that is right
+//  at one call site and forgotten at the next. It was folded in here: the
+//  dashboard writes `PressableTileStyle(pressedScale: 0.97)` and nothing
+//  else.
+//
 
 import SwiftUI
 
@@ -23,7 +31,10 @@ struct PressableTileStyle: ButtonStyle {
 
     /// How far it shrinks. Deliberately slight: these are photographs and
     /// badges sitting shoulder to shoulder in a grid, and anything more reads
-    /// as the grid itself moving.
+    /// as the grid itself moving. The dashboard's tiles and decision rows
+    /// pass 0.97 — three per cent, felt rather than watched — because a row
+    /// the width of the screen moves further at its edges for the same
+    /// fraction than a thumbnail does.
     var pressedScale: CGFloat = 0.96
 
     func makeBody(configuration: Configuration) -> some View {
