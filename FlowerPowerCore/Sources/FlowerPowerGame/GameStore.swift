@@ -69,6 +69,10 @@ public final class GameStore {
     /// decided in there goes with it.
     private var unreadableSave: String?
 
+    /// Set when `load` could neither read the save nor move it aside, and
+    /// then this store writes nothing at all. See `setAsideUnreadableSave()`.
+    private var heldSave: String?
+
     /// Drives the live view while the app is in the foreground. The simulation
     /// itself never depends on this — it is purely a refresh trigger.
     private var ticker: Task<Void, Never>?
@@ -92,12 +96,28 @@ public final class GameStore {
     /// the interface can tell a first run from a returning player — which
     /// used to be indistinguishable, and meant a new player landed on a
     /// dashboard full of numbers with no idea what any of it was.
+    ///
+    /// **A save that is there and cannot be read is not the same as no save.**
+    /// It used to be treated as one, and the fresh colony started in its place
+    /// was written over the file the moment the player chose a site — so a
+    /// decode failure silently deleted somebody's bees. Now the unreadable
+    /// file is moved aside first, every byte of it, and the player is told.
+    /// See `setAsideUnreadableSave()`.
     public static func load(
         persistence: GamePersisting = GamePersistence(),
         defaultSite: HiveLocation = HiveLocation(type: .livingTreeCavity),
         clock: @escaping () -> Date = Date.init
     ) -> GameStore {
-        if let saved = try? persistence.load() {
+        let saved: Simulation?
+        var unreadable = false
+        do {
+            saved = try persistence.load()
+        } catch {
+            saved = nil
+            unreadable = true
+        }
+
+        if let saved {
             let store = GameStore(simulation: saved, persistence: persistence, clock: clock)
             // This colony came out of the save, so the save is this store's
             // until somebody else writes it.
@@ -112,7 +132,42 @@ public final class GameStore {
         )
         let store = GameStore(simulation: fresh, persistence: persistence, clock: clock)
         store.needsSetup = true
+        if unreadable { store.setAsideUnreadableSave() }
         return store
+    }
+
+    /// What the player is told when their save could not be opened and has
+    /// been kept. Written to be acted on: the one thing that loses the old
+    /// colony for good now is deleting the app.
+    static let setAsideMessage = "Your colony's save could not be opened, so it has been "
+        + "kept safe and a new colony started. Keep FlowerPower installed and update it "
+        + "when you can — the old colony has not been deleted."
+
+    /// What the player is told when the save could not be opened *and* could
+    /// not be moved aside, so nothing will be written over it.
+    static let heldMessage = "Your colony's save could not be opened, and this session "
+        + "will not save over it. Close FlowerPower and open it again; if this keeps "
+        + "happening, keep the app installed and update it when you can."
+
+    /// Moves an unreadable save out of the colony's way.
+    ///
+    /// Moved rather than copied or left, because the colony `load` has just
+    /// started must be free to save under the ordinary name — the widget, the
+    /// watch and every other reader look there — and must never be able to
+    /// write over the one it could not read. Where the move itself fails, the
+    /// store holds every write for the rest of its life instead: a session
+    /// that is not saved is a small loss, and a colony written over is not
+    /// recoverable. The next launch tries again.
+    private func setAsideUnreadableSave() {
+        do {
+            // Nil means the file went between the failed read and now, and
+            // there is nothing left to protect.
+            guard try persistence.setAsideUnreadableSave() != nil else { return }
+            lastError = Self.setAsideMessage
+        } catch {
+            heldSave = Self.heldMessage
+            lastError = heldSave
+        }
     }
 
     // MARK: - Advancing time
@@ -621,6 +676,11 @@ public final class GameStore {
         // every player action ends in `refresh()`, which ends here — and a
         // watch tap or a widget button can arrive during the introduction.
         guard !needsSetup else { return }
+        // Over a save this store could not read and could not move, never.
+        if let heldSave {
+            lastError = heldSave
+            return
+        }
         do {
             try persistence.save(simulation)
             storedSaveToken = try? persistence.changeToken()

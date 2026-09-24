@@ -1841,6 +1841,16 @@ follows this one when it lands.
   why it is a rule and not an anecdote.
 - **If it can live in the package, put it there.** That is the part that can be
   compiled and tested without a Mac.
+- **Every save ever written must open.** A property added to any type in the
+  save is decoded with `decodeIfPresent` and a default — a synthesised decoder
+  throws on a missing key even when the property has a default. On 2026-09-24
+  `SimulationConfig`, saved whole in every file, was still synthesised, so every
+  balance number added since the world arrived made older saves unreadable.
+  `SaveCompatibilityTests` now removes every key in a real save one at a time
+  and fails on any the save cannot do without that is not on its allow-list;
+  `Fixtures/` holds old saves that must keep decoding (add one when the format
+  changes on purpose; never replace one). And a save that still will not open
+  is set aside as `colony.unreadable.json`, never written over.
 - **Relative values come from the science; the absolute scale is calibrated.**
   Floral traits are measurements. The unit they are expressed in is normalised
   to the catalogue mean, because every consumption constant in the engine

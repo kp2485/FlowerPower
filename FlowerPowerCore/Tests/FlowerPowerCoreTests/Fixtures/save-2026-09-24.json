@@ -1,0 +1,1302 @@
+{
+  "clock" : {
+    "epoch" : "2023-11-14T22:13:20Z",
+    "maxCatchUpDays" : 365,
+    "realSecondsAtTick" : 36000,
+    "realSecondsPerTick" : 300,
+    "tick" : 120,
+    "winterSpeed" : 2
+  },
+  "config" : {
+    "abscondAttackThreshold" : 6,
+    "abscondCombThreshold" : 25,
+    "abscondMaximumChance" : 0.03,
+    "adultStarvationRate" : 0.01,
+    "alarmCasualtyRate" : 0.25,
+    "alarmDecayPerTick" : 0.86,
+    "alarmDefenceBoost" : 0.35,
+    "alarmForageCost" : 0.1,
+    "autumnIncomeOptimism" : 0.2,
+    "baseDroneEncounters" : 14,
+    "beeBreadPerPacker" : 0.014,
+    "biomeThreatScale" : 1,
+    "broodDamagePerDegree" : 0.003,
+    "broodFoodOverhead" : 1.8,
+    "broodLossPerDegree" : 0.004,
+    "broodPerNurse" : 2,
+    "broodPheromoneScale" : 260,
+    "broodRecoveryPerTick" : 0.004,
+    "broodReserveDrawRate" : 0.035,
+    "broodStarvationRate" : 0.03,
+    "broodlessClusterTemperature" : 20,
+    "buildCongestionThreshold" : 0.55,
+    "buildHoneyReserve" : 25,
+    "cellsMaintainedPerBee" : 9,
+    "cellsPerBuilderPerTick" : 0.01,
+    "combDecayRate" : 0.04,
+    "combExtensionStep" : 0.25,
+    "coolingPerFanner" : 0.05,
+    "criticalInfectionLevel" : 0.65,
+    "danceDistanceExponent" : 3,
+    "danceFloorPatches" : 16,
+    "danceRecruitmentExponent" : 1.6,
+    "dearthThresholdPerBee" : 0.04,
+    "droneEggShare" : 0.1,
+    "droneEvictionChance" : 0.3,
+    "droneRearingMinimumPopulation" : 60,
+    "emergencyQueenCellBurst" : 3,
+    "entranceSealPropolis" : 6,
+    "explorationChance" : 0.03,
+    "explorationShare" : 0.06,
+    "flightEnergyPerForager" : 0.0015,
+    "flowThresholdPerBee" : 0.2,
+    "foodBufferDays" : 1.5,
+    "foodPerLarva" : 0.002,
+    "forageWearPerTick" : 0.03,
+    "guardStrength" : 0.09,
+    "heatingPerAdult" : 0.12,
+    "honeyCarriedPerSwarmBee" : 0.12,
+    "honeyPerAdult" : 0.0006,
+    "honeyPerBeeBread" : 0.35,
+    "honeyPerConcentrator" : 0.03,
+    "honeyPerDegreeHeating" : 0.0012,
+    "honeyPerRoyalJelly" : 0.45,
+    "honeyPerWax" : 7,
+    "hygienicRemovalRate" : 0.16,
+    "layingEnergyThreshold" : 8,
+    "layingReservePerBee" : 0.2,
+    "layingWorkerEggsPerDay" : 8,
+    "layingWorkerOnsetDays" : 24,
+    "malnutritionDamagePerTick" : 0.015,
+    "matingFlightEarliestDay" : 6,
+    "matingFlightLatestDay" : 30,
+    "matingFlightMinimumTemperature" : 18,
+    "matingFlightPredationChance" : 0.045,
+    "maxEggsPerDay" : 26,
+    "maximumQueenCells" : 6,
+    "minimumBroodTemperature" : 32,
+    "minimumPollenReserve" : 60,
+    "minimumViablePopulation" : 6,
+    "minimumWaxTemperature" : 30,
+    "nasonovDecayPerTick" : 0.9,
+    "nectarPerForager" : 0.075,
+    "nectarPerHoney" : 3,
+    "nosemaCleansingRecovery" : 0.06,
+    "nursesPerEgg" : 1.2,
+    "patchDailyRegrowth" : 0.18,
+    "patchFadeDays" : 120,
+    "patchFreshDays" : 60,
+    "pathogenArrivalMultiplier" : 1,
+    "pathogenBaseRecovery" : 0.02,
+    "pathogenSeedLevel" : 0.02,
+    "pheromoneDilutionScale" : 45,
+    "pheromoneResponseRate" : 0.05,
+    "pollenPerBeeBread" : 0.8,
+    "pollenPerForager" : 0.06,
+    "pollenPerRoyalJelly" : 0.35,
+    "pollenReserveDays" : 8,
+    "predatorStrength" : 1,
+    "propolisChance" : 0.004,
+    "propolisDecayPerDay" : 0.004,
+    "propolisPerUnit" : 0.05,
+    "queenCellAbandonChancePerTick" : 0.002,
+    "queenCellRoyalJellyPerDay" : 0.3,
+    "queenFailureVitality" : 0.32,
+    "queenJellyReserveDays" : 2,
+    "queenPheromoneOutput" : 1.6,
+    "queenRecoveryPerTick" : 0.01,
+    "queenRoyalJellyPerDay" : 0.15,
+    "queenStarvationDamagePerTick" : 0.003,
+    "queenSupersedureAge" : 0.65,
+    "royalJellyDays" : 3,
+    "royalJellyPerNurse" : 0.014,
+    "safeTemperatureBand" : 2,
+    "scoutDays" : 3,
+    "scoutShare" : 0.1,
+    "sealedEntranceDiseaseFactor" : 1.08,
+    "sealedEntranceHeatRetention" : 0.9,
+    "sealedEntranceMouseFactor" : 0.15,
+    "sharedPatchYield" : 1,
+    "splitDepartureShare" : 0.3,
+    "splitEarliestCellDay" : 6,
+    "splitQueenCellsKept" : 0,
+    "starvationDamagePerTick" : 0.02,
+    "supersedureChance" : 0.02,
+    "swarmCellChance" : 0.45,
+    "swarmCongestionThreshold" : 0.45,
+    "swarmDepartureDay" : 8,
+    "swarmDepartureShare" : 0.6,
+    "swarmDiscouragementEffect" : 0.5,
+    "swarmMinimumPopulation" : 90,
+    "swarmProvisionMultiple" : 3,
+    "swarmSeasonEnd" : 0.35,
+    "swarmSeasonStart" : 0.45,
+    "targetHumidity" : 0.6,
+    "targetPropolisEnvelope" : 0.8,
+    "targetTemperature" : 35,
+    "thermalLeakRate" : 0.08,
+    "viralBroodDamage" : 0.05,
+    "waterPerCarrier" : 0.05,
+    "waterPerDegreeCooling" : 0.15,
+    "waxIncomeShare" : 0.75,
+    "waxPerBuilder" : 0.004,
+    "wildPatchDensity" : 0.15,
+    "wildPatchYield" : 1.6,
+    "winterBuildUpStart" : 0.55,
+    "winterProvisioningMargin" : 1
+  },
+  "ids" : {
+    "nextValue" : 47
+  },
+  "rng" : {
+    "state" : 12221444612347279356
+  },
+  "world" : {
+    "activeThreat" : {
+      "beganOnDay" : 5,
+      "predator" : "skunk",
+      "resolvesOnDay" : 7
+    },
+    "almanac" : {
+      "entries" : [
+        {
+          "day" : 3,
+          "kind" : "threat",
+          "season" : "spring",
+          "text" : "A skunk."
+        }
+      ],
+      "peakHoney" : 40,
+      "tallies" : [
+        {
+          "combAdded" : 0,
+          "honeyTaken" : 0,
+          "infections" : 0,
+          "peakHoney" : 0,
+          "queensMated" : 0,
+          "queensRaised" : 0,
+          "raids" : 1,
+          "raidsRepelled" : 1,
+          "splits" : 0,
+          "swarms" : 0,
+          "year" : 1
+        }
+      ]
+    },
+    "attackHistory" : [
+      {
+        "beesLost" : 2,
+        "combLost" : 0,
+        "day" : 3,
+        "id" : {
+          "rawValue" : 90002
+        },
+        "predator" : "skunk",
+        "storesLost" : 1.5,
+        "wasRepelled" : true
+      }
+    ],
+    "entranceDecision" : true,
+    "entranceSealed" : true,
+    "exploringToday" : true,
+    "history" : {
+      "samples" : [
+        {
+          "adults" : 26,
+          "alarm" : 0,
+          "brood" : 5,
+          "combCells" : 66,
+          "day" : 0,
+          "drones" : 1,
+          "edibleEnergy" : 60.022187546670764,
+          "nectarIntake" : 0,
+          "nestTemperature" : 35,
+          "outsideTemperature" : 13.393895758126707,
+          "status" : 3,
+          "winterBees" : 0,
+          "winterRequirement" : 169.04999999999998,
+          "workers" : 29
+        },
+        {
+          "adults" : 26,
+          "alarm" : 0,
+          "brood" : 9,
+          "combCells" : 66,
+          "day" : 1,
+          "drones" : 1,
+          "edibleEnergy" : 60.86506035892557,
+          "nectarIntake" : 4.906147903738551,
+          "nestTemperature" : 35,
+          "outsideTemperature" : 15.737059540447685,
+          "status" : 3,
+          "winterBees" : 0,
+          "winterRequirement" : 169.04999999999998,
+          "workers" : 33
+        },
+        {
+          "adults" : 26,
+          "alarm" : 0,
+          "brood" : 9,
+          "combCells" : 66,
+          "day" : 2,
+          "drones" : 1,
+          "edibleEnergy" : 62.263262262432875,
+          "nectarIntake" : 6.801354084665308,
+          "nestTemperature" : 35,
+          "outsideTemperature" : 14.664261902677968,
+          "status" : 3,
+          "winterBees" : 0,
+          "winterRequirement" : 169.04999999999998,
+          "workers" : 33
+        },
+        {
+          "adults" : 25,
+          "alarm" : 0,
+          "brood" : 9,
+          "combCells" : 66,
+          "day" : 3,
+          "drones" : 1,
+          "edibleEnergy" : 63.43073577770354,
+          "nectarIntake" : 6.212743331839277,
+          "nestTemperature" : 35,
+          "outsideTemperature" : 13.390214145312157,
+          "status" : 3,
+          "winterBees" : 0,
+          "winterRequirement" : 169.04999999999998,
+          "workers" : 32
+        },
+        {
+          "adults" : 24,
+          "alarm" : 0,
+          "brood" : 9,
+          "combCells" : 66,
+          "day" : 4,
+          "drones" : 1,
+          "edibleEnergy" : 64.15858254786721,
+          "nectarIntake" : 5.14157125040134,
+          "nestTemperature" : 35,
+          "outsideTemperature" : 13.65088270333412,
+          "status" : 3,
+          "winterBees" : 0,
+          "winterRequirement" : 169.04999999999998,
+          "workers" : 31
+        }
+      ]
+    },
+    "hive" : {
+      "bees" : [
+        {
+          "behaviouralAge" : 15,
+          "daysInStage" : 15,
+          "id" : {
+            "rawValue" : 1
+          },
+          "kind" : "queen",
+          "patriline" : 0,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 17,
+          "daysInStage" : 17,
+          "id" : {
+            "rawValue" : 2
+          },
+          "kind" : "drone",
+          "patriline" : 0,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "assignedJob" : "foragingBee",
+          "behaviouralAge" : 7,
+          "daysInStage" : 7,
+          "id" : {
+            "rawValue" : 4
+          },
+          "kind" : "worker",
+          "patriline" : 0,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 8,
+          "daysInStage" : 8,
+          "id" : {
+            "rawValue" : 5
+          },
+          "kind" : "worker",
+          "patriline" : 1,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 10,
+          "daysInStage" : 10,
+          "id" : {
+            "rawValue" : 6
+          },
+          "kind" : "worker",
+          "patriline" : 2,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 11,
+          "daysInStage" : 11,
+          "id" : {
+            "rawValue" : 7
+          },
+          "kind" : "worker",
+          "patriline" : 3,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 13,
+          "daysInStage" : 13,
+          "id" : {
+            "rawValue" : 8
+          },
+          "kind" : "worker",
+          "patriline" : 4,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 14,
+          "daysInStage" : 14,
+          "id" : {
+            "rawValue" : 9
+          },
+          "kind" : "worker",
+          "patriline" : 5,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 16,
+          "daysInStage" : 16,
+          "id" : {
+            "rawValue" : 10
+          },
+          "kind" : "worker",
+          "patriline" : 6,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 18,
+          "daysInStage" : 18,
+          "id" : {
+            "rawValue" : 11
+          },
+          "kind" : "worker",
+          "patriline" : 7,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 19,
+          "daysInStage" : 19,
+          "id" : {
+            "rawValue" : 12
+          },
+          "kind" : "worker",
+          "patriline" : 8,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 21,
+          "daysInStage" : 21,
+          "id" : {
+            "rawValue" : 13
+          },
+          "kind" : "worker",
+          "patriline" : 9,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 22,
+          "daysInStage" : 22,
+          "id" : {
+            "rawValue" : 14
+          },
+          "kind" : "worker",
+          "patriline" : 10,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0.24422717160097906
+        },
+        {
+          "behaviouralAge" : 24,
+          "daysInStage" : 24,
+          "id" : {
+            "rawValue" : 15
+          },
+          "kind" : "worker",
+          "patriline" : 11,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0.7292262289349982
+        },
+        {
+          "behaviouralAge" : 26,
+          "daysInStage" : 26,
+          "id" : {
+            "rawValue" : 16
+          },
+          "kind" : "worker",
+          "patriline" : 0,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 27,
+          "daysInStage" : 27,
+          "id" : {
+            "rawValue" : 17
+          },
+          "kind" : "worker",
+          "patriline" : 1,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 29,
+          "daysInStage" : 29,
+          "id" : {
+            "rawValue" : 18
+          },
+          "kind" : "worker",
+          "patriline" : 2,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 30,
+          "daysInStage" : 30,
+          "id" : {
+            "rawValue" : 19
+          },
+          "kind" : "worker",
+          "patriline" : 3,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 32,
+          "daysInStage" : 32,
+          "id" : {
+            "rawValue" : 20
+          },
+          "kind" : "worker",
+          "patriline" : 4,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 33,
+          "daysInStage" : 33,
+          "id" : {
+            "rawValue" : 21
+          },
+          "kind" : "worker",
+          "patriline" : 5,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 35,
+          "daysInStage" : 35,
+          "id" : {
+            "rawValue" : 22
+          },
+          "kind" : "worker",
+          "patriline" : 6,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 37,
+          "daysInStage" : 37,
+          "id" : {
+            "rawValue" : 23
+          },
+          "kind" : "worker",
+          "patriline" : 7,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 38,
+          "daysInStage" : 38,
+          "id" : {
+            "rawValue" : 24
+          },
+          "kind" : "worker",
+          "patriline" : 8,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 40,
+          "daysInStage" : 40,
+          "id" : {
+            "rawValue" : 25
+          },
+          "kind" : "worker",
+          "patriline" : 9,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 1.2652867722274184
+        },
+        {
+          "behaviouralAge" : 0,
+          "daysInStage" : 1,
+          "id" : {
+            "rawValue" : 38
+          },
+          "kind" : "worker",
+          "patriline" : 9,
+          "physiology" : "summer",
+          "stage" : "larva",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 0,
+          "daysInStage" : 1,
+          "id" : {
+            "rawValue" : 39
+          },
+          "kind" : "worker",
+          "patriline" : 6,
+          "physiology" : "summer",
+          "stage" : "larva",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 0,
+          "daysInStage" : 1,
+          "id" : {
+            "rawValue" : 40
+          },
+          "kind" : "worker",
+          "patriline" : 7,
+          "physiology" : "summer",
+          "stage" : "larva",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 0,
+          "daysInStage" : 1,
+          "id" : {
+            "rawValue" : 41
+          },
+          "kind" : "worker",
+          "patriline" : 9,
+          "physiology" : "summer",
+          "stage" : "larva",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 0,
+          "daysInStage" : 1,
+          "id" : {
+            "rawValue" : 42
+          },
+          "kind" : "worker",
+          "patriline" : 5,
+          "physiology" : "summer",
+          "stage" : "larva",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 0,
+          "daysInStage" : 0,
+          "id" : {
+            "rawValue" : 43
+          },
+          "kind" : "worker",
+          "patriline" : 11,
+          "physiology" : "summer",
+          "stage" : "larva",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 0,
+          "daysInStage" : 0,
+          "id" : {
+            "rawValue" : 44
+          },
+          "kind" : "worker",
+          "patriline" : 11,
+          "physiology" : "summer",
+          "stage" : "larva",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 0,
+          "daysInStage" : 0,
+          "id" : {
+            "rawValue" : 45
+          },
+          "kind" : "worker",
+          "patriline" : 11,
+          "physiology" : "summer",
+          "stage" : "larva",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 0,
+          "daysInStage" : 0,
+          "id" : {
+            "rawValue" : 46
+          },
+          "kind" : "worker",
+          "patriline" : 8,
+          "physiology" : "summer",
+          "stage" : "larva",
+          "vitality" : 1,
+          "wear" : 0
+        }
+      ],
+      "broodUpgrade" : 0,
+      "comb" : {
+        "capacity" : 700,
+        "cells" : [
+          "drone",
+          6,
+          "worker",
+          60
+        ],
+        "queenCells" : [
+          {
+            "daysDeveloped" : 0,
+            "id" : {
+              "rawValue" : 90001
+            },
+            "purpose" : "supersedure",
+            "quality" : 0.8
+          }
+        ]
+      },
+      "daysQueenless" : 0,
+      "genetics" : {
+        "defensiveness" : 0.5,
+        "fecundity" : 1,
+        "hygienicBehaviour" : 0.5,
+        "patrilines" : 12,
+        "swarminess" : 0.5,
+        "thriftiness" : 0.5
+      },
+      "hasLayingWorkers" : false,
+      "humidity" : 0.517736736924671,
+      "location" : {
+        "type" : "livingTreeCavity"
+      },
+      "pathogens" : {
+        "levels" : [
+          "varroa",
+          0.05
+        ]
+      },
+      "pheromones" : {
+        "alarm" : 0,
+        "brood" : 0.034454706239951664,
+        "nasonov" : 0,
+        "queenMandibular" : 0.9999991583745437
+      },
+      "propolisEnvelope" : 0.184,
+      "queenIsMated" : true,
+      "resources" : {
+        "amounts" : [
+          "honey",
+          64.29603599385312,
+          "beeBread",
+          0.4613382144,
+          "pollen",
+          31.461759936684565,
+          "water",
+          8.063010815999993,
+          "royalJelly",
+          0.9237500000000002,
+          "wax",
+          10
+        ]
+      },
+      "temperatureCelsius" : 35
+    },
+    "honeyTaken" : 4,
+    "importedShares" : [
+      "share-1"
+    ],
+    "lastSwarm" : {
+      "day" : 2,
+      "genetics" : {
+        "defensiveness" : 0.5,
+        "fecundity" : 1,
+        "hygienicBehaviour" : 0.5,
+        "patrilines" : 12,
+        "swarminess" : 0.5,
+        "thriftiness" : 0.5
+      },
+      "honeyCarried" : 3,
+      "queen" : {
+        "behaviouralAge" : 15,
+        "daysInStage" : 15,
+        "id" : {
+          "rawValue" : 1
+        },
+        "kind" : "queen",
+        "patriline" : 0,
+        "physiology" : "summer",
+        "stage" : "adult",
+        "vitality" : 1,
+        "wear" : 0
+      },
+      "queenNumber" : 1,
+      "workers" : [
+        {
+          "assignedJob" : "foragingBee",
+          "behaviouralAge" : 7,
+          "daysInStage" : 7,
+          "id" : {
+            "rawValue" : 4
+          },
+          "kind" : "worker",
+          "patriline" : 0,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        },
+        {
+          "behaviouralAge" : 8,
+          "daysInStage" : 8,
+          "id" : {
+            "rawValue" : 5
+          },
+          "kind" : "worker",
+          "patriline" : 1,
+          "physiology" : "summer",
+          "stage" : "adult",
+          "vitality" : 1,
+          "wear" : 0
+        }
+      ]
+    },
+    "lineage" : {
+      "generation" : 1,
+      "queens" : [
+        {
+          "emergedOnDay" : 0,
+          "matedOnDay" : 0,
+          "number" : 1,
+          "patrilines" : 12,
+          "quality" : 1
+        },
+        {
+          "emergedOnDay" : 4,
+          "endedOnDay" : 5,
+          "ending" : "superseded",
+          "matedOnDay" : 5,
+          "motherNumber" : 1,
+          "name" : "Hazel",
+          "number" : 2,
+          "patrilines" : 9,
+          "quality" : 0.9
+        }
+      ]
+    },
+    "milestones" : {
+      "achieved" : [
+        {
+          "day" : 0,
+          "milestone" : "firstFlower"
+        }
+      ]
+    },
+    "patches" : [
+      {
+        "cell" : {
+          "q" : 9,
+          "r" : -4
+        },
+        "discoveredAt" : "2023-11-14T22:13:20Z",
+        "distanceMetres" : 1800,
+        "id" : {
+          "rawValue" : 29
+        },
+        "identificationConfidence" : 0,
+        "nectarCapacity" : 214.4568370050659,
+        "photoLocalIdentifier" : "wild:9,-4",
+        "pollenCapacity" : 130.08163932101567,
+        "recruitedForagers" : 0,
+        "remainingNectar" : 214.4568370050659,
+        "remainingPollen" : 130.08163932101567,
+        "species" : {
+          "bloomSeasons" : [
+            "autumn"
+          ],
+          "commonName" : "Ivy",
+          "id" : "ivy",
+          "isKeystone" : true,
+          "rarity" : "common",
+          "taxon" : {
+            "family" : "araliaceae",
+            "genus" : "Hedera",
+            "specificEpithet" : "helix"
+          },
+          "traits" : {
+            "corollaDepthMillimetres" : 1,
+            "nectarSugarConcentration" : 0.49,
+            "nectarVolume" : 1.5,
+            "pollenAbundance" : 1.2,
+            "pollenAminoAcidCompleteness" : 0.9,
+            "pollenProteinFraction" : 0.2,
+            "producesNectar" : true
+          }
+        },
+        "storedOrigin" : "wild"
+      },
+      {
+        "cell" : {
+          "q" : 2,
+          "r" : 2
+        },
+        "discoveredAt" : "2023-11-14T22:13:20Z",
+        "distanceMetres" : 800,
+        "id" : {
+          "rawValue" : 30
+        },
+        "identificationConfidence" : 0,
+        "nectarCapacity" : 118.97595615662401,
+        "photoLocalIdentifier" : "wild:2,2",
+        "pollenCapacity" : 131.85239941157496,
+        "recruitedForagers" : 1,
+        "remainingNectar" : 118.54549553570972,
+        "remainingPollen" : 131.6857837182617,
+        "species" : {
+          "bloomSeasons" : [
+            "spring"
+          ],
+          "commonName" : "Hawthorn",
+          "id" : "hawthorn",
+          "isKeystone" : false,
+          "rarity" : "common",
+          "taxon" : {
+            "family" : "rosaceae",
+            "genus" : "Crataegus",
+            "specificEpithet" : "monogyna"
+          },
+          "traits" : {
+            "corollaDepthMillimetres" : 1.5,
+            "nectarSugarConcentration" : 0.32,
+            "nectarVolume" : 1.1,
+            "pollenAbundance" : 1,
+            "pollenAminoAcidCompleteness" : 0.9,
+            "pollenProteinFraction" : 0.21,
+            "producesNectar" : true
+          }
+        },
+        "storedOrigin" : "wild"
+      },
+      {
+        "cell" : {
+          "q" : -2,
+          "r" : 5
+        },
+        "discoveredAt" : "2023-11-14T22:13:20Z",
+        "distanceMetres" : 1000,
+        "id" : {
+          "rawValue" : 31
+        },
+        "identificationConfidence" : 0,
+        "nectarCapacity" : 150.34768779660786,
+        "photoLocalIdentifier" : "wild:-2,5",
+        "pollenCapacity" : 166.61940800768613,
+        "recruitedForagers" : 1,
+        "remainingNectar" : 150.07683428424045,
+        "remainingPollen" : 166.5145716343406,
+        "species" : {
+          "bloomSeasons" : [
+            "spring"
+          ],
+          "commonName" : "Hawthorn",
+          "id" : "hawthorn",
+          "isKeystone" : false,
+          "rarity" : "common",
+          "taxon" : {
+            "family" : "rosaceae",
+            "genus" : "Crataegus",
+            "specificEpithet" : "monogyna"
+          },
+          "traits" : {
+            "corollaDepthMillimetres" : 1.5,
+            "nectarSugarConcentration" : 0.32,
+            "nectarVolume" : 1.1,
+            "pollenAbundance" : 1,
+            "pollenAminoAcidCompleteness" : 0.9,
+            "pollenProteinFraction" : 0.21,
+            "producesNectar" : true
+          }
+        },
+        "storedOrigin" : "wild"
+      },
+      {
+        "cell" : {
+          "q" : -7,
+          "r" : 3
+        },
+        "discoveredAt" : "2023-11-14T22:13:20Z",
+        "distanceMetres" : 1400,
+        "id" : {
+          "rawValue" : 32
+        },
+        "identificationConfidence" : 0,
+        "nectarCapacity" : 286.6646120874232,
+        "photoLocalIdentifier" : "wild:-7,3",
+        "pollenCapacity" : 173.8802231554604,
+        "recruitedForagers" : 0,
+        "remainingNectar" : 286.6646120874232,
+        "remainingPollen" : 173.8802231554604,
+        "species" : {
+          "bloomSeasons" : [
+            "autumn"
+          ],
+          "commonName" : "Ivy",
+          "id" : "ivy",
+          "isKeystone" : true,
+          "rarity" : "common",
+          "taxon" : {
+            "family" : "araliaceae",
+            "genus" : "Hedera",
+            "specificEpithet" : "helix"
+          },
+          "traits" : {
+            "corollaDepthMillimetres" : 1,
+            "nectarSugarConcentration" : 0.49,
+            "nectarVolume" : 1.5,
+            "pollenAbundance" : 1.2,
+            "pollenAminoAcidCompleteness" : 0.9,
+            "pollenProteinFraction" : 0.2,
+            "producesNectar" : true
+          }
+        },
+        "storedOrigin" : "wild"
+      },
+      {
+        "cell" : {
+          "q" : -2,
+          "r" : -3
+        },
+        "discoveredAt" : "2023-11-14T22:13:20Z",
+        "distanceMetres" : 1000,
+        "id" : {
+          "rawValue" : 33
+        },
+        "identificationConfidence" : 0,
+        "nectarCapacity" : 127.11828641408826,
+        "photoLocalIdentifier" : "wild:-2,-3",
+        "pollenCapacity" : 140.87595186644933,
+        "recruitedForagers" : 1,
+        "remainingNectar" : 126.84748043277189,
+        "remainingPollen" : 140.77113367386445,
+        "species" : {
+          "bloomSeasons" : [
+            "spring"
+          ],
+          "commonName" : "Hawthorn",
+          "id" : "hawthorn",
+          "isKeystone" : false,
+          "rarity" : "common",
+          "taxon" : {
+            "family" : "rosaceae",
+            "genus" : "Crataegus",
+            "specificEpithet" : "monogyna"
+          },
+          "traits" : {
+            "corollaDepthMillimetres" : 1.5,
+            "nectarSugarConcentration" : 0.32,
+            "nectarVolume" : 1.1,
+            "pollenAbundance" : 1,
+            "pollenAminoAcidCompleteness" : 0.9,
+            "pollenProteinFraction" : 0.21,
+            "producesNectar" : true
+          }
+        },
+        "storedOrigin" : "wild"
+      },
+      {
+        "cell" : {
+          "q" : 5,
+          "r" : -10
+        },
+        "discoveredAt" : "2023-11-14T22:13:20Z",
+        "distanceMetres" : 2000,
+        "id" : {
+          "rawValue" : 34
+        },
+        "identificationConfidence" : 0,
+        "nectarCapacity" : 270.9498371530284,
+        "photoLocalIdentifier" : "wild:5,-10",
+        "pollenCapacity" : 164.3482179577031,
+        "recruitedForagers" : 0,
+        "remainingNectar" : 270.9498371530284,
+        "remainingPollen" : 164.3482179577031,
+        "species" : {
+          "bloomSeasons" : [
+            "autumn"
+          ],
+          "commonName" : "Ivy",
+          "id" : "ivy",
+          "isKeystone" : true,
+          "rarity" : "common",
+          "taxon" : {
+            "family" : "araliaceae",
+            "genus" : "Hedera",
+            "specificEpithet" : "helix"
+          },
+          "traits" : {
+            "corollaDepthMillimetres" : 1,
+            "nectarSugarConcentration" : 0.49,
+            "nectarVolume" : 1.5,
+            "pollenAbundance" : 1.2,
+            "pollenAminoAcidCompleteness" : 0.9,
+            "pollenProteinFraction" : 0.2,
+            "producesNectar" : true
+          }
+        },
+        "storedOrigin" : "wild"
+      },
+      {
+        "cell" : {
+          "q" : 1,
+          "r" : 0
+        },
+        "discoveredAt" : "2023-11-14T22:13:20Z",
+        "distanceMetres" : 200,
+        "id" : {
+          "rawValue" : 35
+        },
+        "identificationConfidence" : 0.9,
+        "nectarCapacity" : 166.046511627907,
+        "photoLocalIdentifier" : "photo-clover",
+        "pollenCapacity" : 174.42,
+        "recruitedForagers" : 5,
+        "registeredOnDay" : 0,
+        "remainingNectar" : 163.77579981808847,
+        "remainingPollen" : 173.54103221899499,
+        "species" : {
+          "bloomSeasons" : [
+            "spring",
+            "summer",
+            "autumn"
+          ],
+          "commonName" : "White Clover",
+          "id" : "white_clover",
+          "isKeystone" : false,
+          "rarity" : "common",
+          "taxon" : {
+            "family" : "fabaceae",
+            "genus" : "Trifolium",
+            "specificEpithet" : "repens"
+          },
+          "traits" : {
+            "corollaDepthMillimetres" : 2,
+            "nectarSugarConcentration" : 0.35,
+            "nectarVolume" : 1.2,
+            "pollenAbundance" : 0.9,
+            "pollenAminoAcidCompleteness" : 0.95,
+            "pollenProteinFraction" : 0.25,
+            "producesNectar" : true
+          }
+        },
+        "storedOrigin" : "photographed"
+      },
+      {
+        "cell" : {
+          "q" : 0,
+          "r" : 1
+        },
+        "discoveredAt" : "2023-11-14T22:13:20Z",
+        "distanceMetres" : 200,
+        "id" : {
+          "rawValue" : 36
+        },
+        "identificationConfidence" : 0,
+        "nectarCapacity" : 52.325581395348834,
+        "photoLocalIdentifier" : "photo-unknown",
+        "pollenCapacity" : 55.07999999999999,
+        "recruitedForagers" : 5,
+        "registeredOnDay" : 0,
+        "remainingNectar" : 50.09118562772835,
+        "remainingPollen" : 54.21492521931471,
+        "storedOrigin" : "photographed"
+      },
+      {
+        "cell" : {
+          "q" : -1,
+          "r" : 1
+        },
+        "discoveredAt" : "2023-11-14T22:13:20Z",
+        "distanceMetres" : 200,
+        "id" : {
+          "rawValue" : 37
+        },
+        "identificationConfidence" : 0.7,
+        "nectarCapacity" : 294.69767441860466,
+        "photoLocalIdentifier" : "photo-shared",
+        "pollenCapacity" : 150.40512,
+        "recruitedForagers" : 0,
+        "registeredOnDay" : 0,
+        "remainingNectar" : 294.69767441860466,
+        "remainingPollen" : 150.40512,
+        "sharedBy" : "A neighbour",
+        "species" : {
+          "bloomSeasons" : [
+            "autumn"
+          ],
+          "commonName" : "Heather",
+          "id" : "heather",
+          "isKeystone" : true,
+          "rarity" : "uncommon",
+          "taxon" : {
+            "family" : "ericaceae",
+            "genus" : "Calluna",
+            "specificEpithet" : "vulgaris"
+          },
+          "traits" : {
+            "corollaDepthMillimetres" : 2,
+            "nectarSugarConcentration" : 0.33,
+            "nectarVolume" : 1.5,
+            "pollenAbundance" : 0.8,
+            "pollenAminoAcidCompleteness" : 0.85,
+            "pollenProteinFraction" : 0.18,
+            "producesNectar" : true
+          }
+        },
+        "storedOrigin" : "shared"
+      }
+    ],
+    "pendingSwarm" : {
+      "departsOnDay" : 13,
+      "discouraged" : true,
+      "startedOnDay" : 5
+    },
+    "posture" : "holdEntrance",
+    "postureUntilDay" : 7,
+    "recentNectarIntake" : [
+      0,
+      4.906147903738551,
+      6.801354084665308,
+      6.212743331839277,
+      5.14157125040134
+    ],
+    "scoutingParty" : {
+      "leftOnDay" : 5,
+      "returnsOnDay" : 8
+    },
+    "terrain" : {
+      "discovered" : [
+        {
+          "q" : 0,
+          "r" : 0
+        },
+        {
+          "q" : 1,
+          "r" : 0
+        },
+        {
+          "q" : 0,
+          "r" : 1
+        },
+        {
+          "q" : -1,
+          "r" : 1
+        },
+        {
+          "q" : -1,
+          "r" : 0
+        },
+        {
+          "q" : 0,
+          "r" : -1
+        },
+        {
+          "q" : 1,
+          "r" : -1
+        }
+      ],
+      "gardenRings" : 1,
+      "home" : {
+        "q" : 0,
+        "r" : 0
+      },
+      "seed" : 3218691062018700404
+    },
+    "todayNectarIntake" : 5.477227692037061,
+    "weather" : {
+      "humidity" : 0.44088861102002586,
+      "sky" : "clear",
+      "temperatureCelsius" : 13.65088270333412,
+      "windSpeed" : 1.2134566435139003
+    }
+  }
+}

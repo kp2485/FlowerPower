@@ -67,11 +67,11 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// makes rare and cold; nothing else about winter changes.
     ///
     /// The value is `shippedWinterForage`; the sweep that chose it is there.
-    /// Stored as an optional so that a save written before it existed decodes
-    /// — synthesised `Codable` reads an optional with `decodeIfPresent` and a
-    /// plain `Double` with `decode`, which would throw on every save on every
-    /// phone — and so that a save does not pin the colony to whatever the
-    /// value was when it was written. Nil is the shipped value; `beesim --set
+    /// Stored as an optional so that a save does not pin the colony to
+    /// whatever the value was when it was written. (It was first made optional
+    /// so that a save written before it existed would decode, back when the
+    /// config was decoded by synthesis; `init(from:)` below now does that for
+    /// every key.) Nil is the shipped value; `beesim --set
     /// winterForageMultiplier=` sets it.
     public var winterForageOverride: Double? = nil
 
@@ -864,9 +864,259 @@ extension SimulationConfig {
     }
 }
 
+// MARK: - Reading a save
 
+extension SimulationConfig {
 
+    /// Decoded by hand, one key at a time, so that a key added since a save
+    /// was written takes today's default rather than making the save
+    /// unreadable.
+    ///
+    /// The whole config is written into every save file, and a synthesised
+    /// decoder throws on the first key it cannot find. `GameStore.load` used
+    /// to treat an unreadable save as no save at all, so every balance number
+    /// added here — `wildPatchDensity` and the rest of the country on
+    /// 2026-09-16, and every one after — would have made the colony of
+    /// anybody who updated unreadable. This is the rule `World.init(from:)`
+    /// states, applied to the type most likely to break it.
+    ///
+    /// A missing key takes the *standard* value, not the value of whatever
+    /// preset the colony was started on. A preset only adjusts numbers that
+    /// already existed when it was chosen, so a key the save has never heard
+    /// of is one no preset had an opinion about when the player picked it.
+    ///
+    /// Only `init(from:)` is written out; the encoder is still synthesised,
+    /// so the file's shape is exactly what it was. **A new property needs a
+    /// line here.** Without one it still decodes, to its default, whatever the
+    /// save said — which is why `SaveCompatibilityTests` moves every property
+    /// off its default and fails on any that does not come back.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = SimulationConfig()
 
+        func read<Value: Decodable>(_ key: CodingKeys, _ fallback: Value) throws -> Value {
+            try container.decodeIfPresent(Value.self, forKey: key) ?? fallback
+        }
 
+        // Foraging
+        nectarPerForager = try read(.nectarPerForager, defaults.nectarPerForager)
+        pollenPerForager = try read(.pollenPerForager, defaults.pollenPerForager)
+        waterPerCarrier = try read(.waterPerCarrier, defaults.waterPerCarrier)
+        propolisChance = try read(.propolisChance, defaults.propolisChance)
+        flightEnergyPerForager = try read(.flightEnergyPerForager, defaults.flightEnergyPerForager)
+        forageWearPerTick = try read(.forageWearPerTick, defaults.forageWearPerTick)
+        danceRecruitmentExponent = try read(
+            .danceRecruitmentExponent, defaults.danceRecruitmentExponent
+        )
+        patchDailyRegrowth = try read(.patchDailyRegrowth, defaults.patchDailyRegrowth)
+        winterForageOverride = try container.decodeIfPresent(
+            Double.self, forKey: .winterForageOverride
+        )
+        pollenReserveDays = try read(.pollenReserveDays, defaults.pollenReserveDays)
+        minimumPollenReserve = try read(.minimumPollenReserve, defaults.minimumPollenReserve)
 
+        // In-hive processing
+        nectarPerHoney = try read(.nectarPerHoney, defaults.nectarPerHoney)
+        honeyPerConcentrator = try read(.honeyPerConcentrator, defaults.honeyPerConcentrator)
+        beeBreadPerPacker = try read(.beeBreadPerPacker, defaults.beeBreadPerPacker)
+        honeyPerBeeBread = try read(.honeyPerBeeBread, defaults.honeyPerBeeBread)
+        pollenPerBeeBread = try read(.pollenPerBeeBread, defaults.pollenPerBeeBread)
+        royalJellyPerNurse = try read(.royalJellyPerNurse, defaults.royalJellyPerNurse)
+        honeyPerRoyalJelly = try read(.honeyPerRoyalJelly, defaults.honeyPerRoyalJelly)
+        pollenPerRoyalJelly = try read(.pollenPerRoyalJelly, defaults.pollenPerRoyalJelly)
+        foodBufferDays = try read(.foodBufferDays, defaults.foodBufferDays)
 
+        // Wax and comb
+        honeyPerWax = try read(.honeyPerWax, defaults.honeyPerWax)
+        waxPerBuilder = try read(.waxPerBuilder, defaults.waxPerBuilder)
+        cellsPerBuilderPerTick = try read(.cellsPerBuilderPerTick, defaults.cellsPerBuilderPerTick)
+        buildCongestionThreshold = try read(
+            .buildCongestionThreshold, defaults.buildCongestionThreshold
+        )
+        buildHoneyReserve = try read(.buildHoneyReserve, defaults.buildHoneyReserve)
+        waxIncomeShare = try read(.waxIncomeShare, defaults.waxIncomeShare)
+        minimumWaxTemperature = try read(.minimumWaxTemperature, defaults.minimumWaxTemperature)
+        cellsMaintainedPerBee = try read(.cellsMaintainedPerBee, defaults.cellsMaintainedPerBee)
+        combDecayRate = try read(.combDecayRate, defaults.combDecayRate)
+
+        // Consumption
+        honeyPerAdult = try read(.honeyPerAdult, defaults.honeyPerAdult)
+        foodPerLarva = try read(.foodPerLarva, defaults.foodPerLarva)
+        royalJellyDays = try read(.royalJellyDays, defaults.royalJellyDays)
+        queenRoyalJellyPerDay = try read(.queenRoyalJellyPerDay, defaults.queenRoyalJellyPerDay)
+        queenCellRoyalJellyPerDay = try read(
+            .queenCellRoyalJellyPerDay, defaults.queenCellRoyalJellyPerDay
+        )
+        queenJellyReserveDays = try read(.queenJellyReserveDays, defaults.queenJellyReserveDays)
+        queenCellAbandonChancePerTick = try read(
+            .queenCellAbandonChancePerTick, defaults.queenCellAbandonChancePerTick
+        )
+        starvationDamagePerTick = try read(
+            .starvationDamagePerTick, defaults.starvationDamagePerTick
+        )
+        malnutritionDamagePerTick = try read(
+            .malnutritionDamagePerTick, defaults.malnutritionDamagePerTick
+        )
+        broodRecoveryPerTick = try read(.broodRecoveryPerTick, defaults.broodRecoveryPerTick)
+        queenStarvationDamagePerTick = try read(
+            .queenStarvationDamagePerTick, defaults.queenStarvationDamagePerTick
+        )
+        queenRecoveryPerTick = try read(.queenRecoveryPerTick, defaults.queenRecoveryPerTick)
+        broodStarvationRate = try read(.broodStarvationRate, defaults.broodStarvationRate)
+        adultStarvationRate = try read(.adultStarvationRate, defaults.adultStarvationRate)
+
+        // Thermoregulation
+        targetTemperature = try read(.targetTemperature, defaults.targetTemperature)
+        broodlessClusterTemperature = try read(
+            .broodlessClusterTemperature, defaults.broodlessClusterTemperature
+        )
+        minimumBroodTemperature = try read(
+            .minimumBroodTemperature, defaults.minimumBroodTemperature
+        )
+        safeTemperatureBand = try read(.safeTemperatureBand, defaults.safeTemperatureBand)
+        targetHumidity = try read(.targetHumidity, defaults.targetHumidity)
+        thermalLeakRate = try read(.thermalLeakRate, defaults.thermalLeakRate)
+        heatingPerAdult = try read(.heatingPerAdult, defaults.heatingPerAdult)
+        honeyPerDegreeHeating = try read(.honeyPerDegreeHeating, defaults.honeyPerDegreeHeating)
+        coolingPerFanner = try read(.coolingPerFanner, defaults.coolingPerFanner)
+        waterPerDegreeCooling = try read(.waterPerDegreeCooling, defaults.waterPerDegreeCooling)
+        broodLossPerDegree = try read(.broodLossPerDegree, defaults.broodLossPerDegree)
+        broodDamagePerDegree = try read(.broodDamagePerDegree, defaults.broodDamagePerDegree)
+
+        // Queen and brood
+        maxEggsPerDay = try read(.maxEggsPerDay, defaults.maxEggsPerDay)
+        nursesPerEgg = try read(.nursesPerEgg, defaults.nursesPerEgg)
+        droneEggShare = try read(.droneEggShare, defaults.droneEggShare)
+        droneRearingMinimumPopulation = try read(
+            .droneRearingMinimumPopulation, defaults.droneRearingMinimumPopulation
+        )
+        droneEvictionChance = try read(.droneEvictionChance, defaults.droneEvictionChance)
+        layingEnergyThreshold = try read(.layingEnergyThreshold, defaults.layingEnergyThreshold)
+        layingReservePerBee = try read(.layingReservePerBee, defaults.layingReservePerBee)
+        broodReserveDrawRate = try read(.broodReserveDrawRate, defaults.broodReserveDrawRate)
+        broodFoodOverhead = try read(.broodFoodOverhead, defaults.broodFoodOverhead)
+        autumnIncomeOptimism = try read(.autumnIncomeOptimism, defaults.autumnIncomeOptimism)
+        winterProvisioningMargin = try read(
+            .winterProvisioningMargin, defaults.winterProvisioningMargin
+        )
+        winterBuildUpStart = try read(.winterBuildUpStart, defaults.winterBuildUpStart)
+        broodPerNurse = try read(.broodPerNurse, defaults.broodPerNurse)
+        queenFailureVitality = try read(.queenFailureVitality, defaults.queenFailureVitality)
+        queenSupersedureAge = try read(.queenSupersedureAge, defaults.queenSupersedureAge)
+        supersedureChance = try read(.supersedureChance, defaults.supersedureChance)
+        maximumQueenCells = try read(.maximumQueenCells, defaults.maximumQueenCells)
+        emergencyQueenCellBurst = try read(
+            .emergencyQueenCellBurst, defaults.emergencyQueenCellBurst
+        )
+        matingFlightEarliestDay = try read(
+            .matingFlightEarliestDay, defaults.matingFlightEarliestDay
+        )
+        matingFlightLatestDay = try read(.matingFlightLatestDay, defaults.matingFlightLatestDay)
+        matingFlightMinimumTemperature = try read(
+            .matingFlightMinimumTemperature, defaults.matingFlightMinimumTemperature
+        )
+        matingFlightPredationChance = try read(
+            .matingFlightPredationChance, defaults.matingFlightPredationChance
+        )
+        baseDroneEncounters = try read(.baseDroneEncounters, defaults.baseDroneEncounters)
+        layingWorkerOnsetDays = try read(.layingWorkerOnsetDays, defaults.layingWorkerOnsetDays)
+        layingWorkerEggsPerDay = try read(.layingWorkerEggsPerDay, defaults.layingWorkerEggsPerDay)
+        flowThresholdPerBee = try read(.flowThresholdPerBee, defaults.flowThresholdPerBee)
+        dearthThresholdPerBee = try read(.dearthThresholdPerBee, defaults.dearthThresholdPerBee)
+
+        // Decisions
+        entranceSealPropolis = try read(.entranceSealPropolis, defaults.entranceSealPropolis)
+        sealedEntranceMouseFactor = try read(
+            .sealedEntranceMouseFactor, defaults.sealedEntranceMouseFactor
+        )
+        sealedEntranceDiseaseFactor = try read(
+            .sealedEntranceDiseaseFactor, defaults.sealedEntranceDiseaseFactor
+        )
+        sealedEntranceHeatRetention = try read(
+            .sealedEntranceHeatRetention, defaults.sealedEntranceHeatRetention
+        )
+        swarmDiscouragementEffect = try read(
+            .swarmDiscouragementEffect, defaults.swarmDiscouragementEffect
+        )
+        sharedPatchYield = try read(.sharedPatchYield, defaults.sharedPatchYield)
+
+        // The country
+        wildPatchYield = try read(.wildPatchYield, defaults.wildPatchYield)
+        danceDistanceExponent = try read(.danceDistanceExponent, defaults.danceDistanceExponent)
+        danceFloorPatches = try read(.danceFloorPatches, defaults.danceFloorPatches)
+        wildPatchDensity = try read(.wildPatchDensity, defaults.wildPatchDensity)
+        biomeThreatScale = try read(.biomeThreatScale, defaults.biomeThreatScale)
+        scoutShare = try read(.scoutShare, defaults.scoutShare)
+        scoutDays = try read(.scoutDays, defaults.scoutDays)
+        explorationShare = try read(.explorationShare, defaults.explorationShare)
+        explorationChance = try read(.explorationChance, defaults.explorationChance)
+        patchFreshDays = try read(.patchFreshDays, defaults.patchFreshDays)
+        patchFadeDays = try read(.patchFadeDays, defaults.patchFadeDays)
+
+        // Swarming
+        swarmProvisionMultiple = try read(.swarmProvisionMultiple, defaults.swarmProvisionMultiple)
+        swarmSeasonStart = try read(.swarmSeasonStart, defaults.swarmSeasonStart)
+        swarmSeasonEnd = try read(.swarmSeasonEnd, defaults.swarmSeasonEnd)
+        swarmCongestionThreshold = try read(
+            .swarmCongestionThreshold, defaults.swarmCongestionThreshold
+        )
+        swarmMinimumPopulation = try read(.swarmMinimumPopulation, defaults.swarmMinimumPopulation)
+        swarmCellChance = try read(.swarmCellChance, defaults.swarmCellChance)
+        swarmDepartureDay = try read(.swarmDepartureDay, defaults.swarmDepartureDay)
+        swarmDepartureShare = try read(.swarmDepartureShare, defaults.swarmDepartureShare)
+        honeyCarriedPerSwarmBee = try read(
+            .honeyCarriedPerSwarmBee, defaults.honeyCarriedPerSwarmBee
+        )
+
+        // The answers to congestion
+        combExtensionStep = try read(.combExtensionStep, defaults.combExtensionStep)
+        splitDepartureShare = try read(.splitDepartureShare, defaults.splitDepartureShare)
+        splitEarliestCellDay = try read(.splitEarliestCellDay, defaults.splitEarliestCellDay)
+        splitQueenCellsKept = try read(.splitQueenCellsKept, defaults.splitQueenCellsKept)
+
+        // Absconding
+        abscondAttackThreshold = try read(.abscondAttackThreshold, defaults.abscondAttackThreshold)
+        abscondCombThreshold = try read(.abscondCombThreshold, defaults.abscondCombThreshold)
+        abscondMaximumChance = try read(.abscondMaximumChance, defaults.abscondMaximumChance)
+
+        // Pheromones
+        queenPheromoneOutput = try read(.queenPheromoneOutput, defaults.queenPheromoneOutput)
+        pheromoneDilutionScale = try read(.pheromoneDilutionScale, defaults.pheromoneDilutionScale)
+        broodPheromoneScale = try read(.broodPheromoneScale, defaults.broodPheromoneScale)
+        pheromoneResponseRate = try read(.pheromoneResponseRate, defaults.pheromoneResponseRate)
+        alarmDecayPerTick = try read(.alarmDecayPerTick, defaults.alarmDecayPerTick)
+
+        // What alarm pheromone actually does
+        alarmDefenceBoost = try read(.alarmDefenceBoost, defaults.alarmDefenceBoost)
+        alarmForageCost = try read(.alarmForageCost, defaults.alarmForageCost)
+        alarmCasualtyRate = try read(.alarmCasualtyRate, defaults.alarmCasualtyRate)
+        nasonovDecayPerTick = try read(.nasonovDecayPerTick, defaults.nasonovDecayPerTick)
+
+        // Propolis
+        targetPropolisEnvelope = try read(.targetPropolisEnvelope, defaults.targetPropolisEnvelope)
+        propolisPerUnit = try read(.propolisPerUnit, defaults.propolisPerUnit)
+        propolisDecayPerDay = try read(.propolisDecayPerDay, defaults.propolisDecayPerDay)
+
+        // Disease
+        pathogenSeedLevel = try read(.pathogenSeedLevel, defaults.pathogenSeedLevel)
+        pathogenBaseRecovery = try read(.pathogenBaseRecovery, defaults.pathogenBaseRecovery)
+        nosemaCleansingRecovery = try read(
+            .nosemaCleansingRecovery, defaults.nosemaCleansingRecovery
+        )
+        hygienicRemovalRate = try read(.hygienicRemovalRate, defaults.hygienicRemovalRate)
+        viralBroodDamage = try read(.viralBroodDamage, defaults.viralBroodDamage)
+        criticalInfectionLevel = try read(.criticalInfectionLevel, defaults.criticalInfectionLevel)
+        pathogenArrivalMultiplier = try read(
+            .pathogenArrivalMultiplier, defaults.pathogenArrivalMultiplier
+        )
+
+        // Defence
+        guardStrength = try read(.guardStrength, defaults.guardStrength)
+        predatorStrength = try read(.predatorStrength, defaults.predatorStrength)
+
+        // Colony viability
+        minimumViablePopulation = try read(
+            .minimumViablePopulation, defaults.minimumViablePopulation
+        )
+    }
+}

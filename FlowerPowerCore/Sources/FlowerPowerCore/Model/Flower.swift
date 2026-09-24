@@ -73,6 +73,38 @@ public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
         self.traits = traits ?? taxon.family.typicalTraits
     }
 
+    /// Decoded by hand for the reason `World.init(from:)` gives: a key this
+    /// build writes and an older save does not have must not make the save
+    /// unreadable. A whole species is written into every patch, so this type
+    /// is in every save many times over.
+    ///
+    /// `taxon` and `traits` are the two that have arrived since the first
+    /// save, on 2026-09-06, when forage started coming from real floral traits
+    /// rather than a hand-chosen richness. A species saved before then is
+    /// given the catalogue's description of the plant with that id — which is
+    /// what the id meant when it was written — and failing that the same
+    /// family-typical estimate `init` falls back on. The richness numbers it
+    /// was saved with are ignored rather than translated; they were the model
+    /// that the traits replaced.
+    ///
+    /// Only `init(from:)` is written out; the encoder is still synthesised.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        commonName = try container.decode(String.self, forKey: .commonName)
+        rarity = try container.decode(FlowerRarity.self, forKey: .rarity)
+        bloomSeasons = try container.decode(Set<Season>.self, forKey: .bloomSeasons)
+        isKeystone = try container.decode(Bool.self, forKey: .isKeystone)
+
+        let catalogued = FlowerCatalogue.species(withID: id)
+        taxon = try container.decodeIfPresent(Taxon.self, forKey: .taxon)
+            ?? catalogued?.taxon
+            ?? Self.unidentified.taxon
+        traits = try container.decodeIfPresent(FloralTraits.self, forKey: .traits)
+            ?? catalogued?.traits
+            ?? taxon.family.typicalTraits
+    }
+
     public var scientificName: String? { taxon.scientificName }
     public var family: PlantFamily { taxon.family }
 
@@ -244,9 +276,9 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
     /// Optional for the same reason as `registeredOnDay` and `storedOrigin`:
     /// every patch photographed before the world existed was nowhere in
     /// particular, and a missing cell means exactly that rather than being an
-    /// error. Synthesised `Codable` handles an optional in both directions —
-    /// an old save decodes it as nil, and a save written with one opens in a
-    /// build that has never heard of it.
+    /// error. An optional travels in both directions — an old save decodes it
+    /// as nil, and a save written with one opens in a build that has never
+    /// heard of it.
     ///
     /// When a patch has a cell, `distanceMetres` is derived from it and the
     /// two are kept in step by `Simulation.plant(_:at:)`. When it has none,
@@ -323,6 +355,43 @@ public struct FlowerPatch: Identifiable, Codable, Equatable, Sendable {
         self.pollenCapacity = Self.baseCapacity * resolved.pollenRichness * scale
         self.remainingNectar = nectarCapacity
         self.remainingPollen = pollenCapacity
+    }
+
+    /// Decoded by hand for the reason `World.init(from:)` gives.
+    ///
+    /// Everything this type has gained since the first save — the day it was
+    /// registered, where it came from, who sent it, where it stands — is
+    /// optional, so the synthesised decoder happened to cope. Written out
+    /// anyway because this is the type likeliest to gain the next field, and a
+    /// field with a default is exactly the one synthesis does not handle: the
+    /// next addition should be one more `decodeIfPresent` line here, not a
+    /// save that fails to open.
+    ///
+    /// Only `init(from:)` is written out; the encoder is still synthesised.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // In every save ever written.
+        id = try container.decode(EntityID.self, forKey: .id)
+        photoLocalIdentifier = try container.decode(String.self, forKey: .photoLocalIdentifier)
+        species = try container.decodeIfPresent(FlowerSpecies.self, forKey: .species)
+        identificationConfidence = try container.decode(
+            Double.self, forKey: .identificationConfidence
+        )
+        distanceMetres = try container.decode(Double.self, forKey: .distanceMetres)
+        discoveredAt = try container.decode(Date.self, forKey: .discoveredAt)
+        remainingNectar = try container.decode(Double.self, forKey: .remainingNectar)
+        remainingPollen = try container.decode(Double.self, forKey: .remainingPollen)
+        nectarCapacity = try container.decode(Double.self, forKey: .nectarCapacity)
+        pollenCapacity = try container.decode(Double.self, forKey: .pollenCapacity)
+        recruitedForagers = try container.decode(Int.self, forKey: .recruitedForagers)
+
+        // Arrived later, and nil is what an older save means by leaving them
+        // out. See each property for what nil stands for.
+        registeredOnDay = try container.decodeIfPresent(Int.self, forKey: .registeredOnDay)
+        storedOrigin = try container.decodeIfPresent(PatchOrigin.self, forKey: .storedOrigin)
+        sharedBy = try container.decodeIfPresent(String.self, forKey: .sharedBy)
+        cell = try container.decodeIfPresent(HexCoordinate.self, forKey: .cell)
     }
 
     /// Total forage a plain common flower holds when full.

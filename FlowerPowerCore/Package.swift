@@ -37,7 +37,13 @@ let package = Package(
             dependencies: ["FlowerPowerCore"],
             swiftSettings: .strict
         ),
-        .testTarget(name: "FlowerPowerCoreTests", dependencies: ["FlowerPowerCore"]),
+        .testTarget(
+            name: "FlowerPowerCoreTests",
+            dependencies: ["FlowerPowerCore"],
+            // Saves written by earlier builds, which every later build must
+            // still open. See `SaveCompatibilityTests`.
+            resources: [.copy("Fixtures")]
+        ),
         .testTarget(
             name: "FlowerPowerGameTests",
             dependencies: ["FlowerPowerGame", "FlowerPowerCore"]

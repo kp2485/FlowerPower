@@ -144,8 +144,8 @@ public struct ColonyHistory: Codable, Equatable, Sendable {
     ///
     /// The record is the most disposable thing in the file and the likeliest
     /// to gain a field later. Losing a colony's charts to a format change is a
-    /// disappointment; losing the colony is not survivable, and `GameStore`
-    /// treats an unreadable save as no save.
+    /// disappointment; losing the colony is not survivable, and a save that
+    /// will not open is a colony the player has lost.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         samples = (try? container.decodeIfPresent([DailySample].self, forKey: .samples)) ?? []

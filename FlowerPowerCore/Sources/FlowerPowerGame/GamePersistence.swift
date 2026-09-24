@@ -53,6 +53,18 @@ public protocol GamePersisting: Sendable {
     /// - Returns: nil where there is nothing stored, which is not the same as
     ///   an unchanged save.
     func changeToken() throws -> String?
+
+    /// Moves a stored colony that could not be read out of the way, keeping
+    /// every byte of it, so that a colony started in its place cannot be
+    /// saved over it.
+    ///
+    /// What `GameStore.load` does when `load()` throws. A save this build
+    /// cannot read may be one a later build can, or one somebody can mend by
+    /// hand; either way it is months of somebody's walks, and it is not this
+    /// build's to delete.
+    ///
+    /// - Returns: the name it was kept under, or nil when nothing was stored.
+    func setAsideUnreadableSave() throws -> String?
 }
 
 extension GamePersisting {
@@ -61,6 +73,19 @@ extension GamePersisting {
     /// never reloads — which is the behaviour every one of them had before
     /// this existed.
     public func changeToken() throws -> String? { nil }
+
+    /// A persistence that cannot move a save aside says so, and a store over
+    /// it then saves nothing rather than risk writing over the colony it could
+    /// not read. The safe answer is the default one on purpose: a double that
+    /// forgets this method must not quietly become the old behaviour.
+    public func setAsideUnreadableSave() throws -> String? {
+        throw SetAsideUnsupported()
+    }
+}
+
+/// Thrown by a persistence with nowhere to keep an unreadable save.
+public struct SetAsideUnsupported: Error, LocalizedError {
+    public var errorDescription: String? { "there is nowhere to keep the old save" }
 }
 
 public struct GamePersistence: GamePersisting {
@@ -176,6 +201,32 @@ public struct GamePersistence: GamePersisting {
         let url = saveURL
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
+    }
+
+    /// Where an unreadable save is kept, beside the save itself.
+    public static let unreadableFileName = "colony.unreadable.json"
+
+    /// Renames the save to `colony.unreadable.json` in the same directory.
+    ///
+    /// A rename, so it is atomic and costs nothing however large the colony,
+    /// and it stays in the App Group container with everything else. A second
+    /// unreadable save never replaces the first: it takes the next free name
+    /// — `colony.unreadable-2.json` and so on — because the first may be the
+    /// older and better colony.
+    public func setAsideUnreadableSave() throws -> String? {
+        let manager = FileManager.default
+        let url = saveURL
+        guard manager.fileExists(atPath: url.path) else { return nil }
+
+        var destination = directory.appendingPathComponent(Self.unreadableFileName)
+        var number = 2
+        while manager.fileExists(atPath: destination.path) {
+            destination = directory.appendingPathComponent("colony.unreadable-\(number).json")
+            number += 1
+        }
+
+        try manager.moveItem(at: url, to: destination)
+        return destination.lastPathComponent
     }
 
     /// The file's modification date and length, together.
@@ -298,4 +349,8 @@ public struct FailingPersistence: GamePersisting {
     /// not being able to find out whether its save is current — which is the
     /// case that must not be allowed to throw away the colony in memory.
     public func changeToken() throws -> String? { throw Failure() }
+
+    /// And this, so a store over it is the case where the save can neither be
+    /// read nor moved, and must then write nothing.
+    public func setAsideUnreadableSave() throws -> String? { throw Failure() }
 }
