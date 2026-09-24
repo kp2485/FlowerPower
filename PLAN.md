@@ -32,8 +32,8 @@ most of what it does there is still to be walked. See "The first Mac build",
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
 | Balance, standard preset, world off | 89% first year, **62%** second, 2.50 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-16). It was 89% / 66% / 2.49 from 2026-09-06 to 2026-09-15, reproduced byte for byte across the record-keeping systems and across the world's Phase 1; the four points went on two foraging corrections that Phase 2 forced. See the ledger below |
-| Balance, the world | The garden and the country together, which is what the app now plays: **90% first year, 68% second**, 2.68 swarms, 926 autumn stores, 378 winter cluster, 7.7 chunks known. Wild forage with no photographs at all: **46%** first year. `--policy scout` against instinct: **64%** at two years, a four-point price (200 colonies, 2026-09-16). See "the country" in section 2 |
-| Balance, other presets | Gentle 92% / 60%, harsh 64% / 14% (200 colonies, 2026-09-12, before the Phase 2 foraging corrections and not re-taken since). Gentle is *worse* at two years: better-fed colonies swarm more |
+| Balance, the world | The garden and the country together, which is what the app now plays: **90% first year, 68% second**, 2.68 swarms, 926 autumn stores, 378 winter cluster, 7.7 chunks known (2026-09-16); **90% / 67%** on 2026-09-24 with winter forage on, the one point being noise. Wild forage with no photographs at all: **46% / 18%**. `--policy scout` against instinct: **64%** at two years, a four-point price. Per biome, see section 3, "Decided by measurement" |
+| Balance, other presets | With the world on, 2026-09-24: gentle 92% / 25%, harsh 57% / 12%. Gentle's second year is a modelling error under investigation (honey-bound queens); the 2026-09-12 world-off figures were gentle 92 / 60, harsh 64 / 14 |
 | Balance, distance | Every world-off number above was measured at `beesim`'s default 400 m, which was the recorded 89% / 66% baseline until 2026-09-16 and is 89% / 62% now. The app's own flowers sat at the engine's nominal 800 m, which measured 86% / 54%. The garden the world plants them in measured 86% / 64% on 2026-09-15. Phase 2's corrections and its dance-distance exponent moved all of that again, and the garden with the country around it is the row above. See "the ground" and "the country" in section 2 |
 | `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale`; `--world` for the world as the app plays it, `--world --patches 0` for wild forage alone, `--biome <name>` to force the home biome |
 
@@ -1582,6 +1582,12 @@ results are under "Decided by measurement" at the end of this section.
   which are there for exactly this. Whether being able to ruin a colony on
   purpose is part of the game is Kyle's call, as it is for "add comb" above.
 
+  **Decided 2026-09-24: the winter requirement is reserved in every season.**
+  Autumn's rule is now the rule all year; the card's gating is unchanged.
+  Measured under "Decided by measurement" below: eager harvesting went from
+  0% to 32% at two years, a price rather than a death sentence, and the
+  autumn crop is untouched.
+
 - **Whether "add comb" should be reachable at all except on its cue.** Taken
   when the notification fires it is worth two points; taken whenever the colony
   looks crowded it costs four. The button on the nest card is only shown once
@@ -1589,6 +1595,14 @@ results are under "Decided by measurement" at the end of this section.
   offers it for the whole swarm window regardless. Narrowing that is a one-line
   change and a real design decision: being able to make a wrong call may well be
   the point.
+
+  **Decided 2026-09-24: on its cue only.** `ColonySnapshot.addCombIsOnCue` is
+  the nest-full judgement written once, and the swarm card, the swarm
+  notification (a second category, `swarm.preparing.full`), the watch's swarm
+  decision and the spoken status all offer comb only on it. The nest card is
+  unchanged. `GameStore.apply(.addComb)` stays permissive, so a player who
+  reaches it another way can still make the call. The wrong call that costs
+  four points is no longer the one the interface suggests.
 
 - **The colony is now healthier than the realism target, and that is a
   calibration call rather than a bug.** Fixing the two modelling errors above
@@ -1619,6 +1633,11 @@ results are under "Decided by measurement" at the end of this section.
   the bug, and that was fixed on 2026-09-06.
 - Whether the catch-up ceiling of 180 simulated days — a fortnight of real
   absence — is generous enough. Beyond it, time is skipped rather than lived.
+  **Decided 2026-09-24: a year.** Measured first: a founding colony's year
+  catches up in 0.28 s in release and a 250–700-bee world colony's in under
+  half a second, process start included (debug 3.4 s). Saves carry their
+  ceiling, so `GamePersistence` lifts an older build's default of 30 or 180
+  to 365 on load and leaves any other value alone.
 - **~~Whether a patch's distance should ever vary again.~~ Decided the same
   day: it varies now.** A photographed flower is planted in a cell of the
   garden, and the cell's hex distance from the nest times 200 m is its
@@ -1692,6 +1711,88 @@ results are under "Decided by measurement" at the end of this section.
   wrong somewhere. Renaming cases would also break every save, since a
   predator is stored by its raw value. If the game is ever given a country
   again, this is the first thing to revisit.
+
+### Decided by measurement, 2026-09-24
+
+Every number: 200 colonies, release build, `--world`, from
+`beesim --trials 200 --days 730 --patches 9 --restock 45 --world`, with
+`--days 365` for first-year figures. The baseline was run twice and diffed
+byte for byte before anything was trusted and again at the end.
+
+**Honey reserved in every season.** First year / two years, then honey taken
+per colony over two years:
+
+| policy | before | after |
+|---|---|---|
+| instinct | 90 / 68 | 90 / 68 |
+| harvest each autumn | 90 / 68, 61 taken | 90 / 68, 61 taken |
+| harvest each autumn, feed when short | 90 / 68, 65 taken, 47 fed | same |
+| harvest whenever offered | 3 / 0, 221 taken | 60 / 32, 651 taken |
+| harvest whenever offered, feed when short | 85 / 52, 1372 taken, 723 fed | 92 / 74, 1593 taken, 1081 fed |
+
+The instinct baseline and the two autumn-only policies are byte-identical,
+because they never harvested outside autumn. Eager harvesting costs 36 points
+at two years for 651 units, which is a price. The autumn crop is small but
+real — 11 units a colony in the first year, 61 over two, against autumn
+stores of about 926 — because the reserve is sized to the cluster. The last
+row is the odd one: taking eagerly *and feeding back* beats instinct by six
+points with fewer swarms, which says honey out of the hive is working as comb
+space the colony did not have to draw. That is the honey-bound mechanism
+seen from the other side, and it is under investigation below.
+
+**Winter forage.** One value, `winterForageMultiplier`, stands in for
+winter's zero in both the forage and the regrowth multipliers, for a stand in
+bloom in winter on a flying day. Two-year survival by biome:
+
+| winter multiplier | 0 | 0.15 | 0.3 | 0.5 |
+|---|---|---|---|---|
+| standard world | 68 | 67 | 68 | 67 |
+| meadow, hedgerow, riverbank | 68 | 68 | 68 | 68 |
+| woodland | 64 | 64 | 64 | 64 |
+| farmland | 62 | 62 | 62 | 62 |
+| village | 68 | 68 | 69 | 68 |
+| heath | 56 | 56 | 56 | 56 |
+
+The rule was the largest value at which the village is not more than ten
+points above the next-best biome, and none came near it, so it ships at 0.5.
+Winter forage hardly moves a trial colony: it needs a warm day after the
+cluster has loosened, and the trial garden has no winter bloomer, so only the
+sparse wild stands feed it — the village took in about 40 more units over two
+years. The player who photographs a mahonia is who it is for. The catalogue's
+winter bloomers are rosemary, winter heather and mahonia; crocus turns out to
+be spring only, which corrects an earlier bullet.
+
+**The per-biome tables at the shipped defaults** (first year / two years),
+which item 14 asked for:
+
+| biome | garden on | wild alone |
+|---|---|---|
+| meadow | 88 / 68 | 58 / 29 |
+| hedgerow | 88 / 68 | 48 / 16 |
+| woodland | 86 / 64 | 11 / 3 |
+| riverbank | 92 / 68 | 63 / 28 |
+| farmland | 86 / 62 | 50 / 20 |
+| village | 90 / 68 | 36 / 12 |
+| heath | 82 / 56 | 46 / 8 |
+| generated world | 90 / 67 | 46 / 18 |
+
+The spread with the garden on is 10 points in the first year and 12 at two;
+on wild forage alone it is 52 and 26. Woodland is almost uninhabitable
+without photographs, which is right for a wood. The village — the biome whose
+identity is year-round bloom — is below average on wild forage alone, and why
+has not been traced. The generated world's 46% first year on wild forage
+alone is the floor the design asked for, which settles that bullet.
+
+**The presets with the world on:** standard 90 / 67, harsh 57 / 12, and
+**gentle 92 / 25**. Gentle is the finding: it was 92 / 60 with the world off
+before Phase 2, and now 95 of its 200 colonies die in their second summer,
+recorded as starvation. Seed 8919 swarms twice down to a hundred bees with
+2,600 units of honey in a 700-cell nest; the new queen mates and has nowhere
+to lay, and the colony dwindles to nothing still holding 2,598 honey. A
+colony with that much honey does not starve, and a real colony empties brood
+cells as it eats through them. That is a sharp edge, so it is a modelling
+error, and it is being traced rather than tuned — see the entry that
+follows this one when it lands.
 
 ---
 
