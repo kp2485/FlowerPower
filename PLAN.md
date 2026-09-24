@@ -1434,11 +1434,26 @@ started here.
     about 0.11 seconds in release) but is the step after, and the widget and
     the watch would show one colony while the phone carried the rest.
 
-14. **Re-take the per-biome tables at the shipped defaults.** Both of them —
-    wild alone per biome, and survival per biome with the garden on — were
-    measured at exponent 1 and density 0.4, which is a world that no longer
-    exists, and the 22-point spread quoted above is from that world. A `--biome`
-    sweep at the shipped defaults is half an hour of wall time and nothing else.
+14. **~~Re-take the per-biome tables at the shipped defaults.~~ Done on
+    2026-09-24**, under "Decided by measurement" — but taken the morning
+    before the honey-bound corrections landed that afternoon, which moved the
+    standard world nine points at two years. The spread is what the tables
+    were for and a correction to nursing and the brood nest lifts every biome
+    alike, so they still say what they said; re-take them when something
+    else needs the exact rows.
+
+15. **Re-take the presets and the biome tables on the corrected engine**, and
+    the two one-year figures that were never taken with the world on (wild
+    alone, and `--policy scout`). Half an hour of runs. Every number in
+    section 1 that says 2026-09-24 is from the final tree; the tables in
+    section 3 are from the morning's.
+
+16. **The trial's "starvation" label is sticky.** `Trials.swift` sets
+    `starvedRecently` on any `.starving` event and never clears it, so a
+    colony that went hungry once as a larva and dwindled a year later is
+    counted as starved. Item 7 under "Done since" has the case. Making it
+    mean *recent* changes every cause-of-death table ever quoted, so it is a
+    change to make on its own and re-quote after.
 
 
 ### Done since
