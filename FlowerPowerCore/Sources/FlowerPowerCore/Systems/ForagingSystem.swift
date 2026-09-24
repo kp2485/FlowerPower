@@ -147,8 +147,27 @@ public struct ForagingSystem: SimulationSystem {
         // Comb space limits how much unripened nectar the colony can accept. A
         // "honey bound" colony physically cannot take more in, which is one of
         // the real triggers for swarming.
+        //
+        // Nectar goes in less the brood nest, which is not storage: see
+        // `QueenSystem.broodNestRoom`. Taking every free cell here is what let
+        // a honey-bound colony with a laying queen dwindle to nothing on a
+        // full larder rather than rear its way out.
+        //
+        // Pollen does not. It is packed in a band around the brood, where the
+        // nurses who eat it are, and holding the nest against it starved the
+        // brood the nest was being held for: seed 8919 under gentle, with the
+        // nest kept and pollen kept out of it, ran its pollen to nothing on
+        // day 432 and again from 455 to 472, and 417 of its bees died of
+        // starvation over two years. Pollen collection is small and
+        // demand-limited anyway, just below.
+        let broodNest = QueenSystem.broodNestRoom(
+            in: world.hive,
+            config: context.config,
+            day: context.day
+        )
         let freeCells = Double(world.hive.freeCells)
-        var nectarSpace = max(0, freeCells * ResourceKind.nectar.unitsPerCell)
+        let storageCells = Double(max(0, world.hive.freeCells - broodNest))
+        var nectarSpace = max(0, storageCells * ResourceKind.nectar.unitsPerCell)
         var pollenSpace = max(0, freeCells * ResourceKind.pollen.unitsPerCell)
 
         // Pollen collection is demand-driven in a way nectar is not. Nectar

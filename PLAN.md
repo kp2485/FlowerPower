@@ -27,13 +27,13 @@ most of what it does there is still to be walked. See "The first Mac build",
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76); 240 XCTest + 282 Swift Testing, 0 failures (2026-09-15, after geography was removed), with `beesim` byte-identical across that change; 572 in total, 0 failures (2026-09-15, after the world's Phase 1 — 522 → 572), with `beesim` byte-identical across that change too when the world is off; 615 in total, 0 failures (2026-09-16, after the world's Phase 2 — 244 XCTest + 371 Swift Testing, with `CountryTests` and `ScoutingTests` new). Phase 2 is *not* byte-identical with the world off: two of its three foraging corrections change the colony, and what they cost is in the ledger below |
+| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76); 240 XCTest + 282 Swift Testing, 0 failures (2026-09-15, after geography was removed), with `beesim` byte-identical across that change; 572 in total, 0 failures (2026-09-15, after the world's Phase 1 — 522 → 572), with `beesim` byte-identical across that change too when the world is off; 615 in total, 0 failures (2026-09-16, after the world's Phase 2 — 244 XCTest + 371 Swift Testing, with `CountryTests` and `ScoutingTests` new). Phase 2 is *not* byte-identical with the world off: two of its three foraging corrections change the colony, and what they cost is in the ledger below. 245 XCTest + 489 Swift Testing, 0 failures on Windows (2026-09-24, after the honey-bound corrections, with `HoneyBoundTests` new) |
 | Xcode targets | All four compile, and the test targets (Xcode 26.5, 2026-09-14; Xcode 27 against the iOS 27 SDK, 2026-09-15, one warning left — see "Xcode 27"). 10 unit tests and 5 UI test runs pass on an iOS 27 simulator. Four tabs since 2026-09-15: Colony, Nest, World, Garden |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
-| Balance, standard preset, world off | 89% first year, **62%** second, 2.50 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-16). It was 89% / 66% / 2.49 from 2026-09-06 to 2026-09-15, reproduced byte for byte across the record-keeping systems and across the world's Phase 1; the four points went on two foraging corrections that Phase 2 forced. See the ledger below |
-| Balance, the world | The garden and the country together, which is what the app now plays: **90% first year, 68% second**, 2.68 swarms, 926 autumn stores, 378 winter cluster, 7.7 chunks known (2026-09-16); **90% / 67%** on 2026-09-24 with winter forage on, the one point being noise. Wild forage with no photographs at all: **46% / 18%**. `--policy scout` against instinct: **64%** at two years, a four-point price. Per biome, see section 3, "Decided by measurement" |
-| Balance, other presets | With the world on, 2026-09-24: gentle 92% / 25%, harsh 57% / 12%. Gentle's second year is a modelling error under investigation (honey-bound queens); the 2026-09-12 world-off figures were gentle 92 / 60, harsh 64 / 14 |
+| Balance, standard preset, world off | **74%** at two years, 3.11 swarms per colony per two years, 794 autumn stores, 394 winter cluster (200 colonies, deterministic release build, 2026-09-24, run twice and diffed). It was 62% / 2.50 from 2026-09-16, and 89% / 66% / 2.49 before that; the twelve points are the honey-bound corrections, item 7 in section 3 |
+| Balance, the world | The garden and the country together, which is what the app now plays: **92% first year, 76% second**, 3.38 swarms, 981 autumn stores, 426 winter cluster (200 colonies, 2026-09-24, after the honey-bound corrections; 90% / 67% the same morning before them). Wild forage with no photographs at all: **46%** first year and `--policy scout` **64%** at two years were measured on 2026-09-16 and have not been re-taken since. See "the country" in section 2 and item 7 in section 3 |
+| Balance, other presets | With the world on, 2026-09-24: gentle **98% / 90%**, harsh **69% / 11%**. Before the honey-bound corrections the same morning they were 92% / 25% and 57% / 12% — gentle, the easy preset, was the worst of the three at two years, because its colonies filled their comb with honey and could not rear their way out. See item 7 in section 3 |
 | Balance, distance | Every world-off number above was measured at `beesim`'s default 400 m, which was the recorded 89% / 66% baseline until 2026-09-16 and is 89% / 62% now. The app's own flowers sat at the engine's nominal 800 m, which measured 86% / 54%. The garden the world plants them in measured 86% / 64% on 2026-09-15. Phase 2's corrections and its dance-distance exponent moved all of that again, and the garden with the country around it is the row above. See "the ground" and "the country" in section 2 |
 | `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale`; `--world` for the world as the app plays it, `--world --patches 0` for wild forage alone, `--biome <name>` to force the home biome |
 
@@ -92,6 +92,14 @@ knowing about how often the colony is honey-bound. And a fourth change,
 whose patches all stand at one distance cancels the factor when the shares are
 normalised, and the 400 m run diffs clean at exponent 1 and at exponent 3. Its
 effect is on the country, and it is in "the country" in section 2.
+
+**Then, on 2026-09-24, the colony changed again: the second kind of move.**
+The gentle preset measured 25% at two years against standard's 67%, and
+tracing it found a colony with no brood nest — every free cell was one pool,
+and foragers filled it before the queen could lay — and, behind that, two
+more gaps the first one had been hiding. The world-off 400 m baseline moved
+from 62% to **74%**, the world from 67% to **76%**. Item 7 in section 3 has
+the traces and the step-by-step ledger.
 
 Every balance number in this document is now from `beesim --trials 200 --days
 730 --patches 9 --restock 45` on a release build, at that command's default
@@ -1566,6 +1574,126 @@ heather and mahonia — and both are keystones, because that is what being a
 winter flower means. Hiding the prompt removed the one season where knowing
 about them matters most.
 
+**7. The honey-bound colony.** Three more modelling errors, found on
+2026-09-24 by tracing single seeds of the one preset that measured backwards:
+gentle — richer forage, milder weather, fewer raiders — was 92% at one year
+and **25%** at two, against standard's 67%. 95 of its 200 colonies were
+labelled starvation, 82 of them between days 460 and 545, and every one
+traced died with more than 2,300 units of honey in the comb. That is a sharp
+edge, and each
+of the three was found by the trace of the colony the previous one left dying.
+
+**The brood nest was storage.** Every free cell was one pool; foragers filled
+it through the day and the queen, who lays once a day, got what they left.
+Seed 8919, with `beesim --preset gentle --world --seed 8919 --days 560 --every
+4 --patches 9 --restock 45` (the trace now shows free cells and the day's
+eggs):
+
+```
+day  season    pop adult brood  honey pollen cells free eggs ...
+360  spring    575   560    15   1702     16   700  251   15
+364  spring    635   560    75   1996     49   700  106   15
+368  spring    670   560   110   2274     45   700    2    1
+388  spring    701   627    74   2418     45   700    2    2
+410  spring    273   214    59   2453     49   700    3    1  SWARM (-302)
+420  spring    263   223    40   2558     54   700    0    2  mated x7
+435  spring    102    75    27   2602     53   700    4    0  SWARM (-89)
+450  summer     93    84     9   2581     53   691    0    7  mated x8
+518  summer      1     1     0   2598     54   149    0    0  COLLAPSED
+```
+
+The 251 cells the winter cluster had eaten clear were full of nectar in eight
+days while the queen laid fifteen a day into them. For forty days a colony of
+560 to 700 adults then laid none to eight eggs a day into two free cells. It
+swarmed; the brood it left emerged while its new queen was a virgin and every
+vacated cell was backfilled; she mated into a nest with no room, and the
+colony dwindled with 2,598 honey. Consumption *did* free cells — honey is
+counted into cells, so eating it empties them — but the foragers took each
+one back the same day.
+
+`QueenSystem.broodNestRoom` now holds empty comb for the queen that incoming
+nectar may not be stored in: the rest of a brood cycle at her own rate, less
+the brood already there, for a laying queen or a virgin (the colony keeps the
+nest for the queen it expects), never for a queenless colony (which backfills,
+as real ones do), and never at the cost of the larder — the colony first
+keeps room to bank its winter requirement. Syrup from the player goes where
+nectar goes. Pollen is not held out, because it is packed in a band around
+the brood; holding it out starved the brood the nest was kept for (8919 lost
+417 bees to starvation that way before that was changed). No new constant
+and no new random draw.
+
+**A summer bee past her nursing days never nursed again.** With the nest
+kept, seed 1000 swarmed on day 409, its virgin mated on day 437, and by then
+the last of the old brood had emerged: 21 nurses the day she mated, none three
+days later. She laid nine eggs, got no royal jelly, and the colony died on day
+453 with 1,500 honey and 300 cells held for her. Real workers revert to
+nursing when there are no young bees — foragers included — so when not one bee
+is of nursing age, `Hive.workforce(for: .nurseBee)` now counts the share of
+the older bees that would have been nursing in an ordinary colony, which is
+the job table's nine nursing days out of forty-two. It is counted, not
+assigned, so no forager leaves the flowers. Two other versions were measured
+and rejected (the table below): house bees only, which left seed 143542 dead
+when its house bees aged into foragers eight days after its queen mated; and
+every older bee, which let seed 666196 rear 173 brood on 128 old bees and
+starve.
+
+**A broodless colony could cast a swarm.** Swarm cells had no brood
+requirement, and `crowded` reads comb occupancy, which honey alone can fill.
+Seed 365274 mated a queen into 433 bees and no brood, and eight days later
+189 of them left. A swarm cell is an egg laid in a queen cup, so the swarm
+branch now asks `canStillRearAQueen`, as the emergency branch always has.
+
+Measured over 200 colonies, two years, release build, each row adding to the
+one above:
+
+| | gentle, world | standard, world | standard, world off |
+|---|---|---|---|
+| before | 25% | 67% | 62% |
+| brood nest held for the queen | 68% | 68% | 68% |
+| and swarm cells need brood | 72% | 70% | 68% |
+| and house bees nurse when nobody can *(rejected)* | 86% | 74% | 72% |
+| or every older bee does *(rejected)* | 90% | 66% | 69% |
+| or a fifth of the older bees do | 91% | 76% | 82% |
+| and pollen may go in the nest *(shipped)* | **90%** | **76%** | **74%** |
+
+And the whole change, before and after, with the world on:
+
+| | first year | second year | swarms | autumn stores | winter cluster |
+|---|---|---|---|---|---|
+| gentle | 92% → 98% | 25% → **90%** | 2.79 → 3.08 | 1082 → 1813 | 1 → 547 |
+| standard | 90% → 92% | 67% → **76%** | 2.66 → 3.38 | 917 → 981 | 372 → 426 |
+| harsh | 57% → 69% | 12% → 11% | 0.24 → 0.48 | 135 → 108 | 62 → 53 |
+| standard, world off | — | 62% → **74%** | 2.50 → 3.11 | 678 → 794 | 283 → 394 |
+
+Gentle's causes of death went from 95 starvation, 21 queen unmated, 14 laying
+workers, 12 predation, 7 queenless and 1 disease to 6 laying workers, 6
+starvation, 3 each of predation, queen unmated and queenless: the second-year
+cliff is gone from the table, and gentle is no longer worse than standard.
+Harsh gained twelve points in the first year and nothing at two: its colonies
+die queenless (91 of 200 before), which none of this touches.
+
+The standard baseline moved twelve points, like the last two corrections
+(thirteen and twelve), and for the same reason: the model was wrong. Most of
+it is the reversion — founding swarms and swarmed colonies both used to sit
+through a gap with no nurses at all — and more swarms is what more colonies
+living long enough to swarm again looks like.
+
+`--policy harvestEagerlyAndFeed` against instinct, standard with the world
+on, went from 74% against 67% (seven points) to 80% against 76% (four).
+The honey the player takes was working as comb space the colony could not
+otherwise get back, which is the same fault from the other side; most of that
+advantage went with it, and what is left is the player feeding back in a
+dearth.
+
+**The trial's "starvation" is sticky, and that is still so.** `Trials.swift`
+sets `starvedRecently` on any `.starving` event and never clears it, so a
+colony that starved a larva on day 12 is labelled starvation if it dies of
+anything else on day 518 with a full larder — which is what 8919 was. The
+game's own epitaph said "dwindled". With the honey-bound deaths gone there is
+nothing for a `honeyBound` cause to name, so none was added; the label should
+be made to mean recent, and that will move every cause-of-death table, so it
+is left for its own change.
+
 ### Not decided
 
 **On 2026-09-24 Kyle asked for every outstanding question to be resolved**, so
@@ -1783,16 +1911,23 @@ identity is year-round bloom — is below average on wild forage alone, and why
 has not been traced. The generated world's 46% first year on wild forage
 alone is the floor the design asked for, which settles that bullet.
 
-**The presets with the world on:** standard 90 / 67, harsh 57 / 12, and
-**gentle 92 / 25**. Gentle is the finding: it was 92 / 60 with the world off
-before Phase 2, and now 95 of its 200 colonies die in their second summer,
-recorded as starvation. Seed 8919 swarms twice down to a hundred bees with
-2,600 units of honey in a 700-cell nest; the new queen mates and has nowhere
-to lay, and the colony dwindles to nothing still holding 2,598 honey. A
-colony with that much honey does not starve, and a real colony empties brood
-cells as it eats through them. That is a sharp edge, so it is a modelling
-error, and it is being traced rather than tuned — see the entry that
-follows this one when it lands.
+**The presets with the world on**, as first re-taken that morning: standard
+90 / 67, harsh 57 / 12, and **gentle 92 / 25**. Gentle was the finding: it had
+been 92 / 60 with the world off before Phase 2, and now 95 of its 200 colonies
+died in their second summer, recorded as starvation. Seed 8919 swarmed twice
+down to a hundred bees with 2,600 units of honey in a 700-cell nest; the new
+queen mated and had nowhere to lay, and the colony dwindled to nothing still
+holding 2,598 honey. A colony with that much honey does not starve. That is a
+sharp edge, so it was a modelling error, and it was traced rather than tuned
+the same afternoon: three of them, written up under "Done since" as item 7
+(the brood nest kept for the queen; older bees nursing when no nurse is left;
+swarm cells needing brood). After them gentle is 98 / 90, standard 92 / 76,
+harsh 69 / 11, and the world-off baseline moved twelve points, from 62% to
+74% at two years — the same size as the two corrections before it. Every
+figure above this paragraph in this section was taken before those fixes;
+the tables were not re-taken afterwards, and the ones that matter to a
+decision (the honey policies, the winter sweep) were about *differences*
+between policies on one engine, which is what they still show.
 
 ---
 

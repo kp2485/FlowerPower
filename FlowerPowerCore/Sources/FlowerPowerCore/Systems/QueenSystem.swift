@@ -199,45 +199,13 @@ public struct QueenSystem: DailySystem {
 
     /// Everything that can throttle a queen's output.
     private func layingCapacity(_ world: World, _ context: TickContext, queen: Bee) -> Int {
-        // Her intrinsic rate, declining with age and condition.
-        let ageFraction = Double(queen.daysInStage)
-            / Double(BeeKind.queen.baseAdultLifespanDays())
-        let vigour = queen.vitality * (1 - 0.5 * min(1, ageFraction))
-        let intrinsic = Double(context.config.maxEggsPerDay)
-            * world.hive.genetics.fecundity
-            * vigour
-
-        // Brood rearing follows the season closely: it ramps hard in spring,
-        // peaks early summer, and stops almost entirely in winter.
-        let seasonal: Double
-        switch context.season {
-        case .spring: seasonal = 0.7 + 0.3 * Season.progress(context.day)
-        // Laying peaks in early summer and eases off through the second half,
-        // as the colony turns from expansion to provisioning.
-        case .summer: seasonal = 1.0 - 0.45 * max(0, Season.progress(context.day) - 0.4) / 0.6
-        // Autumn brood rearing winds down hard. The colony is not building a
-        // workforce any more — it is rearing the specific cohort of winter bees
-        // that has to survive until spring, and then stopping. A gentle taper
-        // leaves it carrying a summer-sized population into a season with
-        // nothing coming in.
-        case .autumn: seasonal = max(0.02, 0.45 * pow(1 - Season.progress(context.day), 2))
-        // Brood rearing restarts in late winter, weeks before there is
-        // anything to forage. It has to: the winter bees are dying of old age
-        // and their replacements take three weeks from egg to emergence, so a
-        // colony that waits for spring has already lost the race. Every test
-        // colony that overwintered in good order then died in March did so for
-        // exactly this reason.
-        case .winter:
-            let progress = Season.progress(context.day)
-            seasonal = progress < context.config.winterBuildUpStart
-                ? 0.02
-                : 0.02 + 0.6 * (progress - context.config.winterBuildUpStart)
-                    / max(0.01, 1 - context.config.winterBuildUpStart)
-        }
-
-        // She can only lay as fast as nurses can feed the result.
-        let nurses = world.hive.workforce(for: .nurseBee)
-        let nurseLimit = nurses / context.config.nursesPerEgg
+        // Her own rate in this season, and the nurses to feed what she lays.
+        let potential = Self.layingPotential(
+            of: queen,
+            in: world.hive,
+            config: context.config,
+            day: context.day
+        )
 
         // And only into cells that exist and are empty.
         let spaceLimit = Double(world.hive.layingSpace(for: .worker) + world.hive.layingSpace(for: .drone))
@@ -257,8 +225,141 @@ public struct QueenSystem: DailySystem {
         // nest full of larvae that all starve, taking the colony with them.
         let foodLimit = broodHeadroom(world, context)
 
-        let capacity = min(min(intrinsic * seasonal, nurseLimit), min(spaceLimit, foodLimit))
+        let capacity = min(potential, min(spaceLimit, foodLimit))
         return max(0, Int(capacity))
+    }
+
+    /// Eggs a day this queen would lay given room and food: her intrinsic
+    /// rate in this season, capped by the nurses there are to feed the result.
+    ///
+    /// Split out of `layingCapacity` so the brood nest can be sized from it
+    /// — see `broodNestRoom` — without the two ever disagreeing about what a
+    /// queen can do. The arithmetic is unchanged, term for term.
+    public static func layingPotential(
+        of queen: Bee,
+        in hive: Hive,
+        config: SimulationConfig,
+        day: Int
+    ) -> Double {
+        // She can only lay as fast as nurses can feed the result.
+        let nurses = hive.workforce(for: .nurseBee)
+        let nurseLimit = nurses / config.nursesPerEgg
+
+        return min(seasonalLayingRate(of: queen, in: hive, config: config, day: day), nurseLimit)
+    }
+
+    /// Eggs a day this queen would lay in this season with everything she
+    /// needed: her own rate, before nurses, room or food have a say.
+    public static func seasonalLayingRate(
+        of queen: Bee,
+        in hive: Hive,
+        config: SimulationConfig,
+        day: Int
+    ) -> Double {
+        // Her intrinsic rate, declining with age and condition.
+        let ageFraction = Double(queen.daysInStage)
+            / Double(BeeKind.queen.baseAdultLifespanDays())
+        let vigour = queen.vitality * (1 - 0.5 * min(1, ageFraction))
+        let intrinsic = Double(config.maxEggsPerDay)
+            * hive.genetics.fecundity
+            * vigour
+
+        // Brood rearing follows the season closely: it ramps hard in spring,
+        // peaks early summer, and stops almost entirely in winter.
+        let seasonal: Double
+        switch Season(day: day) {
+        case .spring: seasonal = 0.7 + 0.3 * Season.progress(day)
+        // Laying peaks in early summer and eases off through the second half,
+        // as the colony turns from expansion to provisioning.
+        case .summer: seasonal = 1.0 - 0.45 * max(0, Season.progress(day) - 0.4) / 0.6
+        // Autumn brood rearing winds down hard. The colony is not building a
+        // workforce any more — it is rearing the specific cohort of winter bees
+        // that has to survive until spring, and then stopping. A gentle taper
+        // leaves it carrying a summer-sized population into a season with
+        // nothing coming in.
+        case .autumn: seasonal = max(0.02, 0.45 * pow(1 - Season.progress(day), 2))
+        // Brood rearing restarts in late winter, weeks before there is
+        // anything to forage. It has to: the winter bees are dying of old age
+        // and their replacements take three weeks from egg to emergence, so a
+        // colony that waits for spring has already lost the race. Every test
+        // colony that overwintered in good order then died in March did so for
+        // exactly this reason.
+        case .winter:
+            let progress = Season.progress(day)
+            seasonal = progress < config.winterBuildUpStart
+                ? 0.02
+                : 0.02 + 0.6 * (progress - config.winterBuildUpStart)
+                    / max(0.01, 1 - config.winterBuildUpStart)
+        }
+
+        return intrinsic * seasonal
+    }
+
+    /// Empty comb the colony is holding for its queen, which incoming nectar
+    /// may not be stored in.
+    ///
+    /// **The brood nest is not storage.** Foragers put nectar in the cells
+    /// around and above the brood; the empty cells in the middle of it —
+    /// vacated by emerging bees, or cleared by the cluster eating the honey it
+    /// sits on — are cleaned and polished for the queen. Until 2026-09-24 the
+    /// engine had no such place. Every free cell was one pool, the foragers
+    /// filled it through the day, and the queen, who lays once a day at the
+    /// day boundary, got whatever they had left, which in a flow was nothing.
+    ///
+    /// Traced on seed 8919 under gentle, with the world on. The colony came
+    /// through its first winter with 1,702 honey, 560 bees and 251 empty
+    /// cells the cluster had eaten clear. The spring flow filled all of them
+    /// in eight days while the queen was laying fifteen eggs a day into them,
+    /// and for the next forty days — 560 to 700 adults, a laying queen — she
+    /// laid between none and eight a day into the two free cells the
+    /// foragers left. The brood nest never grew past 117. The colony swarmed
+    /// on day 410; the brood it left emerged while the new queen was a virgin
+    /// and every cell it vacated was backfilled, so she mated on day 420 into
+    /// a nest with no free cell at all; it swarmed again, requeened again on
+    /// day 450, and dwindled from 84 bees to nothing on a handful of eggs,
+    /// with 2,598 honey in a 700-cell nest. 82 of 200 gentle colonies died
+    /// between days 460 and 545, the trials called it starvation, and gentle
+    /// — richer forage, milder weather — measured 25% at two years against
+    /// standard's 67%.
+    ///
+    /// The room is the rest of a brood cycle at the queen's own rate: what
+    /// she would lay from now until the first of it emerged, less the brood
+    /// already there. A virgin counts — the colony keeps the nest for the
+    /// queen it is expecting, which is what stops a swarmed colony
+    /// backfilling the brood its old queen left — and a queenless colony
+    /// holds nothing, so the nest fills with nectar as it empties, which is
+    /// what real queenless colonies do.
+    ///
+    /// **And never at the cost of the larder.** The colony first keeps enough
+    /// comb to bank what it needs for winter; only what is left beyond that is
+    /// held for the queen. A founding swarm on sixty cells, or a colony that
+    /// has eaten itself short, stores nectar wherever it can — which is
+    /// backfilling too, and just as real — while a colony that has its winter
+    /// in the comb already puts its bees first.
+    ///
+    /// No random draw: the stream is the shape it was.
+    public static func broodNestRoom(
+        in hive: Hive,
+        config: SimulationConfig,
+        day: Int
+    ) -> Int {
+        guard let queen = hive.queen else { return 0 }
+
+        // Asked every daylight hour, so the cheap questions go first and the
+        // bees are counted once.
+        let brood = hive.broodCount
+        let free = hive.comb.builtCells - brood - hive.cellsOccupiedByStores
+
+        let larderShort = max(0, hive.winterStoresRequired - hive.resources.edibleEnergy)
+        let larderCells = Int((larderShort / ResourceKind.honey.unitsPerCell).rounded(.up))
+        let spare = free - larderCells
+        guard spare > 0 else { return 0 }
+
+        let cycle = BeeDevelopment.totalDaysToEmergence(for: .worker, upgrade: hive.broodUpgrade)
+        let rate = layingPotential(of: queen, in: hive, config: config, day: day)
+        let nest = Int(rate * Double(cycle)) - brood
+
+        return max(0, min(nest, spare))
     }
 
     /// How many *more* larvae the colony's food supply can carry, expressed as
@@ -630,7 +731,22 @@ public struct QueenSystem: DailySystem {
         let provisioned = world.hive.resources.edibleEnergy >= swarmProvision
         let worthLeaving = provisioned && !world.isInDearth(context.config)
 
-        if isSwarmSeason, crowded, signalWeak, strongEnough, haveAQueenToSend, worthLeaving {
+        // And something to rear the cells from. A swarm cell is an egg the
+        // queen has laid in a queen cup, so a colony whose queen is not
+        // laying — newly mated and not started, or with no nurses to feed
+        // what she would lay — has none to raise. The same test the
+        // emergency branch above has always made.
+        //
+        // Without it a broodless colony swarmed. Traced on seed 365274 under
+        // gentle, once the brood nest was kept: a new queen mated on day 424
+        // into a colony of 433 bees and no brood at all, and eight days later
+        // 189 of them left with her. Seed 8919 did the same eight days after
+        // a mating, with 237 bees and no brood. What the comb was full of was
+        // honey, which is what `crowded` was reading.
+        let haveBroodToRearFrom = world.hive.canStillRearAQueen
+
+        if isSwarmSeason, crowded, signalWeak, strongEnough, haveAQueenToSend, worthLeaving,
+           haveBroodToRearFrom {
             var urge = context.config.swarmCellChance * (0.5 + world.hive.genetics.swarminess)
             // Room being made lowers the urge to start cells at all.
             if world.posture == .makeRoom { urge *= 0.5 }

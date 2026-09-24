@@ -1000,7 +1000,10 @@ public struct Simulation: Codable, Equatable, Sendable {
     /// nowhere to put honey cannot be given any, which is as true of a jar
     /// held over the feeder hole as it is of a nectar flow.
     private var honeyStorageSpace: Double {
-        max(0, Double(world.hive.freeCells) * ResourceKind.honey.unitsPerCell)
+        // Less the brood nest, exactly as foraging is: syrup goes where
+        // nectar goes. See `QueenSystem.broodNestRoom`.
+        let broodNest = QueenSystem.broodNestRoom(in: world.hive, config: config, day: day)
+        return max(0, Double(world.hive.freeCells - broodNest) * ResourceKind.honey.unitsPerCell)
     }
 
     /// How much of the banked honey would actually go in if the colony were

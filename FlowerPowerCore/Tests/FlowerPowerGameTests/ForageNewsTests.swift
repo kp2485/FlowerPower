@@ -91,7 +91,12 @@ struct ForageNewsTests {
     /// A snapshot whose headline is one of the forage sentences: a colony in
     /// flying weather, outside winter, with a garden that is all out of
     /// season.
-    private func restingGardenSnapshot() throws -> ColonySnapshot {
+    ///
+    /// `quiet` asks for a day with no alert but the garden's, too. Since the
+    /// brood nest has been kept for the queen (2026-09-24) this colony fills
+    /// it, and on the first forage-headline day, 95, it also carried "Nest Is
+    /// Full" — a true alert, and one the digest is right to send.
+    private func restingGardenSnapshot(quiet: Bool = false) throws -> ColonySnapshot {
         var simulation = try springGarden()
         while simulation.day < Season.daysPerSeason + 5 { _ = simulation.stepDay() }
         // Look for a day the headline really is about the garden, since
@@ -102,7 +107,8 @@ struct ForageNewsTests {
             // left is the state this suite is about: nothing to work.
             simulation.world.patches.removeAll(where: \.isWild)
             let snapshot = simulation.snapshot()
-            if snapshot.headlineIsAboutForage { return snapshot }
+            let onlyTheGarden = snapshot.alerts.allSatisfy { $0.kind == .noForage }
+            if snapshot.headlineIsAboutForage, !quiet || onlyTheGarden { return snapshot }
             _ = simulation.stepDay()
         }
         simulation.world.patches.removeAll(where: \.isWild)
@@ -136,7 +142,7 @@ struct ForageNewsTests {
 
     @Test("A resting garden is not by itself a reason to send a morning report")
     func restingGardenAloneSendsNothing() throws {
-        let snapshot = try restingGardenSnapshot()
+        let snapshot = try restingGardenSnapshot(quiet: true)
         try #require(snapshot.headlineIsAboutForage)
         try #require(snapshot.status >= .steady)
         try #require(snapshot.alerts.allSatisfy { $0.kind == .noForage })

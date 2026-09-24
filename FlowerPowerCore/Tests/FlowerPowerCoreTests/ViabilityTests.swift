@@ -285,8 +285,15 @@ final class ViabilityTests: XCTestCase {
     /// in PLAN.md's balance tables, where it is — and this test is about the
     /// engine starving a colony that truly has nothing, which is a different
     /// claim.
+    ///
+    /// And nothing wild found later, either: `ExplorationSystem` stocks the
+    /// chunks a colony discovers. Once house bees and foragers could nurse
+    /// when nobody younger could (2026-09-24), this colony lived long enough
+    /// to find a stand, and was 72 bees on 178 honey on day 200 — alive
+    /// because it found food, which is not what this test is asking.
     func testColonyWithNoForageDies() {
         var simulation = Fixture.barrenSimulation(seed: 4)
+        simulation.config.wildPatchDensity = 0
 
         for _ in 0..<200 {
             _ = simulation.stepDay()
