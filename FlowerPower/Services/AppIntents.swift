@@ -4,12 +4,18 @@
 //
 //  The colony, reachable without the app.
 //
-//  Three places want the same handful of verbs, and App Intents is the one
-//  mechanism that serves all three: Siri and Shortcuts ("how are my bees?"),
-//  the buttons on the Home Screen widget, and the Control Centre control that
-//  opens the camera. Writing them once here is the whole point — a Shortcut
-//  and a widget button that answer a siege differently would be two chances
-//  to get the same decision wrong.
+//  Four places want the same handful of verbs, and App Intents is the one
+//  mechanism that serves them all: Siri and Shortcuts ("how are my bees?"),
+//  the buttons on the Home Screen widget, the buttons on a Live Activity, and
+//  the Control Centre control that opens the camera. Writing them once here
+//  is the whole point — a Shortcut and a card button that answer a siege
+//  differently would be two chances to get the same decision wrong.
+//
+//  The decisions a card can take are `LiveActivityIntent`s. That is what
+//  makes a button on a Live Activity run *in the app's process* rather than
+//  the widget extension's — and only the app can update an activity. So the
+//  card that asked the question changes the moment it is answered, through
+//  `ColonyIntents.onDecided`, instead of whenever the app is next opened.
 //
 //  Two rules shape everything below.
 //
@@ -177,7 +183,13 @@ enum AppIntentRequests {
 
 // MARK: - Answering a siege
 
-struct HoldEntranceIntent: AppIntent {
+/// Every answer to a siege or a swarm is a `LiveActivityIntent`, because
+/// every one of them can be a button on a card: see the top of the file. It changes nothing for Siri or a Shortcut, and on the Home Screen
+/// widget it means the card beside it changes too.
+///
+/// `perform` is on the main actor because `ColonyIntents` is — it holds the
+/// app's hook — and at no cost, for the reason `CheckColonyIntent` gives.
+struct HoldEntranceIntent: LiveActivityIntent {
     static var title: LocalizedStringResource { "Hold the Entrance" }
     /// Each of these repeats `HivePosture.detail` word for word rather than
     /// reading it. The App Intents metadata step extracts titles and
@@ -189,19 +201,21 @@ struct HoldEntranceIntent: AppIntent {
     }
     static var openAppWhenRun: Bool { false }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
         ColonyIntents.answerSiege(with: .holdEntrance)
         return .result()
     }
 }
 
-struct NarrowEntranceIntent: AppIntent {
+struct NarrowEntranceIntent: LiveActivityIntent {
     static var title: LocalizedStringResource { "Narrow the Entrance" }
     static var description: IntentDescription {
         IntentDescription("Propolis narrows the entrance to a slot. Hard to force, hard to rob, slow to fly through.")
     }
     static var openAppWhenRun: Bool { false }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
         ColonyIntents.answerSiege(with: .narrowEntrance)
         return .result()
@@ -217,26 +231,28 @@ struct NarrowEntranceIntent: AppIntent {
 /// arrived, so an intent missing for two of the four styles would not be a
 /// smaller feature — it would be a widget that shows a siege and offers
 /// nothing to do about it half the time.
-struct KeepForagersHomeIntent: AppIntent {
+struct KeepForagersHomeIntent: LiveActivityIntent {
     static var title: LocalizedStringResource { "Keep the Foragers Home" }
     static var description: IntentDescription {
         IntentDescription("Nobody goes out. Nothing for an ambusher to take, and nothing coming in.")
     }
     static var openAppWhenRun: Bool { false }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
         ColonyIntents.answerSiege(with: .foragersHome)
         return .result()
     }
 }
 
-struct SendInCleanersIntent: AppIntent {
+struct SendInCleanersIntent: LiveActivityIntent {
     static var title: LocalizedStringResource { "Send in the Cleaners" }
     static var description: IntentDescription {
         IntentDescription("Cleaners hunt the comb for moth and beetle larvae, at the expense of everything else.")
     }
     static var openAppWhenRun: Bool { false }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
         ColonyIntents.answerSiege(with: .cleanersOut)
         return .result()
@@ -245,7 +261,7 @@ struct SendInCleanersIntent: AppIntent {
 
 // MARK: - Answering a swarm
 
-struct MakeRoomIntent: AppIntent {
+struct MakeRoomIntent: LiveActivityIntent {
     static var title: LocalizedStringResource { "Make Room" }
 
     static var description: IntentDescription {
@@ -257,8 +273,45 @@ struct MakeRoomIntent: AppIntent {
 
     static var openAppWhenRun: Bool { false }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
         ColonyIntents.makeRoom()
+        return .result()
+    }
+}
+
+/// The other two answers a swarm card offers, in the order the notification
+/// offers them. Each is on the card only when the engine would honour it —
+/// `LiveActivityPlan` checks — and each checks again here, because a card
+/// can be answered an hour after it was drawn.
+struct OpenNestUpIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource { "Open the Nest Up" }
+
+    static var description: IntentDescription {
+        IntentDescription("Draws new comb now, paid for in the honey it takes to make the wax.")
+    }
+
+    static var openAppWhenRun: Bool { false }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        ColonyIntents.openNestUp()
+        return .result()
+    }
+}
+
+struct DivideColonyIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource { "Divide the Colony" }
+
+    static var description: IntentDescription {
+        IntentDescription("Moves the queen and the house bees out now, before the colony divides itself. Fewer go than would leave in a swarm.")
+    }
+
+    static var openAppWhenRun: Bool { false }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        ColonyIntents.divide()
         return .result()
     }
 }
@@ -272,6 +325,7 @@ struct SealEntranceIntent: AppIntent {
     }
     static var openAppWhenRun: Bool { false }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
         ColonyIntents.decideEntrance(sealed: true)
         return .result()
@@ -285,6 +339,7 @@ struct KeepEntranceOpenIntent: AppIntent {
     }
     static var openAppWhenRun: Bool { false }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
         ColonyIntents.decideEntrance(sealed: false)
         return .result()
@@ -305,6 +360,7 @@ struct SendScoutsIntent: AppIntent {
 
     static var openAppWhenRun: Bool { false }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
         ColonyIntents.sendScouts()
         return .result()
@@ -313,12 +369,25 @@ struct SendScoutsIntent: AppIntent {
 
 // MARK: - Acting on the save
 
+@MainActor
 enum ColonyIntents {
 
     private static let logger = Logger(
         subsystem: "com.linwoodtechnologies.flowerpower",
         category: "intents"
     )
+
+    /// What the app does after a decision is saved: bring the Live
+    /// Activities into line with it, so the card whose button was just tapped
+    /// stops asking. See `FlowerPowerApp.init`.
+    ///
+    /// A hook rather than a call, because this file is compiled into the
+    /// widget extension too and `LiveActivities` is not — nor could it be,
+    /// since only the app can update an activity. In the extension this is
+    /// nil and nothing happens, which is correct: a decision performed there
+    /// came from a button that is not a `LiveActivityIntent`, and the app
+    /// reconciles on its next catch-up as it always did.
+    static var onDecided: (@MainActor @Sendable (Simulation) -> Void)?
 
     /// Applies a decision to the saved colony, with no interface running.
     ///
@@ -345,6 +414,8 @@ enum ColonyIntents {
 
         // The widget is very likely showing the button that was just pressed.
         WidgetCenter.shared.reloadAllTimelines()
+        // And so is the card, if it was pressed on a card.
+        onDecided?(simulation)
         return true
     }
 
@@ -372,6 +443,27 @@ enum ColonyIntents {
             guard simulation.world.pendingSwarm != nil else { return false }
             simulation.discourageSwarm()
             return true
+        }
+    }
+
+    /// Draws comb now. The same checks `GameStore.apply(.addComb)` makes: it
+    /// does not ask whether a swarm is still pending, because room is worth
+    /// having either way, only whether any comb was actually drawn.
+    @discardableResult
+    static func openNestUp() -> Bool {
+        decide { simulation in
+            simulation.addComb() > 0
+        }
+    }
+
+    /// Divides the colony, checked hard, as `GameStore.apply(.split)` is: a
+    /// division after the colony has already swarmed would send away a second
+    /// half of a colony that has just lost the first.
+    @discardableResult
+    static func divide() -> Bool {
+        decide { simulation in
+            guard simulation.world.pendingSwarm != nil, simulation.canSplit else { return false }
+            return simulation.split()
         }
     }
 
@@ -511,5 +603,67 @@ struct BestAnswerButton: View {
     /// defence whichever posture it carries, and the words say which.
     private func label(_ posture: HivePosture) -> some View {
         Label(posture.displayName, systemImage: "shield.fill")
+    }
+}
+
+// MARK: - Any answer a card offers
+
+/// One answer as a button, for a Live Activity that offers several.
+///
+/// `BestAnswerButton` is the widget's: one decision, its best answer. A card
+/// shows every answer the plan chose, so it needs the whole map from
+/// `DecisionAction` to an intent — and like that one, it is written once and
+/// here, where the compiler can see the switch is exhaustive.
+///
+/// Words only, no symbol: a card has room for three buttons side by side and
+/// not for three icons as well.
+struct AnswerButton: View {
+
+    let action: DecisionAction
+
+    var body: some View {
+        button
+            // The card's headline says what is being answered, but a screen
+            // reader reaching the buttons has left the headline behind.
+            .accessibilityHint(hint)
+    }
+
+    @ViewBuilder
+    private var button: some View {
+        switch action {
+        case .posture(.holdEntrance):
+            Button(intent: HoldEntranceIntent()) { label }
+        case .posture(.narrowEntrance):
+            Button(intent: NarrowEntranceIntent()) { label }
+        case .posture(.foragersHome):
+            Button(intent: KeepForagersHomeIntent()) { label }
+        case .posture(.cleanersOut):
+            Button(intent: SendInCleanersIntent()) { label }
+        case .discourageSwarm:
+            Button(intent: MakeRoomIntent()) { label }
+        case .addComb:
+            Button(intent: OpenNestUpIntent()) { label }
+        case .split:
+            Button(intent: DivideColonyIntent()) { label }
+        case .posture(.instinct), .posture(.makeRoom),
+             .letSwarmGo, .staySwarm, .sealEntrance, .openEntrance, .feed, .scout:
+            // Nothing the plan puts on a card. A card that somehow carried one
+            // draws nothing for it rather than a button that does nothing.
+            EmptyView()
+        }
+    }
+
+    private var label: some View {
+        Text(action.title)
+            .frame(maxWidth: .infinity)
+    }
+
+    private var hint: String {
+        switch action {
+        case .discourageSwarm, .addComb, .split:
+            return "Answers the swarm the colony is preparing."
+        default:
+            return "Answers what is at the nest."
+        }
     }
 }

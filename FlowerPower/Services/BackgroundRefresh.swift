@@ -24,6 +24,7 @@
 import Foundation
 import BackgroundTasks
 import UserNotifications
+import WidgetKit
 import FlowerPowerCore
 import FlowerPowerGame
 import os
@@ -136,9 +137,11 @@ enum BackgroundRefresh {
         // captured by a closure that runs somewhere else.
         let finished = simulation
         await MainActor.run {
-            LiveActivities.reconcile(with: after) { days in
-                finished.date(afterSimulatedDays: days)
-            }
+            // The Home Screen widget reads the same file, and would otherwise
+            // show what it last worked out for itself until its own schedule
+            // came round. Nothing in the app asked it to reload before this.
+            WidgetCenter.shared.reloadAllTimelines()
+            LiveActivities.reconcile(with: finished, snapshot: after, now: now)
         }
         await notifyIfNeeded(before: before, after: after)
         await digestIfDue(report: report, snapshot: after, now: now)

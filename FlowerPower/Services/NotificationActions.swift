@@ -241,11 +241,14 @@ enum NotificationActions {
         let applied = store.apply(action)
 
         // The card on the lock screen was asking this question. It has been
-        // answered, from right beside it, so it comes down now rather than
-        // whenever the app is next opened.
-        LiveActivities.reconcile(with: store.snapshot) { days in
-            store.date(afterSimulatedDays: days)
-        }
+        // answered, from right beside it, so it stops asking now — it turns
+        // into the countdown to the end of the siege — rather than whenever
+        // the app is next opened.
+        LiveActivities.reconcile(
+            with: store.simulationForTransfer,
+            snapshot: store.snapshot,
+            now: now
+        )
 
         if let error = store.lastError {
             logger.error("could not save a decision: \(error)")
