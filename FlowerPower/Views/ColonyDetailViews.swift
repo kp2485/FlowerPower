@@ -203,11 +203,13 @@ private struct HoneyDetailView: View {
             HoneyDecisionCard(snapshot: store.snapshot)
 
             Explainer(
-                "The surplus is what they have put away beyond what the winter "
-                + "needs, and the cap moves with the season — it is generous in "
-                + "July and almost nothing in September, because by then every "
-                + "unit is spoken for. Anything taken stays yours: a colony that "
-                + "turns out to be short can be given it back."
+                "The surplus is what they have put away beyond what the coming "
+                + "winter needs, in every season. The winter is reckoned for the "
+                + "colony as it stands, so at midsummer, with the nest at its "
+                + "fullest, the reserve is at its largest; it shrinks as the "
+                + "summer bees die off, and the crop is usually taken in autumn. "
+                + "Anything taken stays yours: a colony that turns out to be "
+                + "short can be given it back."
             )
 
             IntakeTrace(samples: store.history.recent(60))

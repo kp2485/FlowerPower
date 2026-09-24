@@ -159,7 +159,7 @@ public struct ForagingSystem: SimulationSystem {
         // crowding out the very brood the pollen was for.
         let pollenAppetite = pollenDemandFactor(world, context)
 
-        let seasonFactor = season.forageMultiplier
+        let seasonFactor = context.config.forageMultiplier(in: season)
         var totalNectarGathered = 0.0
         var totalPollenGathered = 0.0
         var flightCost = 0.0

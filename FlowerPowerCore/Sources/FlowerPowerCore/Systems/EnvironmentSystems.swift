@@ -42,7 +42,9 @@ public struct PatchSystem: DailySystem {
 
     public func updateDaily(_ world: inout World, _ context: inout TickContext) {
         let season = context.season
-        let seasonalRegrowth = season.patchRegrowthMultiplier
+        // Winter's comes from the config: small, and only for the handful of
+        // stands that bloom then. See `SimulationConfig.winterForageMultiplier`.
+        let seasonalRegrowth = context.config.patchRegrowthMultiplier(in: season)
 
         for index in world.patches.indices {
             let wasInBloom = world.patches[index].isInBloom(during: season)

@@ -194,6 +194,62 @@ struct DecisionActionTests {
         #expect((store.snapshot.stores.resources[.honey] ?? 0) < honeyBefore)
     }
 
+    // MARK: - Opening the nest up, on its cue
+
+    @Test("A lock-screen swarm offers comb only when told the nest is full")
+    func swarmAnswers() {
+        #expect(DecisionAction.swarmAnswers(offeringComb: false)
+                == [.discourageSwarm, .split, .letSwarmGo])
+        #expect(DecisionAction.swarmAnswers(offeringComb: true)
+                == [.discourageSwarm, .addComb, .split, .letSwarmGo])
+    }
+
+    @Test("A swarm offers comb on a full nest and not on a crowded one")
+    func swarmOffersCombOnCue() {
+        let crowded = makeStore { simulation in
+            simulation.world.hive.resources.add(2_000, of: .honey)
+            simulation.world.pendingSwarm = PendingSwarm(startedOnDay: 0, departsOnDay: 8)
+        }
+        // A founding colony's comb is well short of its cavity. Measured over
+        // 200 colonies, adding comb off the cue costs four points.
+        #expect(crowded.snapshot.canAddComb && crowded.snapshot.canAffordComb)
+        #expect(!crowded.snapshot.addCombIsOnCue)
+        #expect(!crowded.snapshot.swarmOffersComb)
+
+        let full = makeStore { simulation in
+            simulation.world.hive.comb = Comb(workerCells: 20, droneCells: 0, capacity: 20)
+            simulation.world.hive.resources.add(2_000, of: .honey)
+            simulation.world.pendingSwarm = PendingSwarm(startedOnDay: 0, departsOnDay: 8)
+        }
+        #expect(full.snapshot.addCombIsOnCue)
+        #expect(full.snapshot.swarmOffersComb)
+    }
+
+    @Test("The news says the nest is full on exactly the cue the buttons use")
+    func newsUsesTheCue() {
+        let full = makeStore { simulation in
+            simulation.world.hive.comb = Comb(workerCells: 20, droneCells: 0, capacity: 20)
+            simulation.world.hive.resources.add(2_000, of: .honey)
+        }
+        let open = makeStore()
+        for store in [full, open] {
+            #expect(store.snapshot.newsFacts.nestIsFull == store.snapshot.addCombIsOnCue)
+        }
+        #expect(full.snapshot.newsFacts.nestIsFull)
+        #expect(!open.snapshot.newsFacts.nestIsFull)
+    }
+
+    @Test("Opening the nest up off its cue still works when asked")
+    func addCombOffCue() {
+        // The offers narrow; the action does not. A tap that arrives after the
+        // cue has passed is still room worth having, as it was before.
+        let store = makeStore { simulation in
+            simulation.world.hive.resources.add(500, of: .honey)
+        }
+        #expect(!store.snapshot.addCombIsOnCue)
+        #expect(store.apply(.addComb))
+    }
+
     @Test("Opening a nest up that cannot afford the wax does nothing")
     func addCombWithoutHoney() {
         // Cavity to draw into, and an empty larder to draw it from. Wax costs

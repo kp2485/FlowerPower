@@ -29,6 +29,7 @@ extension SimulationConfig {
         case "danceFloorPatches": danceFloorPatches = Int(value)
         case "danceDistanceExponent": danceDistanceExponent = value
         case "patchDailyRegrowth": patchDailyRegrowth = value
+        case "winterForageMultiplier": winterForageOverride = value
         case "flightEnergyPerForager": flightEnergyPerForager = value
         case "forageWearPerTick": forageWearPerTick = value
 

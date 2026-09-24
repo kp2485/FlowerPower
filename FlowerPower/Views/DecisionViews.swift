@@ -141,7 +141,12 @@ struct SwarmDecisionCard: View {
                 // pushed one of them forward would be pushing the wrong one.
                 // They are alternatives with different costs, and the card
                 // says what each costs.
-                if snapshot.canAddComb, snapshot.canAffordComb {
+                //
+                // Opening the nest up only on its cue, a full nest: there it
+                // is worth two points, and offered for the whole swarm window
+                // it cost four. Most of a swarm window is not a full nest, and
+                // then the card says nothing about comb at all.
+                if snapshot.swarmOffersComb {
                     Button {
                         store.addComb()
                         answers += 1
@@ -155,7 +160,7 @@ struct SwarmDecisionCard: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(Theme.honey)
-                } else if snapshot.canAddComb {
+                } else if snapshot.addCombIsOnCue, snapshot.canAddComb {
                     Label(
                         "There is room to open the nest up, but not the honey to draw comb into it — wax costs about seven times its weight in stores.",
                         systemImage: "drop.triangle"

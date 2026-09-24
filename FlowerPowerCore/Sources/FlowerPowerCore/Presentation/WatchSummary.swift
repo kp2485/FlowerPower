@@ -201,11 +201,14 @@ extension Simulation {
             var options = [WatchDecision.Option(
                 identifier: "swarm.discourage", title: "Make Room"
             )]
-            // Both halves of the question: room the site can give, and honey
-            // to draw comb into it. Wax costs about seven times its weight in
-            // stores, so a colony in a dearth cannot use room it is given —
-            // and a button that does nothing is worse than no button.
-            if canAddComb, canAffordComb {
+            // Only on its cue. Adding comb when the nest is full is worth two
+            // points; adding it whenever a swarm is gathering costs four, and
+            // most of a swarm window is not a full nest. Then both halves of
+            // the means: room the site can give, and honey to draw comb into
+            // it. Wax costs about seven times its weight in stores, so a
+            // colony in a dearth cannot use room it is given — and a button
+            // that does nothing is worse than no button.
+            if snapshot.addCombIsOnCue, canAddComb, canAffordComb {
                 options.append(.init(identifier: "nest.addComb", title: "Open the Nest Up"))
             }
             if canSplit {
@@ -224,9 +227,7 @@ extension Simulation {
 
         // The week before the cells, when space is still cheap. Said only
         // while there is room to give, because the one answer to it is room.
-        if world.hive.combOccupancy >= 0.9,
-           world.hive.comb.builtCells >= world.hive.comb.capacity,
-           canAddComb, canAffordComb {
+        if snapshot.addCombIsOnCue, canAddComb, canAffordComb {
             return WatchDecision(
                 kind: .nestFull,
                 title: "The nest is full",

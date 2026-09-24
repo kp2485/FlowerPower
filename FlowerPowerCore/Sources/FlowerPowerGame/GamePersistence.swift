@@ -161,6 +161,14 @@ public struct GamePersistence: GamePersisting {
     static func adopted(_ simulation: Simulation) -> Simulation {
         var simulation = simulation
         simulation.adoptTerrainIfMissing()
+        // A catch-up ceiling written by an older build is that build's
+        // default rather than anybody's decision, and left alone it would
+        // keep every existing colony on a fortnight while new ones get a
+        // year. Here for the same reason the terrain is: every reader of a
+        // save comes through this door, so the widget and the app agree.
+        if SimClock.earlierDefaultMaxCatchUpDays.contains(simulation.catchUpCeilingDays) {
+            simulation.catchUpCeilingDays = SimClock.defaultMaxCatchUpDays
+        }
         return simulation
     }
 

@@ -292,11 +292,8 @@ public extension ColonySnapshot {
             departedSwarmDay: departedSwarm?.day,
             entranceDecisionOpen: entranceDecisionOpen,
             day: day,
-            // "Full" means the comb fills the cavity *and* the cells in it are
-            // occupied. Either alone is ordinary: a colony always has more
-            // cavity than comb early on, and a colony always fills the comb it
-            // has during a flow.
-            nestIsFull: nest.combOccupancy >= 0.9 && nest.builtCells >= nest.capacity,
+            // The same judgement every "open the nest up" button is gated on.
+            nestIsFull: addCombIsOnCue,
             canAddComb: canAddComb,
             feedDecisionOpen: feedDecisionOpen,
             storesShortfall: storesShortfall,

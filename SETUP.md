@@ -279,7 +279,9 @@ there are — density is the lever, yield mostly is not), `danceFloorPatches`
 `biomeThreatScale` (1.0 as shipped; 0 switches the biome multipliers on
 predators and pathogens off entirely, which is what a test measuring sites
 rather than geography wants), `scoutShare` and `scoutDays`, and
-`explorationShare` and `explorationChance`.
+`explorationShare` and `explorationChance`. And `winterForageMultiplier`, what a
+stand that blooms in winter gives on a day warm enough to fly (0 until
+2026-09-24, 0.5 as shipped).
 
 ```bash
 ... beesim --trials 200 --days 730 --patches 9 --restock 45 --world

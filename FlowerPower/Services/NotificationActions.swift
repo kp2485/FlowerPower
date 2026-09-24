@@ -45,6 +45,11 @@ enum NotificationActions {
         case threatField = "threat.field"
         case threatComb = "threat.comb"
         case swarmPreparing = "swarm.preparing"
+        /// The same swarm, arriving on a full nest: the one moment its
+        /// answers include opening the nest up. Categories are registered
+        /// once, so an answer that comes and goes needs a second category
+        /// rather than a condition.
+        case swarmPreparingNestFull = "swarm.preparing.full"
         case nestFull = "nest.full"
         case swarmDeparted = "swarm.departed"
         case entrance = "entrance.autumn"
@@ -109,17 +114,20 @@ enum NotificationActions {
         //
         // Adding comb was briefly the only thing offered here, and dropping
         // "Make Room" from the list quietly removed the most valuable option
-        // the player had.
-        categories.insert(UNNotificationCategory(
-            identifier: Category.swarmPreparing.rawValue,
-            actions: [
-                button(.discourageSwarm),
-                button(.addComb),
-                button(.split),
-                button(.letSwarmGo)
-            ],
-            intentIdentifiers: [], options: []
-        ))
+        // the player had. It is now offered only on its cue, a full nest:
+        // there it is worth two points, and offered for the whole swarm
+        // window it cost four. `DecisionAction.swarmAnswers` is the list.
+        let swarmCategories: [(Category, Bool)] = [
+            (.swarmPreparing, false), (.swarmPreparingNestFull, true)
+        ]
+        for (category, offeringComb) in swarmCategories {
+            categories.insert(UNNotificationCategory(
+                identifier: category.rawValue,
+                actions: DecisionAction.swarmAnswers(offeringComb: offeringComb)
+                    .map { button($0) },
+                intentIdentifiers: [], options: []
+            ))
+        }
 
         // The week before the cells, when space is still cheap.
         categories.insert(UNNotificationCategory(
@@ -177,7 +185,9 @@ enum NotificationActions {
         if news.identifier.hasPrefix("threat-"), let threat = snapshot.activeThreat {
             return Category.forThreat(threat.style)
         }
-        if news.identifier.hasPrefix("swarm-") { return .swarmPreparing }
+        if news.identifier.hasPrefix("swarm-") {
+            return snapshot.swarmOffersComb ? .swarmPreparingNestFull : .swarmPreparing
+        }
         if news.identifier.hasPrefix("nest-full-") {
             // Nothing to offer where the site has no more room to give, and an
             // action button that does nothing is worse than no button.

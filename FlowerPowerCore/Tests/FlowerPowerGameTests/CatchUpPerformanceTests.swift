@@ -70,6 +70,32 @@ final class CatchUpPerformanceTests: XCTestCase {
         )
     }
 
+    /// A whole year, the figure the ceiling is decided against. Printed as
+    /// well as asserted, so `swift test -c release -Xswiftc -enable-testing
+    /// --filter CatchUpPerformanceTests` is the timing probe.
+    ///
+    /// Two years, not one: a founding colony is small for its first spring,
+    /// and the absence that matters is a year away from an established one.
+    /// The second catch-up is the colony at full size.
+    func testCatchingUpAYear() {
+        var simulation = colony()
+        simulation.catchUpCeilingDays = 365
+
+        var slowest = 0.0
+        for year in 1...2 {
+            let target = simulation.date(afterSimulatedDays: 365)
+            let started = Date()
+            let report = simulation.advance(to: target)
+            let elapsed = Date().timeIntervalSince(started)
+            slowest = max(slowest, elapsed)
+
+            XCTAssertEqual(report.daysSimulated, 365)
+            print(String(format: "catch-up year %d (%d bees at the end): %6.1f ms",
+                         year, simulation.hive.population, elapsed * 1000))
+        }
+        XCTAssertLessThan(slowest, 10.0, "a year's catch-up has become pathological")
+    }
+
     /// Cost should track the number of ticks, not something worse. A colony is
     /// bigger at 360 days than at 90, so some growth is expected; an order of
     /// magnitude is not.

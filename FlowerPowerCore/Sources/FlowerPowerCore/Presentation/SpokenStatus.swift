@@ -108,11 +108,10 @@ extension ColonySnapshot {
                 + ". Making room is the best answer there is."
         }
 
-        // "Full" is the same test `ColonyNews` uses: the comb fills the cavity
-        // *and* the cells in it are occupied. Either alone is ordinary. This
+        // "Full" is the same test `ColonyNews` uses: `addCombIsOnCue`. This
         // is the week before the swarm cells, and the last moment at which
         // room is cheaper than losing half the bees.
-        if nest.combOccupancy >= 0.9, nest.builtCells >= nest.capacity {
+        if addCombIsOnCue {
             return canAddComb
                 ? "The nest is full. Open it up and they will draw more comb; "
                     + "leave it and they will divide instead."

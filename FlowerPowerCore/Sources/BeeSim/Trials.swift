@@ -343,8 +343,9 @@ enum Trials {
                 }
 
                 // Or the player who takes it whenever the card offers it,
-                // which is every day the colony is above its reserve — and in
-                // summer that reserve is not the winter requirement at all.
+                // which is every day the colony is above its reserve. Until
+                // 2026-09-24 the summer reserve was not the winter
+                // requirement at all, and this player lost every colony.
                 if policy.harvestsWheneverOffered {
                     let spare = simulation.harvestableHoney
                     outcome.honeyTaken += simulation.takeHoney(spare)

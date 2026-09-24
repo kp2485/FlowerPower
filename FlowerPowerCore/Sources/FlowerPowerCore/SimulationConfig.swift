@@ -55,6 +55,72 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// Fraction of a patch's capacity that regrows each day while in bloom.
     public var patchDailyRegrowth: Double = 0.18
 
+    /// Winter's forage, as a multiplier standing where `Season.forageMultiplier`
+    /// and `Season.patchRegrowthMultiplier` have autumn's 0.65 and 0.35.
+    ///
+    /// It was zero until 2026-09-24, and three keystones bloom in winter —
+    /// crocus, winter heather and mahonia — so none of them did anything and
+    /// the village, whose whole character is that something is out all year,
+    /// was no different from the moor in the season that kills colonies. It
+    /// applies only to a stand that is in bloom in winter, and only on a day
+    /// the bees can fly, which in a winter averaging 2°C the weather already
+    /// makes rare and cold; nothing else about winter changes.
+    ///
+    /// The value is `shippedWinterForage`; the sweep that chose it is there.
+    /// Stored as an optional so that a save written before it existed decodes
+    /// — synthesised `Codable` reads an optional with `decodeIfPresent` and a
+    /// plain `Double` with `decode`, which would throw on every save on every
+    /// phone — and so that a save does not pin the colony to whatever the
+    /// value was when it was written. Nil is the shipped value; `beesim --set
+    /// winterForageMultiplier=` sets it.
+    public var winterForageOverride: Double? = nil
+
+    /// What winter's forage actually is: the override where one is set, and
+    /// the shipped value otherwise.
+    public var winterForageMultiplier: Double {
+        winterForageOverride ?? Self.shippedWinterForage
+    }
+
+    /// Chosen by measurement on 2026-09-24: 200 colonies, two years, the world
+    /// on with the standard garden, swept over 0 (as it was), 0.15, 0.3 and
+    /// 0.5, the generated world and then each biome forced in turn. The rule
+    /// was the largest value at which the village's two-year survival does
+    /// not exceed the best other biome's by more than ten points.
+    ///
+    ///     two-year survival   0     0.15  0.3   0.5
+    ///     standard world      68%   67%   68%   67%
+    ///     village             68%   68%   69%   68%
+    ///     best other biome    68%   68%   68%   68%   (hedgerow, meadow, riverbank)
+    ///
+    /// No value came near the limit, so it ships at the top of the sweep. The
+    /// honest reading of the table is that winter forage barely moves the
+    /// colony at all: a winter bloomer can only be worked on a day warm enough
+    /// to fly, after the cluster has loosened, and the only ones a `beesim`
+    /// colony meets are the country's sparse wild stands — the trial garden's
+    /// palette has none. The village took in about 40 more units of nectar
+    /// over two years at 0.5 and its autumn stores rose from 947 to 955. The
+    /// player who photographs a mahonia is who this is for, and that is not a
+    /// row this sweep had.
+    ///
+    /// 0.5 is above autumn's regrowth multiplier of 0.35, which is worth
+    /// knowing before anybody reads it as "winter regrows faster than
+    /// autumn": in the seasons' own terms it is under autumn's 0.65 for what
+    /// a forager brings home, and the weather gates it far harder.
+    public static let shippedWinterForage: Double = 0.5
+
+    /// How much the landscape offers in a season: `Season.forageMultiplier`,
+    /// with winter's taken from `winterForageMultiplier`.
+    public func forageMultiplier(in season: Season) -> Double {
+        season == .winter ? winterForageMultiplier : season.forageMultiplier
+    }
+
+    /// How fast a stand in bloom refills in a season:
+    /// `Season.patchRegrowthMultiplier`, with winter's taken from
+    /// `winterForageMultiplier`.
+    public func patchRegrowthMultiplier(in season: Season) -> Double {
+        season == .winter ? winterForageMultiplier : season.patchRegrowthMultiplier
+    }
+
     /// Days of brood feeding the colony wants banked as pollen and bee bread
     /// before its foragers lose interest in pollen and switch to nectar.
     public var pollenReserveDays: Double = 8

@@ -137,7 +137,9 @@ final class GameStoreTests: XCTestCase {
     func testALongAbsenceDoesNotLeaveTheColonyBehind() async {
         let (store, clock) = makeStore()
 
-        clock.advance(simulatedDays: 200)
+        // Past the ceiling, which is a year since 2026-09-24; this was 200
+        // days while the ceiling was 180.
+        clock.advance(simulatedDays: SimClock.defaultMaxCatchUpDays + 20)
         store.catchUp()
         let afterFirst = store.snapshot.day
 

@@ -109,6 +109,72 @@ struct WatchDecisionTests {
         #expect(decision.options.contains(where: { $0.identifier == "swarm.split" }) == false)
     }
 
+    // MARK: - Opening the nest up, on its cue
+
+    /// A colony with money for comb and room for it, and a swarm gathering or
+    /// not. `full` draws the comb out to the walls of the cavity with the
+    /// cells in it occupied — the nest is shrunk to the colony rather than the
+    /// colony grown into the nest, as `SpokenStatusTests` does it.
+    private func roomy(full: Bool, swarming: Bool) -> Simulation {
+        var simulation = quiet()
+        simulation.mutateWorld { world in
+            if full {
+                world.hive.comb = Comb(workerCells: 20, droneCells: 0, capacity: 20)
+            }
+            world.hive.resources.add(2_000, of: .honey)
+            if swarming {
+                world.pendingSwarm = PendingSwarm(startedOnDay: 0, departsOnDay: 6)
+            }
+        }
+        return simulation
+    }
+
+    @Test("A full nest is the cue; a crowded one with cavity left is not")
+    func theCue() {
+        let full = roomy(full: true, swarming: false)
+        let open = roomy(full: false, swarming: false)
+
+        #expect(full.snapshot().addCombIsOnCue)
+        #expect(!open.snapshot().addCombIsOnCue)
+        // The cue is about the comb, not about whether anything can be done:
+        // both colonies have room to give and the honey to pay for it.
+        #expect(full.canAddComb && full.canAffordComb)
+        #expect(open.canAddComb && open.canAffordComb)
+    }
+
+    @Test("A swarm on a nest that is not full is not offered comb")
+    func swarmOffCueHasNoComb() throws {
+        // Adding comb whenever a swarm is gathering cost four points of
+        // two-year survival over 200 colonies; on a full nest it is worth two.
+        let simulation = roomy(full: false, swarming: true)
+        #expect(simulation.canAddComb && simulation.canAffordComb,
+                "the room and the honey are there; only the cue is missing")
+
+        let decision = try #require(simulation.watchSummary().decision)
+        #expect(decision.kind == .swarm)
+        #expect(!decision.options.contains { $0.identifier == "nest.addComb" })
+        #expect(decision.options.first?.identifier == "swarm.discourage")
+        #expect(decision.options.last?.identifier == "swarm.let")
+    }
+
+    @Test("A swarm on a full nest is offered comb, after making room")
+    func swarmOnCueHasComb() throws {
+        let decision = try #require(roomy(full: true, swarming: true).watchSummary().decision)
+        #expect(decision.kind == .swarm)
+        let identifiers = decision.options.map(\.identifier)
+        #expect(identifiers.first == "swarm.discourage")
+        #expect(identifiers.dropFirst().first == "nest.addComb")
+        #expect(identifiers.last == "swarm.let")
+    }
+
+    @Test("A full nest with no swarm yet asks the room question on its own")
+    func fullNestAsks() throws {
+        let decision = try #require(roomy(full: true, swarming: false).watchSummary().decision)
+        #expect(decision.kind == .nestFull)
+        #expect(decision.options.map(\.identifier) == ["nest.addComb"])
+        #expect(roomy(full: false, swarming: false).watchSummary().decision == nil)
+    }
+
     // MARK: - The autumn entrance
 
     @Test("Autumn asks about the entrance")

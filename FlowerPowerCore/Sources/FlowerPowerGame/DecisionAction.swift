@@ -142,12 +142,36 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
         }
     }
 
+    /// The answers a gathering swarm is offered from a lock screen, in the
+    /// order the measurement ranks them: making room first, letting them go
+    /// last.
+    ///
+    /// Opening the nest up is among them only on its cue — see
+    /// `ColonySnapshot.addCombIsOnCue` and `swarmOffersComb`. Taken when the
+    /// nest is full it is worth two points of two-year survival; taken for
+    /// the whole swarm window it costs four, and a notification category is
+    /// registered once for all time, so the two cases are two categories.
+    public static func swarmAnswers(offeringComb: Bool) -> [DecisionAction] {
+        [.discourageSwarm] + (offeringComb ? [.addComb] : []) + [.split, .letSwarmGo]
+    }
+
     /// Every answer there is, so a test can round-trip the lot.
     public static var all: [DecisionAction] {
         HivePosture.allCases.map(DecisionAction.posture) + [
             .discourageSwarm, .addComb, .split, .letSwarmGo,
             .staySwarm, .sealEntrance, .openEntrance, .feed, .scout
         ]
+    }
+}
+
+public extension ColonySnapshot {
+
+    /// Whether a gathering swarm should be offered "open the nest up": the
+    /// cue, the room and the honey, all three. The watch asks the same three
+    /// in `Simulation.decision(_:)`, which sits below this layer and cannot
+    /// call it.
+    var swarmOffersComb: Bool {
+        addCombIsOnCue && canAddComb && canAffordComb
     }
 }
 

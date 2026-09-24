@@ -56,12 +56,28 @@ public struct SimClock: Codable, Equatable, Sendable {
     /// Days of backlog a single catch-up will simulate.
     ///
     /// Was 30, which is only two and a half real days of absence — a long
-    /// weekend away and the colony was quietly teleported. 180 covers a
-    /// fortnight away, and is affordable: catching up the full ceiling is
-    /// measured in `CatchUpPerformanceTests`, which holds it to a budget the
-    /// watch's widget extension can meet on much slower hardware than the
-    /// machine the figure was taken on.
-    public static let defaultMaxCatchUpDays = 180
+    /// weekend away and the colony was quietly teleported. Then 180, which
+    /// covers a fortnight away. Now a simulated year, about four weeks of
+    /// real absence with winter at double speed.
+    ///
+    /// Raised on 2026-09-24 because it measured affordable: in a release
+    /// build on the Windows desktop, a year's catch-up takes 0.28 s for a
+    /// founding colony in `CatchUpPerformanceTests.testCatchingUpAYear`, and
+    /// a two-year `beesim` colony of 250 to 700 bees in the world with its
+    /// garden runs a year in under half a second, process start included.
+    /// The rule was to raise it if a year came in under two seconds, which
+    /// leaves four times the room for a phone and the watch's widget
+    /// extension, both slower than the machine the figure was taken on. A
+    /// debug build takes 3.4 s for the same year, still inside the five
+    /// seconds `CatchUpPerformanceTests` allows the full ceiling.
+    public static let defaultMaxCatchUpDays = 365
+
+    /// Ceilings an older build wrote into its saves. The ceiling is part of
+    /// the save, and no build ever set it to anything but the default of its
+    /// day, so a save carrying one of these is carrying a default that has
+    /// since been raised rather than a choice. `GamePersistence` lifts it on
+    /// load.
+    public static let earlierDefaultMaxCatchUpDays: Set<Int> = [30, 180]
 
     /// How much faster the clock runs in winter, as a multiple of the base
     /// rate. 1 is uniform.

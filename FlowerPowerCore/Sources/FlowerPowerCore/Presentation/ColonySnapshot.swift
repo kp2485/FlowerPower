@@ -605,6 +605,26 @@ public struct ColonySnapshot: Codable, Equatable, Sendable {
     /// interface can say what it is offering instead of estimating.
     public let combOnOffer: Int
 
+    /// Whether this is the moment "open the nest up" is for: the comb fills
+    /// the cavity *and* the cells in it are occupied. Either alone is
+    /// ordinary — a colony always has more cavity than comb early on, and
+    /// always fills the comb it has during a flow.
+    ///
+    /// Measured over 200 colonies, adding comb on this cue is worth two
+    /// points of two-year survival, and adding it whenever the colony looks
+    /// crowded costs four. So the swarm card, the notifications and the watch
+    /// ask this rather than offering it for the whole swarm window, and the
+    /// news and the spoken status say "the nest is full" on it; it is written
+    /// once here because it used to be written out in three places.
+    ///
+    /// The cue, not the means: whether the site has room and the colony the
+    /// honey are `canAddComb` and `canAffordComb`, and an offer needs all
+    /// three. Computed rather than stored, so a snapshot encoded before it
+    /// existed decodes without it.
+    public var addCombIsOnCue: Bool {
+        nest.combOccupancy >= 0.9 && nest.builtCells >= nest.capacity
+    }
+
     /// Whether the colony could be divided on purpose: a laying queen to send,
     /// enough bees that both halves are still colonies afterwards, and a queen
     /// cell far enough along to leave behind.
