@@ -1340,8 +1340,9 @@ scroll view so its long-press does not fight it, the type-checker load hoisted
 out of the big builders, the two `Severity` overloads — are done, still
 uncompiled.
 
-Suite on Windows at the end of the day: 245 XCTest + 489 Swift Testing, 0
-failures, 0 warnings; the world baseline run twice and byte-identical.
+Suite on Windows at the end of the day: 245 XCTest + 504 Swift Testing, 0
+failures, 0 warnings; the world baseline (92% / 76%, 3.38 swarms, 981 autumn
+stores, 426 winter cluster) run twice on the final tree and byte-identical.
 
 ---
 
