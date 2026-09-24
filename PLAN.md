@@ -1568,6 +1568,11 @@ about them matters most.
 
 ### Not decided
 
+**On 2026-09-24 Kyle asked for every outstanding question to be resolved**, so
+each bullet below now carries a decision. Four were decisions and are settled
+here; the ones that needed a number were measured the same day and their
+results are under "Decided by measurement" at the end of this section.
+
 - **What `takeHoney` may offer outside autumn.** A player who takes the
   surplus whenever the card offers it loses every colony (0% of 200), and the
   card offers it from midsummer. The autumn cap, which reserves the winter
@@ -1595,8 +1600,23 @@ about them matters most.
   far *worse* than 75%, and an established colony's is about 80%, and this game
   models the first thing while quoting the second. `predatorStrength`,
   `pathogenArrivalMultiplier` and forage density are the levers.
+
+  **Decided 2026-09-24: the game is aiming at what it measures, and nothing is
+  tuned.** The target this document quoted was never a decision, it was a
+  sentence from the research notes, and it conflated two populations. The
+  colony the app plays — a garden and the country around it — measures 90%
+  first year and 68% second, which is between a wild swarm's real odds and an
+  established colony's and is a perfectly good place for an idle game to sit:
+  most colonies see their first spring, a third do not see their second, and
+  every one of those deaths has a cause in the almanac. The three levers stay
+  where they are. What the document quotes from now on is what the app plays.
 - Whether the two-year cliff, now that it is 66% rather than 15%, is where it
-  should sit for an idle game.
+  should sit for an idle game. **Decided 2026-09-24: yes.** At 68% with the
+  world on, a third of colonies end in their second year, mostly by starving
+  in spring or losing a queen — which is the arc of the thing and the reason
+  the lineage, the almanac and the milestones exist. A cliff a player can see
+  coming and sometimes prevent is the game; a cliff nobody can prevent was
+  the bug, and that was fixed on 2026-09-06.
 - Whether the catch-up ceiling of 180 simulated days — a fortnight of real
   absence — is generous enough. Beyond it, time is skipped rather than lived.
 - **~~Whether a patch's distance should ever vary again.~~ Decided the same
@@ -1639,6 +1659,13 @@ about them matters most.
   `--set` key and re-measuring is one run, so this is cheap to change and should
   be changed on a decision rather than drifted into.
 
+  **Decided 2026-09-24: 0.15 stays, and it is a decision now rather than a
+  default.** A player who photographs nothing has a colony that mostly dies in
+  its first year and always dies in its second, which is what the design asked
+  for: the country keeps the bees alive long enough for the first photograph
+  to matter, and no longer. The number is re-taken per biome under "Decided by
+  measurement" below, since Phase 2's corrections moved everything.
+
 - **Whether winter forage should exist.** Three keystones bloom in winter —
   crocus, winter heather and mahonia — and the village biome's whole character
   is that it is the only place with something out all year; and winter's forage
@@ -1647,6 +1674,24 @@ about them matters most.
   on would make the village materially better than the other six in exactly the
   season that kills colonies, which is either the point or a problem.
   `docs/WORLD.md` carries it open in section 4 and again in section 9.
+
+  **Decided 2026-09-24: it exists.** Three keystones bloom in winter and a
+  keystone that does nothing is a lie in the field guide; and the village's
+  whole character is that something is out all year. The multiplier was swept
+  and set by measurement — see "Decided by measurement" — at the largest value
+  that keeps the village within ten points of the next-best biome, which is
+  the same rule Phase 2 used for the spread.
+
+- **The predator roster's nationality.** The catalogue is British bee forage
+  and the predators include a skunk, a raccoon, an opossum and a bear, which
+  the biome tables answer for now by giving the American animals British
+  biomes. **Decided 2026-09-24: the roster stays.** Location was removed from
+  the app on 2026-09-15, so the game no longer knows what country the player
+  is in, and a roster that spans the North Atlantic lets the biomes do the
+  choosing — a moor has badgers and a suburb has raccoons, and neither is
+  wrong somewhere. Renaming cases would also break every save, since a
+  predator is stored by its raw value. If the game is ever given a country
+  again, this is the first thing to revisit.
 
 ---
 
