@@ -1270,6 +1270,79 @@ drop-in); and `ColonyDetailView`'s `switch` over eight fileprivate view types.
 There are also two pressed-state button styles now (`TilePressStyle` on the
 dashboard, `PressableTileStyle` elsewhere) that want to be one.
 
+*Every item in the two paragraphs above was dealt with on 2026-09-24; see
+the next entry.*
+
+### 2026-09-24 — a card worth two hours, and everything that was still open
+
+Kyle's next two sentences: "If it is going to be live for 2 hours, it needs to
+be more engaging. Let's resolve all outstanding issues." Five agents, one
+afternoon.
+
+**The Live Activity does something now.** ActivityKit cannot redraw a card
+while the app is suspended and there is no push server, so what moves on the
+card is what the widget moves by itself: a countdown and a filling ring to
+real dates the plan works out — when instinct will answer, when the siege is
+settled. The answers are on the card as buttons (`LiveActivityIntent`s, which
+run in the app's process and reconcile the card at once), one per option in
+the measured order. A card has three phases: *deciding*, for at most a
+simulated day; *holding*, after the player answers — buttons gone, the posture
+shown, a countdown to the outcome, up until the event resolves but never past
+ActivityKit's eight hours; and *resolved*, which says how it ended (driven off
+or not, what it cost, whether the swarm went) and is dismissed half an hour
+later. The scene carries the guards on duty and the alarm level; defenders
+lost only appear on the resolved card, because the engine settles a siege in
+one stroke and a running total would be the card lying. The widget now also
+reloads whenever the save is written. 26 tests on the plan; the buttons, the
+timer text and the ring have not been through Xcode, and the first thing to
+check on the Mac is whether tapping a card button cold-starts the app far
+enough to run the hook that redraws the card.
+
+**Every open question in section 3 is decided**, four by decision and four by
+measurement; the reasoning is on each bullet there and the tables are under
+"Decided by measurement". In short: the winter requirement is reserved in
+every season, so harvesting whenever the card offers it is a price (32% at
+two years) rather than a death sentence (0%); "open the nest up" is offered
+only on its cue; winter forage exists, at 0.5, and moves the trial colony by
+about 40 units because the trial garden has no winter bloomer; the catch-up
+ceiling is a year, measured at under half a second in release; the calibration
+target is what the app measures and nothing is tuned; the wild-forage floor
+stays at 46% first year; the predator roster stays, since the game no longer
+knows what country it is in; and the per-biome tables and the presets were
+re-taken.
+
+**Re-taking the presets found the next modelling error.** Gentle — the easy
+preset — measured 25% at two years, the worst of the three, because its
+colonies filled their comb with honey and could not rear their way out. That
+is item 7 under "Done since": three errors (no brood nest reserved for the
+queen; no nursing once the last nurse-age bee had aged out; swarm cells
+raised with no brood to raise a queen from), found by tracing single seeds,
+no constant tuned. Gentle is 90% at two years now, standard 76%, and the
+world-off baseline moved twelve points, the same size as the last two
+corrections. Every table taken earlier that day is from before those fixes;
+the ones that decided something were about differences between policies on
+one engine, which they still show.
+
+**Old saves open.** Every save carries the whole `SimulationConfig`, which
+decoded by synthesis, so every key added since a save was written made it
+unreadable — and `GameStore.load` treated an unreadable save as no save and
+wrote a fresh colony over it. Phase 2's keys on 2026-09-16 will have done
+this to any save from before that day. `SimulationConfig`, `FlowerSpecies`
+and `FlowerPatch` decode by hand with defaults now, `SaveCompatibilityTests`
+removes every key of a real save one at a time (177 cases) and decodes a
+checked-in fixture, and an unreadable save is renamed
+`colony.unreadable.json` beside the new one rather than overwritten. Section
+4 has the rule.
+
+**The interface loose ends from the 20th** — one pressed-state style, no
+`Gauge` in the tiles, chart selection at the call sites, the comb out of the
+scroll view so its long-press does not fight it, the type-checker load hoisted
+out of the big builders, the two `Severity` overloads — are done, still
+uncompiled.
+
+Suite on Windows at the end of the day: 245 XCTest + 489 Swift Testing, 0
+failures, 0 warnings; the world baseline run twice and byte-identical.
+
 ---
 
 ## 3. What is next
