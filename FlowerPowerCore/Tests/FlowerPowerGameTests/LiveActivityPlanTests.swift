@@ -234,7 +234,7 @@ struct LiveActivityPlanTests {
         // and dividing only where they would do something; letting them go
         // not at all, because it is what nobody answering already means.
         #expect(item.answers.first == .discourageSwarm)
-        #expect(item.answers.contains(.addComb) == (snapshot.canAddComb && snapshot.canAffordComb))
+        #expect(item.answers.contains(.addComb) == snapshot.swarmOffersComb)
         #expect(item.answers.contains(.split) == snapshot.canSplit)
         #expect(!item.answers.contains(.letSwarmGo))
     }

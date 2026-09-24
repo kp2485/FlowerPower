@@ -304,8 +304,13 @@ public struct LiveActivityPlan: Equatable, Sendable {
                 // happens if nobody answers, and it changes nothing the card
                 // could show, so it would be a button that appears not to
                 // work.
+                // Comb only on its cue — the nest full, not merely crowded
+                // — because opening the nest up on crowding alone measures
+                // four points worse than doing nothing, and the card is the
+                // last place to suggest it. The same rule the swarm card and
+                // the notification follow; see `ColonySnapshot.addCombIsOnCue`.
                 var answers: [DecisionAction] = [.discourageSwarm]
-                if snapshot.canAddComb && snapshot.canAffordComb { answers.append(.addComb) }
+                if snapshot.swarmOffersComb { answers.append(.addComb) }
                 if snapshot.canSplit { answers.append(.split) }
 
                 let deadline = min(dateOfDay(swarm.startedOnDay + Self.longestDays), resolvesAt)
