@@ -72,7 +72,11 @@ final class EconomyTests: XCTestCase {
         var simulation = Fixture.thrivingSimulation()
         simulation.forceWeather(temperature: 24)
         simulation.mutateWorld { world in
-            world.hive.comb = Comb(workerCells: 40, droneCells: 4, capacity: 700)
+            // An established nest: the 66 cells a new colony starts with.
+            // Under `foundingCombCells` a colony is founding, and a founding
+            // colony builds from its stores flow or no flow, as a swarm in a
+            // bare cavity must or it never gets started.
+            world.hive.comb = Comb(workerCells: 60, droneCells: 6, capacity: 700)
             world.hive.resources = ResourcePool([.honey: 300, .wax: 60])
             world.recentNectarIntake = Array(repeating: 0, count: World.intakeWindow)
         }

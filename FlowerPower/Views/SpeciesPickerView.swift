@@ -60,10 +60,19 @@ struct SpeciesPickerView: View {
 
     /// Everything else the identifier knows that matches, minus what the
     /// catalogue already offered.
-    private var worldResults: [TaxonEmbeddingIndex.Entry] {
-        guard let index, !search.isEmpty else { return [] }
-        let catalogued = Set(results.map(\.taxon))
-        return index.search(search, limit: 30).filter { !catalogued.contains($0.taxon) }
+    ///
+    /// Held rather than computed. As a computed property it scanned 57,000
+    /// names on the main thread twice per redraw, and typing lagged; now it
+    /// is worked out once a pause in typing, off the main actor.
+    @State private var worldResults: [TaxonEmbeddingIndex.Entry] = []
+
+    @concurrent
+    nonisolated private static func search(
+        _ index: TaxonEmbeddingIndex,
+        for query: String,
+        excluding catalogued: Set<Taxon>
+    ) async -> [TaxonEmbeddingIndex.Entry] {
+        index.search(query, limit: 30).filter { !catalogued.contains($0.taxon) }
     }
 
     var body: some View {
@@ -102,6 +111,18 @@ struct SpeciesPickerView: View {
             .searchable(text: $search, prompt: "Search flowers")
             .task {
                 index = await TaxonIndexStore.shared.index
+            }
+            .task(id: SearchKey(query: search, hasIndex: index != nil)) {
+                guard let index, !search.isEmpty else {
+                    worldResults = []
+                    return
+                }
+                // A pause in typing; a new keystroke cancels this one.
+                try? await Task.sleep(for: .milliseconds(180))
+                guard !Task.isCancelled else { return }
+                let found = await Self.search(index, for: search, excluding: Set(results.map(\.taxon)))
+                guard !Task.isCancelled else { return }
+                worldResults = found
             }
             .navigationTitle("What Is It?")
             .navigationBarTitleDisplayMode(.inline)
@@ -164,6 +185,11 @@ struct SpeciesPickerView: View {
             }
         }
     }
+}
+
+private struct SearchKey: Equatable {
+    let query: String
+    let hasIndex: Bool
 }
 
 #Preview {

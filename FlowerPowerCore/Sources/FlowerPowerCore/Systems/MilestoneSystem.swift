@@ -102,14 +102,14 @@ public struct MilestoneSystem: SimulationSystem {
         // and there is no event for it. The garden is the state.
 
         case .firstFlower:
-            return !world.patches.isEmpty
+            return !garden(world).isEmpty
         case .tenFlowers:
-            return world.patches.count >= 10
+            return garden(world).count >= 10
         case .placedToFamily:
             // Any identification at all places the plant in a family: the
             // classifier reports to whatever rank it can reach, and a family
             // is the coarsest of them. See `Taxon.rank`.
-            return world.patches.contains { $0.species != nil }
+            return garden(world).contains { $0.species != nil }
         case .fiveFamilies:
             return familiesInGarden(world).count >= 5
         case .tenFamilies:
@@ -183,6 +183,13 @@ public struct MilestoneSystem: SimulationSystem {
 
     // MARK: - Reading the world
 
+    /// The player's own flowers. `world.patches` also holds the wild stands
+    /// the colony finds, every one with a catalogue species, so counting it
+    /// awarded "First flower" and "Five families" without a photograph.
+    private static func garden(_ world: World) -> [FlowerPatch] {
+        world.patches.filter { !$0.isWild }
+    }
+
     /// The modelled plant families the garden holds, however coarsely
     /// identified. A family the catalogue does not model is a real placement
     /// but not a collectible one, so it does not count here.
@@ -190,7 +197,7 @@ public struct MilestoneSystem: SimulationSystem {
     /// Derived the same way `BotanyCollection` derives it, so the badge and
     /// the garden page can never disagree about how many families there are.
     private static func familiesInGarden(_ world: World) -> Set<PlantFamily> {
-        Set(world.patches.compactMap { $0.species?.taxon.family.known })
+        Set(garden(world).compactMap { $0.species?.taxon.family.known })
     }
 
     /// The simulated seasons in which the player has registered a flower.
@@ -200,7 +207,7 @@ public struct MilestoneSystem: SimulationSystem {
     /// colony is re-registered on the new one's clock — see
     /// `Simulation.newGame(at:startingAt:inheriting:)`.
     private static func seasonsPhotographed(_ world: World) -> Set<Season> {
-        Set(world.patches.compactMap(\.registeredOnDay).map(Season.init(day:)))
+        Set(garden(world).compactMap(\.registeredOnDay).map(Season.init(day:)))
     }
 
     /// Raids driven off over the colony's whole life, including this tick's.

@@ -40,7 +40,10 @@ let package = Package(
         .testTarget(name: "FlowerPowerCoreTests", dependencies: ["FlowerPowerCore"]),
         .testTarget(
             name: "FlowerPowerGameTests",
-            dependencies: ["FlowerPowerGame", "FlowerPowerCore"]
+            dependencies: ["FlowerPowerGame", "FlowerPowerCore"],
+            // Saves frozen as they were written on a given day. Every later
+            // build must still open them; see `FrozenSaveTests`.
+            resources: [.copy("Fixtures")]
         )
     ]
 )

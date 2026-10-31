@@ -17,6 +17,9 @@ import FlowerPowerGame
 
 struct GardenView: View {
 
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
+    private var hemisphere: Hemisphere { Hemisphere(rawValue: hemisphereRaw) ?? .northern }
+
     @Environment(GameStore.self) private var store
     var onPhotograph: () -> Void
 
@@ -88,7 +91,11 @@ struct GardenView: View {
         ScrollView {
             VStack(spacing: 16) {
                 TipView(AppTips.garden)
-                SeasonalAdviceCard(season: snapshot.season)
+                // The season outside, not the colony's. The game's year runs
+                // in about a month, so its season told the player to look for
+                // winter flowers in July — and contradicted the bloom prompt
+                // and the Field Guide, which both use this.
+                SeasonalAdviceCard(season: RealSeason.current(in: hemisphere))
 
                 Picker("Filter", selection: $filter) {
                     ForEach(Filter.allCases) { option in
@@ -148,7 +155,7 @@ private struct SeasonalAdviceCard: View {
                 .font(.subheadline.weight(.semibold))
 
             if best.isEmpty {
-                Text("Almost nothing flowers now. Your bees are living on what they stored.")
+                Text("Almost nothing flowers outside now. Your bees are living on what they stored.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -282,8 +289,22 @@ struct PhotoThumbnail: View {
 /// garden should not be two different descriptions of it.
 struct FlowerDetailView: View {
 
-    let patch: PatchSummary
+    /// The patch as it was when the sheet opened. What is shown is looked up
+    /// live from the store by its id, so the forage left and the bees working
+    /// it move with the colony rather than freezing at the moment of the tap.
+    private let opened: PatchSummary
+    @Environment(GameStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+
+    init(patch: PatchSummary) {
+        self.opened = patch
+    }
+
+    private var patch: PatchSummary {
+        store.snapshot.patches.first { $0.id == opened.id }
+            ?? store.snapshot.wildPatches.first { $0.id == opened.id }
+            ?? opened
+    }
     @State private var isSharing = false
 
     /// The catalogue entry when the plant was placed to a species, and the

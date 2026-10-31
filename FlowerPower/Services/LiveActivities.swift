@@ -33,7 +33,11 @@ enum LiveActivities {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
         let wanted = desired(for: snapshot)
+        // Ended activities stay in this list until they are dismissed, which
+        // can be hours. Counting them found an ended siege to "update", and a
+        // new siege of the same kind in that time got no activity at all.
         let running = Activity<HiveActivityAttributes>.activities
+            .filter { $0.activityState == .active || $0.activityState == .stale }
 
         // End anything no longer happening.
         for activity in running where wanted[activity.attributes.kind] == nil {
@@ -44,6 +48,8 @@ enum LiveActivities {
         // Update or start the rest.
         for (kind, item) in wanted {
             if let activity = running.first(where: { $0.attributes.kind == kind }) {
+                // This runs on every live tick; most of them change nothing.
+                guard activity.content.state != item.state else { continue }
                 let id = activity.id
                 let state = item.state
                 Task { await update(id, to: state) }

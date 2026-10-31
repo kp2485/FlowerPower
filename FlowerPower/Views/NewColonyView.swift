@@ -42,6 +42,9 @@ struct NewColonyView: View {
 
     @State private var selection: HiveLocationType = .livingTreeCavity
 
+    @Environment(\.isPresented) private var isPresented
+    @Environment(\.dismiss) private var dismiss
+
     /// Flipped once, on appearing, so the collapse gets a single error tap.
     /// The trigger form never fires on its initial value, which is the point:
     /// it is the change from false that plays, and it cannot play twice.
@@ -71,6 +74,17 @@ struct NewColonyView: View {
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Moving, following a swarm and starting over are all opened
+                // as sheets, and swiping down was the only way back out of
+                // them. Not after a collapse, where this is the whole screen
+                // and there is nothing behind it to go back to.
+                if isPresented, reason != .afterCollapse {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 Button {
                     onChoose(selection)

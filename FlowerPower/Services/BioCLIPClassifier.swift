@@ -25,6 +25,7 @@ import CoreML
 import Vision
 import CoreGraphics
 import ImageIO
+import UIKit
 import os
 import FlowerPowerCore
 
@@ -53,7 +54,16 @@ struct BioCLIPClassifier: Sendable {
     /// main thread, once — `FlowerClassifier.bundled()` is already awaited
     /// when the capture screen opens, so the wait overlaps the player
     /// framing the shot.
+    ///
+    /// Once per process, not once per capture. Each capture screen used to
+    /// load its own copy, so every capture waited seconds for 300 MB to load
+    /// again, and a photograph taken before the first load finished started a
+    /// second one alongside it — two copies of the model in memory at once.
     static func bundled() async -> BioCLIPClassifier? {
+        await ModelCache.shared.classifier()
+    }
+
+    fileprivate static func load() async -> BioCLIPClassifier? {
         guard let index = await TaxonIndexStore.shared.index else { return nil }
 
         guard let url = Bundle.main.url(forResource: "BioCLIP2", withExtension: "mlmodelc") else {
@@ -103,6 +113,13 @@ struct BioCLIPClassifier: Sendable {
         for i in 0..<count {
             vector[i] = array[i].floatValue
         }
+        // A half-precision overflow gives infinities, and a NaN score comes
+        // out of the index's `min(1, …)` as certainty: some random species
+        // at 100%. Better to place nothing.
+        guard vector.allSatisfy(\.isFinite) else {
+            Self.logger.error("bioclip: non-finite embedding")
+            return []
+        }
         return vector
     }
 
@@ -127,6 +144,37 @@ struct BioCLIPClassifier: Sendable {
         }
         return placement
     }
+}
+
+// MARK: - The model, once
+
+/// Holds the one loaded model, and the load in flight so concurrent callers
+/// wait for the same one. Let go on a memory warning; the next capture
+/// loads it again.
+private actor ModelCache {
+
+    static let shared = ModelCache()
+
+    private var loading: Task<BioCLIPClassifier?, Never>?
+    private var observing = false
+
+    func classifier() async -> BioCLIPClassifier? {
+        if !observing {
+            observing = true
+            NotificationCenter.default.addObserver(
+                forName: UIApplication.didReceiveMemoryWarningNotification,
+                object: nil, queue: nil
+            ) { _ in
+                Task { await ModelCache.shared.forget() }
+            }
+        }
+        if let loading { return await loading.value }
+        let task = Task { await BioCLIPClassifier.load() }
+        loading = task
+        return await task.value
+    }
+
+    private func forget() { loading = nil }
 }
 
 // MARK: - The names

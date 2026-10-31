@@ -65,7 +65,9 @@ public struct Simulation: Codable, Equatable, Sendable {
         startingAt date: Date,
         config: SimulationConfig = .standard,
         seed: UInt64 = 0x5EED_B335,
-        inheriting patches: [FlowerPatch] = []
+        inheriting patches: [FlowerPatch] = [],
+        inheritedOnDay: Int? = nil,
+        importedShares: Set<String> = []
     ) -> Simulation {
         var ids = IDGenerator()
         var rng = SeededRandom(seed: seed)
@@ -102,19 +104,11 @@ public struct Simulation: Codable, Equatable, Sendable {
         simulation.world.lineage.found(onDay: 0, patrilines: hive.genetics.patrilines)
 
         for patch in patches {
-            simulation.registerPhotograph(
-                photoLocalIdentifier: patch.photoLocalIdentifier,
-                species: patch.species,
-                confidence: patch.identificationConfidence,
-                takenAt: patch.discoveredAt,
-                // The flowers are where they were; it is the colony that has
-                // started again, so each patch keeps the distance it had, and
-                // its cell with it. Phase 3 is where following a swarm starts
-                // meaning the garden is left behind.
-                at: patch.cell,
-                distanceMetres: patch.distanceMetres
-            )
+            simulation.carryOver(patch, fromDay: inheritedOnDay)
         }
+        // Or the same `.flower` file, still sitting in a message thread,
+        // imports a second time into the new colony.
+        simulation.world.importedShares.formUnion(importedShares)
 
         return simulation
     }
@@ -224,6 +218,7 @@ public struct Simulation: Codable, Equatable, Sendable {
     @discardableResult
     public mutating func advance(to date: Date) -> CatchUpReport {
         var report = CatchUpReport()
+        clock.rebase(ifAheadOf: date)
         let ticks = clock.pendingTicks(at: date)
         let startDay = clock.day
 
@@ -319,6 +314,38 @@ public struct Simulation: Codable, Equatable, Sendable {
         if let placement { clearWildPatch(at: placement) }
         world.patches.append(patch)
         return patch
+    }
+
+    /// A flower from the previous colony, as it was.
+    ///
+    /// It used to be re-registered as if just photographed: a shared flower
+    /// became the player's own at full yield, its sender was forgotten, and a
+    /// flower that had faded came back at full vigour — alongside the one
+    /// photographed to replace it in the same cell, so that cell's forage
+    /// doubled. Its age is now carried onto the new colony's clock.
+    private mutating func carryOver(_ patch: FlowerPatch, fromDay previousDay: Int?) {
+        // The flowers are where they were; it is the colony that has started
+        // again, so each patch keeps the distance it had, and its cell with
+        // it. Phase 3 is where following a swarm starts meaning the garden is
+        // left behind.
+        let placement = placement(preferring: patch.cell, explicitDistance: patch.distanceMetres)
+        let carried = FlowerPatch(
+            id: ids.next(),
+            photoLocalIdentifier: patch.photoLocalIdentifier,
+            species: patch.species,
+            identificationConfidence: patch.identificationConfidence,
+            distanceMetres: patch.distanceMetres,
+            discoveredAt: patch.discoveredAt,
+            registeredOnDay: previousDay.map { day in
+                patch.registeredOnDay.map { clock.day - (day - $0) }
+            } ?? clock.day,
+            origin: patch.origin,
+            sharedBy: patch.sharedBy,
+            capacityScale: patch.isShared ? config.sharedPatchYield : 1,
+            cell: placement
+        )
+        if let placement { clearWildPatch(at: placement) }
+        world.patches.append(carried)
     }
 
     // MARK: Planting
@@ -578,6 +605,22 @@ public struct Simulation: Codable, Equatable, Sendable {
         }
 
         return assigned
+    }
+
+    /// The job the colony has been leant toward, read back from the bees
+    /// pinned to it rather than remembered separately — so it is whatever is
+    /// actually in force, including after the pinned bees have aged out of it
+    /// and the emphasis has worn off on its own.
+    public var emphasisedJob: WorkerJob? {
+        var counts: [WorkerJob: Int] = [:]
+        for bee in world.hive.bees {
+            if let job = bee.assignedJob { counts[job, default: 0] += 1 }
+        }
+        // `allCases` order rather than the dictionary's, so a tie is settled
+        // the same way every time.
+        return WorkerJob.allCases
+            .filter { counts[$0, default: 0] > 0 }
+            .max { counts[$0, default: 0] < counts[$1, default: 0] }
     }
 
     /// Clears every manual job assignment, returning the colony to its natural
@@ -1086,6 +1129,8 @@ public struct Simulation: Codable, Equatable, Sendable {
             // colony finds its own. Handing `world.patches` over would
             // re-register every wild stand as a photograph.
             inheriting: patches,
+            inheritedOnDay: clock.day,
+            importedShares: world.importedShares,
             generation: world.lineage.generation + 1
         )
     }
@@ -1099,11 +1144,14 @@ public struct Simulation: Codable, Equatable, Sendable {
         config: SimulationConfig = .standard,
         seed: UInt64,
         inheriting patches: [FlowerPatch] = [],
+        inheritedOnDay: Int? = nil,
+        importedShares: Set<String> = [],
         generation: Int = 1
     ) -> Simulation {
         var simulation = newGame(
             at: location, startingAt: date, config: config,
-            seed: seed, inheriting: patches
+            seed: seed, inheriting: patches,
+            inheritedOnDay: inheritedOnDay, importedShares: importedShares
         )
 
         // The swarm's bees take fresh identifiers from this simulation.
@@ -1374,5 +1422,26 @@ public struct Simulation: Codable, Equatable, Sendable {
             returnsOnDay: clock.day + max(1, config.scoutDays)
         )
         return true
+    }
+}
+
+// MARK: - Decoding
+
+// Written out only so the config can be read leniently. See
+// `LenientConfig.swift` for why that matters: it is the difference between an
+// update that adds a constant and an update that loses every colony.
+extension Simulation {
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        world = try container.decode(World.self, forKey: .world)
+        clock = try container.decode(SimClock.self, forKey: .clock)
+        rng = try container.decode(SeededRandom.self, forKey: .rng)
+        ids = try container.decode(IDGenerator.self, forKey: .ids)
+        if let config = try? container.decode(SimulationConfig.self, forKey: .config) {
+            self.config = config
+        } else {
+            self.config = .lenient(try container.decode(JSONValue.self, forKey: .config))
+        }
     }
 }

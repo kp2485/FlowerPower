@@ -86,8 +86,15 @@ struct ShareSwarmView: View {
             return
         }
         do {
+            // The title carries the queen's name, which the player typed. A
+            // "/" in it made a path into a folder that does not exist, and
+            // the share failed; ":" and a leading "." misbehave in Files too.
+            let safeTitle = share.queenTitle
+                .map { "/:\\".contains($0) ? "-" : $0 }
+                .reduce(into: "") { $0.append($1) }
+                .trimmingCharacters(in: CharacterSet(charactersIn: ". "))
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(share.queenTitle).\(SwarmShare.fileExtension)")
+                .appendingPathComponent("\(safeTitle.isEmpty ? "Swarm" : safeTitle).\(SwarmShare.fileExtension)")
             try share.encoded().write(to: url, options: .atomic)
             prepared = url
         } catch {

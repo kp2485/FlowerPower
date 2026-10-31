@@ -53,9 +53,16 @@ public protocol GamePersisting: Sendable {
     /// - Returns: nil where there is nothing stored, which is not the same as
     ///   an unchanged save.
     func changeToken() throws -> String?
+
+    /// Copies a save that exists but would not load somewhere it will not be
+    /// written over, and says where. See `GameStore.load`.
+    func preserveUnreadable() throws -> URL?
 }
 
 extension GamePersisting {
+
+    /// Nothing on disk to keep, by default.
+    public func preserveUnreadable() throws -> URL? { nil }
 
     /// A persistence that cannot tell says so, and a store over it simply
     /// never reloads — which is the behaviour every one of them had before
@@ -168,6 +175,19 @@ public struct GamePersistence: GamePersisting {
         let url = saveURL
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
+    }
+
+    /// Copied rather than moved. A file that failed only because it could not
+    /// be read yet — a launch before first unlock — is a good save, and must
+    /// still be where the next launch looks.
+    public func preserveUnreadable() throws -> URL? {
+        let url = saveURL
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let stamp = Int(Date().timeIntervalSince1970)
+        let copy = directory.appendingPathComponent("colony.unreadable-\(stamp).json")
+        if FileManager.default.fileExists(atPath: copy.path) { return copy }
+        try FileManager.default.copyItem(at: url, to: copy)
+        return copy
     }
 
     /// The file's modification date and length, together.

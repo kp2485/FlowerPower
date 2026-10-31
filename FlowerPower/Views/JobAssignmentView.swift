@@ -24,7 +24,11 @@ struct JobAssignmentView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
-    @State private var emphasis: WorkerJob?
+    /// From the colony rather than this sheet's own state. It was `@State`,
+    /// so the bees stayed pinned while the sheet forgot: reopened, it showed
+    /// no emphasis, hid the button that clears one, and tapping the job again
+    /// pinned them a second time instead of letting them go.
+    private var emphasis: WorkerJob? { store.emphasisedJob }
 
     private var population: PopulationSummary { store.snapshot.population }
 
@@ -53,7 +57,6 @@ struct JobAssignmentView: View {
                 if emphasis != nil {
                     Section {
                         Button("Let the colony decide", role: .destructive) {
-                            emphasis = nil
                             store.clearAllAssignments()
                         }
                     } footer: {
@@ -108,10 +111,8 @@ struct JobAssignmentView: View {
     /// Pins every capable bee to one job, or releases them all.
     private func toggleEmphasis(_ job: WorkerJob) {
         if emphasis == job {
-            emphasis = nil
             store.clearAllAssignments()
         } else {
-            emphasis = job
             store.emphasise(job)
         }
     }

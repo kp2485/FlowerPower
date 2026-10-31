@@ -16,6 +16,8 @@
 import Foundation
 import Photos
 import UIKit
+import ImageIO
+import FlowerPowerGame
 
 enum PhotoLibrary {
 
@@ -61,10 +63,13 @@ enum PhotoLibrary {
                 contentMode: .aspectFill,
                 options: options
             ) { image, info in
-                // The first callback is usually a degraded placeholder. Take
-                // the first usable result and ignore the rest.
+                // The first callback is usually a degraded placeholder, and the
+                // guard here used to accept it whenever it had an image — so
+                // the garden showed blurry thumbnails and a shared flower went
+                // to the friend as the placeholder. Only the final callback is
+                // taken, which also carries any error as a nil image.
                 let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
-                guard image != nil || !isDegraded, once.claim() else { return }
+                guard !isDegraded, once.claim() else { return }
                 continuation.resume(returning: image)
             }
         }
@@ -121,22 +126,78 @@ enum PhotoLibrary {
         // The change block runs on Photos' own queue, so what it learns comes
         // back in a box rather than by writing to a local.
         let placeholder = Placeholder()
+        let takenAt = Date()
 
-        try await PHPhotoLibrary.shared().performChanges {
-            let request = PHAssetCreationRequest.forAsset()
-            request.addResource(with: .photo, data: data, options: nil)
-            request.creationDate = Date()
-            placeholder.identifier = request.placeholderForCreatedAsset?.localIdentifier
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                request.addResource(with: .photo, data: data, options: nil)
+                request.creationDate = takenAt
+                placeholder.identifier = request.placeholderForCreatedAsset?.localIdentifier
+            }
+            // Not fetched back to read the date: that needs read access, and
+            // with add-only access the fetch came back empty, the capture
+            // failed, and every retry left another copy in the camera roll.
+            // The date is the one just written.
+            if let identifier = placeholder.identifier {
+                return PhotoMetadata(localIdentifier: identifier, takenAt: takenAt)
+            }
+        } catch {
+            // Photos refused — access denied. Fall through to keeping it here.
         }
 
-        guard
-            let placeholderIdentifier = placeholder.identifier,
-            let saved = metadata(for: placeholderIdentifier)
-        else {
+        // No permission must leave the game playable, so the photograph is
+        // kept in the app the way a flower from a friend is, and the garden
+        // reads it from there by the same prefix.
+        let id = "capture-" + UUID().uuidString
+        guard SharedImageStore.store(image.jpegData(compressionQuality: 0.85) ?? data, forShare: id) else {
             throw PhotoLibraryError.couldNotSave
         }
+        return PhotoMetadata(localIdentifier: FlowerShare.localIdentifier(forShare: id), takenAt: takenAt)
+    }
 
-        return saved
+    // MARK: - Sizing
+
+    /// The long edge a photograph is worked on at. Plenty for the classifier
+    /// (BioCLIP sees 224 px) and for the screen, and a fraction of the memory
+    /// of a 48-megapixel original decoded whole.
+    static let workingPixelSize: CGFloat = 2048
+
+    /// Decodes image data straight to a working-size image, with its EXIF
+    /// orientation applied so the pixels are upright and `.up` is true.
+    static func workingImage(from data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: workingPixelSize
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage)
+    }
+
+    /// The same for an image already decoded — a camera capture. Redrawn, so
+    /// the result is upright with orientation `.up` whatever the camera said.
+    /// Everything downstream (Vision, the reference prints, the language
+    /// model) can then take the pixels as they are; the learned prints used to
+    /// be stored sideways because one of them assumed `.up` and the camera's
+    /// portrait shots are `.right`.
+    static func workingImage(from image: UIImage) -> UIImage {
+        let longest = max(image.size.width, image.size.height) * image.scale
+        let factor = min(1, workingPixelSize / max(longest, 1))
+        let size = CGSize(
+            width: (image.size.width * image.scale * factor).rounded(),
+            height: (image.size.height * image.scale * factor).rounded()
+        )
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
     }
 
     /// Carries the new asset's identifier out of the change block.

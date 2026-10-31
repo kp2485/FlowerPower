@@ -174,9 +174,20 @@ public struct SwarmShare: Codable, Equatable, Sendable, Identifiable {
         copy.sharedBy = sharedBy.flatMap(Self.tidy)
         copy.note = note.flatMap(Self.tidy)
         if let queen = queen {
-            var clean = queen
-            clean.name = queen.name.flatMap(Self.tidy)
-            copy.queen = clean
+            // The next queen is numbered one past the highest, so a number
+            // near `Int.max` from a crafted file overflowed and trapped at the
+            // first supersedure — and on every launch after, from the save.
+            copy.queen = QueenRecord(
+                number: min(10_000, max(1, queen.number)),
+                name: queen.name.flatMap(Self.tidy),
+                motherNumber: queen.motherNumber.map { min(10_000, max(1, $0)) },
+                emergedOnDay: queen.emergedOnDay,
+                matedOnDay: queen.matedOnDay,
+                patrilines: queen.patrilines,
+                quality: queen.quality.isFinite ? min(1, max(0, queen.quality)) : 1,
+                endedOnDay: queen.endedOnDay,
+                ending: queen.ending
+            )
         }
         if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             copy.id = UUID().uuidString

@@ -48,8 +48,15 @@ public struct PatchSystem: DailySystem {
             let wasInBloom = world.patches[index].isInBloom(during: season)
 
             guard wasInBloom, seasonalRegrowth > 0 else {
-                if !wasInBloom && !world.patches[index].isDepleted {
-                    context.emit(.patchOutOfBloom(world.patches[index].id))
+                // On the day it goes over, and for the player's own flowers.
+                // This fired every day for every patch out of bloom, wild
+                // stands included, and in an absence of a few weeks those
+                // lines took 56 of the report's 60 highlights — crowding out
+                // a lost queen or a collapse that came later.
+                let patch = world.patches[index]
+                if !wasInBloom, !patch.isDepleted, !patch.isWild, context.day > 0,
+                   patch.isInBloom(during: Season(day: context.day - 1)) {
+                    context.emit(.patchOutOfBloom(patch.id))
                 }
                 continue
             }

@@ -96,6 +96,10 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.com.linwoodtechnologies.flowerpower
+        # Decision notifications are posted `.timeSensitive`, so a siege or a
+        # swarm can break through Focus while there is still time to answer.
+        # Without this the interruption level was silently ignored.
+        com.apple.developer.usernotifications.time-sensitive: true
     info:
       path: FlowerPower/Info.plist
       properties:
@@ -279,10 +283,10 @@ targets:
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.linwoodtechnologies.flowerpower
         WKRunsIndependentlyOfCompanionApp: false
-        # The watch keeps its own copy of the save and can catch the colony up
-        # itself, so it has something true to show out of range of the phone.
-        WKBackgroundModes:
-          - self-care
+        # No background modes. `self-care` was declared here, but it is for
+        # extended-runtime self-care sessions, which this app has none of —
+        # the watch's catch-up needs no background time — and App Review
+        # rejects a mode an app does not use.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.linwoodtechnologies.flowerpower.watchkitapp

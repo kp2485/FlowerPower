@@ -349,3 +349,31 @@ extension Simulation {
         return snapshot.status.displayName
     }
 }
+
+// MARK: - Across versions
+
+extension WatchSummary {
+
+    /// The phone and the watch update separately, so a summary can come from
+    /// a build that knows a kind of decision or alert this one does not — the
+    /// scouts were added that way. The compiler's decoder threw the whole
+    /// summary away over one unknown case, and the watch said nothing about
+    /// why. The parts that can be absent now are absent instead.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        status = try container.decode(ColonyStatus.self, forKey: .status)
+        shortHeadline = try container.decode(String.self, forKey: .shortHeadline)
+        headline = try container.decode(String.self, forKey: .headline)
+        population = try container.decode(Int.self, forKey: .population)
+        broodCount = try container.decode(Int.self, forKey: .broodCount)
+        season = try container.decode(Season.self, forKey: .season)
+        day = try container.decode(Int.self, forKey: .day)
+        gauge = try container.decode(Gauge.self, forKey: .gauge)
+        topAlert = try? container.decodeIfPresent(ColonyAlert.self, forKey: .topAlert)
+        decision = try? container.decodeIfPresent(WatchDecision.self, forKey: .decision)
+        isForaging = try container.decode(Bool.self, forKey: .isForaging)
+        temperatureCelsius = try container.decode(Double.self, forKey: .temperatureCelsius)
+        honey = try container.decode(Double.self, forKey: .honey)
+        generatedAt = try container.decode(Date.self, forKey: .generatedAt)
+    }
+}

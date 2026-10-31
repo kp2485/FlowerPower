@@ -102,6 +102,14 @@ struct ShareFlowerView: View {
         // share sheet can never hand over a stale one — signed with a name the
         // player has since corrected, or missing the line they just typed.
         .task(id: rebuildKey) { @MainActor in
+            // Not on every keystroke: each rebuild resizes and re-encodes the
+            // photograph on the main thread, and typing a name lagged. The
+            // stale file is withdrawn at once so it cannot be sent.
+            prepared = nil
+            if image != nil {
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
+            }
             await prepare()
         }
     }

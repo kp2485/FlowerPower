@@ -662,9 +662,14 @@ public struct QueenSystem: DailySystem {
         world.hive.comb.queenCells.removeAll(where: \.isReady)
 
         // The old queen, if any, is killed by the newcomer.
+        //
+        // Superseded first, then the death. The other way round the lineage
+        // ended her for old age on the death and had no reigning queen left
+        // to mark superseded, so "Superseded by her daughter" never appeared
+        // and the badge for surviving a supersedure could not be earned.
         if world.hive.isQueenright {
-            removeQueen(&world, &context, cause: .oldAge)
             context.emit(.supersededQueen)
+            removeQueen(&world, &context, cause: .oldAge)
         }
 
         world.hive.bees.append(Bee(

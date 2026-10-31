@@ -774,7 +774,9 @@ extension Simulation {
         let day = clock.day
         let config = self.config
         var occupants: [HexCoordinate: EntityID] = [:]
-        for patch in world.patches {
+        // The player's flowers only: a wild stand is not planted in the
+        // garden, and drawing one there made a cell look taken.
+        for patch in world.patches where !patch.isWild {
             guard let cell = patch.cell,
                   !patch.hasFaded(onDay: day, config: config)
             else { continue }
@@ -1039,7 +1041,7 @@ extension Simulation {
                 kind: .noForage,
                 severity: .warning,
                 title: "Nothing to Forage",
-                detail: world.patches.isEmpty
+                detail: !world.patches.contains(where: { !$0.isWild })
                     ? "You have not photographed any flowers yet."
                     : "Nothing you have found is in bloom and in range right now.",
                 suggestion: "Photograph flowers that bloom in \(season.displayName.lowercased())."

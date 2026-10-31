@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UserNotifications
+import WidgetKit
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -64,6 +65,15 @@ struct FlowerPowerApp: App {
                     )
                     LiveActivities.reconcile(with: snapshot)
                     HiveHum.shared.update(for: snapshot)
+                }
+                // The home-screen widget offers the open decision as a button.
+                // Nothing told it when one was answered or closed in the app,
+                // so it kept the button up for hours and every tap was
+                // refused. Only on a change, to stay inside the reload budget.
+                .onChange(of: NotificationActions.decisionKey(store.snapshot)) { _, _ in
+                    WidgetCenter.shared.reloadAllTimelines()
+                    let snapshot = store.snapshot
+                    Task { await NotificationActions.withdrawClosedDecisions(in: snapshot) }
                 }
                 .onAppear {
                     notifications.onOpenApp = { action in

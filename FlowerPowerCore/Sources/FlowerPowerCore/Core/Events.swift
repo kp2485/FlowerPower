@@ -150,6 +150,36 @@ public struct CatchUpReport: Equatable, Sendable {
     public var totalEmerged: Int { emerged.values.reduce(0, +) }
     public var netPopulationChange: Int { totalEmerged - totalDeaths }
 
+    /// This report followed by a later one, as if the two absences had been
+    /// one. For a report the player has not read yet when the next arrives.
+    public func merging(_ later: CatchUpReport) -> CatchUpReport {
+        var merged = self
+        merged.ticksSimulated += later.ticksSimulated
+        merged.daysSimulated += later.daysSimulated
+        merged.emerged.merge(later.emerged, uniquingKeysWith: +)
+        merged.died.merge(later.died, uniquingKeysWith: +)
+        merged.eggsLaid += later.eggsLaid
+        merged.cellsBuilt += later.cellsBuilt
+        merged.combLost += later.combLost
+        merged.depletedPatches += later.depletedPatches
+        merged.newInfections += later.newInfections
+        merged.criticalInfections += later.criticalInfections
+        merged.attacks += later.attacks
+        merged.storesRaided += later.storesRaided
+        merged.swarmed = swarmed || later.swarmed
+        merged.absconded = absconded || later.absconded
+        merged.queenLost = queenLost || later.queenLost
+        merged.queenMated = queenMated || later.queenMated
+        merged.superseded = superseded || later.superseded
+        merged.layingWorkers = layingWorkers || later.layingWorkers
+        merged.collapsed = collapsed || later.collapsed
+        merged.starved = starved || later.starved
+        merged.groundedDays += later.groundedDays
+        merged.milestones += later.milestones
+        merged.highlights = Array((highlights + later.highlights).prefix(Self.highlightLimit))
+        return merged
+    }
+
     public mutating func record(_ event: SimEvent) {
         switch event {
         case .emerged(let kind):

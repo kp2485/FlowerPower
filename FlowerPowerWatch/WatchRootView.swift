@@ -27,8 +27,11 @@ struct WatchRootView: View {
                         DecisionPage(decision: decision) { identifier in
                             model.answer(identifier)
                         }
+                        // A different decision is a different page, with its
+                        // own count of answers.
+                        .id(decision.kind)
                     }
-                    StatusPage(summary: summary, isStale: model.isStale)
+                    StatusPage(summary: summary, isStale: model.isStale, isOutOfStep: model.isOutOfStep)
                     ConditionsPage(summary: summary)
                     NumbersPage(summary: summary)
                 }
@@ -56,12 +59,14 @@ private struct DecisionPage: View {
     let decision: WatchDecision
     /// Takes a `DecisionAction` identifier, which the model parses. The view
     /// deliberately knows nothing about what the answers mean.
-    var onAnswer: (String) -> Void
+    /// Returns whether the answer took.
+    var onAnswer: (String) -> Bool
 
     /// Answering from the wrist deserves the same tap the phone gives. The
     /// model plays a haptic when a decision *arrives*; nothing marked the
     /// answer going back.
     @State private var answers = 0
+    @State private var refused = 0
 
     var body: some View {
         ScrollView {
@@ -90,8 +95,11 @@ private struct DecisionPage: View {
 
                 ForEach(decision.options, id: \.identifier) { option in
                     Button(option.title) {
-                        onAnswer(option.identifier)
-                        answers += 1
+                        if onAnswer(option.identifier) {
+                            answers += 1
+                        } else {
+                            refused += 1
+                        }
                     }
                     .buttonStyle(.bordered)
                     .tint(WatchTheme.honey)
@@ -106,6 +114,7 @@ private struct DecisionPage: View {
             .padding(.horizontal, 4)
         }
         .sensoryFeedback(.success, trigger: answers)
+        .sensoryFeedback(.warning, trigger: refused)
     }
 
     private func remaining(_ days: Int) -> String {
@@ -123,6 +132,7 @@ private struct StatusPage: View {
 
     let summary: WatchSummary
     let isStale: Bool
+    let isOutOfStep: Bool
 
     var body: some View {
         ScrollView {
@@ -169,7 +179,15 @@ private struct StatusPage: View {
                     .accessibilityElement(children: .combine)
                 }
 
-                if isStale {
+                if isOutOfStep {
+                    // Not "out of touch": the phone is talking, and this app
+                    // cannot read what it says. Only updating fixes that.
+                    Label("Update FlowerPower on your phone and watch to keep them in step",
+                          systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                } else if isStale {
                     Label("Out of touch with your phone", systemImage: "antenna.radiowaves.left.and.right.slash")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)

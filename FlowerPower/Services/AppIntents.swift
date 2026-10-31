@@ -334,7 +334,13 @@ enum ColonyIntents {
     ) -> Bool {
         guard var simulation = try? persistence.load() else { return false }
         simulation.advance(to: now)
-        guard change(&simulation) else { return false }
+        guard change(&simulation) else {
+            // Refused as stale — so the widget is showing a button for a
+            // decision that has closed. Without a reload it went on showing
+            // it, and every tap was refused the same way.
+            WidgetCenter.shared.reloadAllTimelines()
+            return false
+        }
 
         do {
             try persistence.save(simulation)
@@ -427,7 +433,10 @@ enum OpenDecision: Equatable, Sendable {
     case scout
 
     init?(_ snapshot: ColonySnapshot) {
-        if let posture = snapshot.activeThreat?.options.first(where: { $0 != .instinct }) {
+        // Only while the siege is still unanswered. Once the player has
+        // chosen, a button for the "best" answer would override their choice.
+        if snapshot.posture == .instinct,
+           let posture = snapshot.activeThreat?.options.first(where: { $0 != .instinct }) {
             self = .siege(posture)
         } else if let swarm = snapshot.pendingSwarm, !swarm.discouraged {
             self = .swarm

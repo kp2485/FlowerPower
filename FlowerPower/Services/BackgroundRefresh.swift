@@ -89,14 +89,19 @@ enum BackgroundRefresh {
         // the code already behaved.
         nonisolated(unsafe) let task = task
 
+        // Exactly once. Cancelling the work on expiry does not stop
+        // `refresh`, which never checks, so it went on to complete the task a
+        // second time after the expiration handler already had.
+        let completion = CompletionGate()
+
         let work = Task {
             await refresh(watchLink: watchLink)
-            task.setTaskCompleted(success: true)
+            if completion.claim() { task.setTaskCompleted(success: true) }
         }
 
         task.expirationHandler = {
             work.cancel()
-            task.setTaskCompleted(success: false)
+            if completion.claim() { task.setTaskCompleted(success: false) }
         }
     }
 
@@ -127,6 +132,7 @@ enum BackgroundRefresh {
         watchLink.send(simulation, summary: simulation.watchSummary(now: now))
         await MainActor.run { LiveActivities.reconcile(with: after) }
         await notifyIfNeeded(before: before, after: after)
+        await NotificationActions.withdrawClosedDecisions(in: after)
         await digestIfDue(report: report, snapshot: after, now: now)
     }
 
@@ -204,8 +210,12 @@ enum BackgroundRefresh {
         before: ColonySnapshot,
         after: ColonySnapshot
     ) async {
-        guard let news = ColonyNews.between(before: before, after: after) else { return }
+        for news in ColonyNews.all(before: before, after: after) {
+            await post(news, snapshot: after)
+        }
+    }
 
+    private static func post(_ news: ColonyNews, snapshot after: ColonySnapshot) async {
         // Whether this piece of news carries a decision is not a separate
         // judgement: it is exactly whether there is a category of action
         // buttons to put it in. Which makes it also the line the player's two
@@ -237,4 +247,18 @@ enum BackgroundRefresh {
         try? await UNUserNotificationCenter.current().add(request)
     }
 
+}
+
+/// Lets the first caller through and no other.
+private final class CompletionGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var claimed = false
+
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if claimed { return false }
+        claimed = true
+        return true
+    }
 }

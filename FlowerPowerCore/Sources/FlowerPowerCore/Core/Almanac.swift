@@ -105,7 +105,17 @@ public struct Almanac: Codable, Equatable, Sendable {
     /// than failing to decode at all.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        entries = try container.decodeIfPresent([AlmanacEntry].self, forKey: .entries) ?? []
+        // Saves from before the collapse was written once carry hundreds of
+        // copies of it — one a day for as long as the dead colony was kept —
+        // and those pushed the colony's whole real history out of the limit.
+        // The repeats go; what they displaced is gone, but no more follows.
+        var lastColonyLine: String?
+        entries = (try container.decodeIfPresent([AlmanacEntry].self, forKey: .entries) ?? [])
+            .filter { entry in
+                guard entry.kind == .colony else { return true }
+                defer { lastColonyLine = entry.text }
+                return !(entry.text == Self.colonyGone && lastColonyLine == Self.colonyGone)
+            }
         peakHoney = try container.decodeIfPresent(Double.self, forKey: .peakHoney) ?? 0
         tallies = try container.decodeIfPresent([YearTally].self, forKey: .tallies) ?? []
     }
@@ -143,8 +153,16 @@ public struct Almanac: Codable, Equatable, Sendable {
 
     // MARK: - Writing
 
+    static let colonyGone = "The colony is gone."
+
     mutating func write(_ kind: AlmanacEntry.Kind, _ text: String, day: Int) {
         let season = Season(day: day)
+        // A dead colony reports itself dead every day it is kept. Once is
+        // the record; the rest filled the almanac.
+        if text == Self.colonyGone,
+           entries.last(where: { $0.kind == .colony })?.text == Self.colonyGone {
+            return
+        }
         // One line per kind per day. A wasp siege produces several attack
         // events across the day; the almanac says it once.
         if entries.last(where: { $0.day == day && $0.kind == kind && $0.text == text }) != nil {
@@ -239,7 +257,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .layingWorkersAppeared:
                 write(.queen, "Laying workers appear. There is no way back from this.", day: day)
             case .colonyCollapsed:
-                write(.colony, "The colony is gone.", day: day)
+                write(.colony, Self.colonyGone, day: day)
             case .threatBegan(let predator, _):
                 write(.threat, "\(predator.displayName) at the nest.", day: day)
             case .attackRepelled(let predator):

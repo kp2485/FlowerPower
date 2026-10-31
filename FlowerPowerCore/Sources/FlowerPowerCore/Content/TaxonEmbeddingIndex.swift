@@ -70,6 +70,26 @@ public struct TaxonEmbeddingIndex: Sendable {
     private let weights: [Int8]
     private let scales: [Float]
 
+    /// Each entry's names, lowercased once at load and joined with a
+    /// separator at both ends, so a search is substring tests on one string
+    /// rather than three `lowercased()` copies per entry per keystroke.
+    private let searchKeys: [String]
+
+    private static let separator: Character = "\u{1}"
+
+    private static func searchKeys(for entries: [Entry]) -> [String] {
+        entries.map { entry in
+            var names = [entry.commonName, entry.scientificName]
+            // Only a family's own row answers to the family's name; otherwise
+            // "rosaceae" matched every one of its five thousand species.
+            if entry.rank == .family { names.append(entry.family) }
+            let joined = names.filter { !$0.isEmpty }
+                .map { $0.lowercased() }
+                .joined(separator: String(separator))
+            return String(separator) + joined + String(separator)
+        }
+    }
+
     // MARK: - Thresholds
 
     /// The least probability a rank's best candidate needs before the
@@ -153,12 +173,14 @@ public struct TaxonEmbeddingIndex: Sendable {
 
         dimensions = dims
         logitScale = scale
+        searchKeys = Self.searchKeys(for: entries)
     }
 
     /// For tests: an index built from plain vectors.
     public init(entries: [Entry], vectors: [[Float]], logitScale: Float = 100) {
         precondition(entries.count == vectors.count)
         self.entries = entries
+        self.searchKeys = Self.searchKeys(for: entries)
         self.dimensions = vectors.first?.count ?? 0
         self.logitScale = logitScale
 
@@ -335,25 +357,43 @@ public struct TaxonEmbeddingIndex: Sendable {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard needle.count >= 2 else { return [] }
 
-        var found: [Entry] = []
-        for entry in entries {
-            if entry.commonName.lowercased().contains(needle)
-                || entry.scientificName.lowercased().contains(needle)
-                || (entry.rank == .family && entry.family.lowercased().contains(needle)) {
-                found.append(entry)
-                if found.count >= limit * 4 { break }
-            }
+        let separator = String(Self.separator)
+        let whole = separator + needle + separator
+        let start = separator + needle
+        let word = " " + needle
+        // The query as a word of its own inside a longer name: "Garden
+        // tulip" for "tulip", "Dog rose" for "rose".
+        let wholeWord = [separator, " "].flatMap { before in
+            [separator, " "].map { after in before + needle + after }
         }
-        return Array(found
+
+        // Every entry is scanned, then ranked. The scan used to stop at the
+        // first `limit * 4` hits in file order, which is species first — so
+        // "rose" filled up on primroses and rosemary and never reached the
+        // roses themselves.
+        var found: [(index: Int, score: Int)] = []
+        for (index, key) in searchKeys.enumerated() where key.contains(needle) {
+            let score: Int
+            if key.contains(whole) { score = 0 }
+            else if wholeWord.contains(where: key.contains) { score = 1 }
+            else if key.contains(start) { score = 2 }
+            else if key.contains(word) { score = 3 }
+            else { score = 4 }
+            found.append((index, score))
+        }
+
+        return found
             .sorted { lhs, rhs in
-                // An exact hit on a common name goes first; then finer ranks.
-                let l = lhs.commonName.lowercased() == needle
-                let r = rhs.commonName.lowercased() == needle
-                if l != r { return l }
-                if lhs.rank != rhs.rank { return lhs.rank > rhs.rank }
-                return lhs.scientificName < rhs.scientificName
+                // A whole name first, then a whole word, then a name that
+                // starts with it, then a word that does, then anything
+                // containing it; finer ranks before coarser within each.
+                if lhs.score != rhs.score { return lhs.score < rhs.score }
+                let l = entries[lhs.index], r = entries[rhs.index]
+                if l.rank != r.rank { return l.rank > r.rank }
+                return l.scientificName < r.scientificName
             }
-            .prefix(limit))
+            .prefix(limit)
+            .map { entries[$0.index] }
     }
 }
 

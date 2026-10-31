@@ -146,8 +146,16 @@ struct SaveCoherenceTests {
         app.catchUp()
         let report = try #require(app.pendingReport)
 
+        // The fixture's swarm is only a flag, with no cells behind it, and a
+        // fortnight on the engine clears a pending swarm with no cells — as it
+        // should. So it is raised again here, on the day the widget is
+        // pressed: this test is about the report, not the swarm.
+        var pressed = try stored(in: persistence)
+        pressed.world.pendingSwarm = PendingSwarm(
+            startedOnDay: pressed.clock.day, departsOnDay: pressed.clock.day + 8
+        )
         let lockScreen = GameStore(
-            simulation: try stored(in: persistence),
+            simulation: pressed,
             persistence: persistence,
             clock: { clock.now }
         )

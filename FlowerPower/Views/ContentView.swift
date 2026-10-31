@@ -25,6 +25,16 @@ struct ContentView: View {
 
     @State private var selection: Tab = .colony
     @State private var isCapturing = false
+
+    /// The garden cell tapped on the map to start a capture, so the flower is
+    /// planted there; and, once the capture is over, the cell the map should
+    /// show blooming.
+    @State private var plantingCell: HexCoordinate?
+    @State private var bloomingCell: HexCoordinate?
+
+    /// The colony as the player last left it, for the dashboard's "since you
+    /// last looked" figures. See `LastLook`.
+    @State private var lastLook: LastLook?
     @State private var isShowingSettings = false
 
     /// A flower somebody sent, waiting to be looked at. Held here rather than
@@ -38,6 +48,25 @@ struct ContentView: View {
     /// than sharing `incomingFailure`, because a restore that could not be
     /// read needs to say that nothing was replaced — see `OpenedBackup`.
     @State private var incomingBackup: OpenedBackup?
+
+    /// Something opened from outside while another sheet was up. SwiftUI
+    /// will not present a second sheet over the first and says nothing when
+    /// it refuses, so a flower tapped in Messages while the catch-up report
+    /// was showing simply never appeared — and could not be opened again
+    /// until a relaunch, because `incoming` was already set. It waits here
+    /// instead, and is shown as soon as the way is clear.
+    @State private var waiting: Opened?
+
+    private enum Opened {
+        case flower(FlowerShare)
+        case swarm(SwarmShare)
+        case backup(OpenedBackup)
+        case failure(String)
+    }
+
+    /// The last save problem the player closed, so the banner does not come
+    /// straight back for the same one.
+    @State private var dismissedError: String?
 
     @Environment(\.requestedAction) private var requestedAction
     @AppStorage("hiveHum") private var humEnabled = false
@@ -65,11 +94,26 @@ struct ContentView: View {
                 tabs
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let error = store.lastError, error != dismissedError {
+                ErrorBanner(message: error) { dismissedError = error }
+            }
+        }
+        .onChange(of: isClearToPresent) { _, clear in
+            guard clear, let opened = waiting else { return }
+            waiting = nil
+            // After the sheet that was in the way has finished going; one
+            // presented during that animation is dropped like the first was.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                present(opened)
+            }
+        }
         // `.task` takes a @Sendable closure, which does not inherit the view's
         // main-actor isolation — so the hop has to be explicit to reach the
         // @MainActor store.
         .task(id: store.needsSetup) { @MainActor in
-            resume()
+            await resume()
         }
         .onOpenURL { url in
             open(url)
@@ -100,7 +144,13 @@ struct ContentView: View {
             // Matched on a prefix because the identifier carries a nonce —
             // see `PhotographFlowerIntent` for why asking twice has to look
             // like two different requests.
-            if action?.hasPrefix(PhotographFlowerIntent.actionPrefix) ?? false { isCapturing = true }
+            // Not during the introduction: the tabs are not there yet, and the
+            // flag used to sit set until setup finished and then open the
+            // camera out of nowhere.
+            if action?.hasPrefix(PhotographFlowerIntent.actionPrefix) ?? false, !store.needsSetup {
+                plantingCell = nil
+                isCapturing = true
+            }
         }
         .onChange(of: humEnabled, initial: true) { _, enabled in
             if enabled, scenePhase == .active {
@@ -124,9 +174,12 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                resume()
+                Task { await resume() }
                 if humEnabled { HiveHum.shared.start() }
             case .inactive, .background:
+                if phase == .background, !store.needsSetup {
+                    LastLook.record(store.snapshot)
+                }
                 store.stopLiveUpdates()
                 HiveHum.shared.stop()
                 // Ask to be woken while the app is closed, so the colony the
@@ -147,10 +200,25 @@ struct ContentView: View {
     /// forward underneath the introduction would hand the player a catch-up
     /// report about a nest they have not seen. The store refuses to save or to
     /// tick while it needs setting up; this keeps it from being asked.
-    private func resume() {
+    private func resume() async {
         guard !store.needsSetup else { return }
-        store.catchUp()
+        let look = LastLook.stored()
+        // Off the main actor: after weeks away this is months of ticks, and
+        // run here it froze the first screen long enough to risk the launch
+        // watchdog.
+        await store.catchUpInBackground()
         store.startLiveUpdates()
+
+        // A short, quiet absence is told by the dashboard's figures rather
+        // than a sheet over everything.
+        withAnimation(.snappy) {
+            lastLook = look.flatMap {
+                Date().timeIntervalSince($0.takenAt) >= LastLook.worthShowingAfter ? $0 : nil
+            }
+        }
+        if let report = store.pendingReport, !report.deservesASheet, lastLook != nil {
+            store.dismissReport()
+        }
         // See `SettingsTip`: it holds off until there is a flower in the
         // garden, so that it cannot out-run the camera tip on the first
         // screen a player ever sees.
@@ -159,7 +227,7 @@ struct ContentView: View {
 
     private var tabs: some View {
         TabView(selection: $selection) {
-            ColonyDashboardView(onPhotograph: { isCapturing = true })
+            ColonyDashboardView(onPhotograph: { plantingCell = nil; isCapturing = true })
                 .tabItem { Label("Colony", systemImage: "chart.bar.doc.horizontal") }
                 .tag(Tab.colony)
 
@@ -173,11 +241,17 @@ struct ContentView: View {
             // them. The symbol is a cluster of cells rather than the Nest's
             // single filled hexagon — the same shape seen from above, and a
             // great deal more of it.
-            WorldView(onPhotograph: { isCapturing = true })
+            WorldView(
+                onPhotograph: { cell in
+                    plantingCell = cell
+                    isCapturing = true
+                },
+                bloomingCell: $bloomingCell
+            )
                 .tabItem { Label("World", systemImage: "circle.hexagongrid.fill") }
                 .tag(Tab.world)
 
-            GardenView(onPhotograph: { isCapturing = true })
+            GardenView(onPhotograph: { plantingCell = nil; isCapturing = true })
                 .tabItem { Label("Garden", systemImage: "photo.on.rectangle.angled") }
                 .tag(Tab.garden)
         }
@@ -188,8 +262,14 @@ struct ContentView: View {
         // main action, so on the first Mac run the gear sat on top of the
         // camera button and hid the one thing the game asks the player to do.
         .environment(\.showSettings, { isShowingSettings = true })
-        .sheet(isPresented: $isCapturing) {
-            CaptureView()
+        .environment(\.lastLook, lastLook)
+        .sheet(isPresented: $isCapturing, onDismiss: {
+            // The map checks the cell really was planted before it plays
+            // anything, so a capture abandoned half way shows nothing.
+            if let cell = plantingCell { bloomingCell = cell }
+            plantingCell = nil
+        }) {
+            CaptureView(plantingAt: plantingCell)
         }
         .sheet(isPresented: $isShowingSettings) {
             SettingsView()
@@ -219,11 +299,11 @@ struct ContentView: View {
         // through to the flower alert, as before.
         if kind == SaveArchive.fileExtension {
             do {
-                incomingBackup = .archive(
+                deliver(.backup(.archive(
                     try SaveArchive.decoded(from: Data(contentsOf: url))
-                )
+                )))
             } catch {
-                incomingBackup = .failure(error.localizedDescription)
+                deliver(.backup(.failure(error.localizedDescription)))
             }
             return
         }
@@ -231,12 +311,41 @@ struct ContentView: View {
         do {
             let data = try Data(contentsOf: url)
             if kind == SwarmShare.fileExtension {
-                incomingSwarm = try SwarmShare.decoded(from: data)
+                deliver(.swarm(try SwarmShare.decoded(from: data)))
             } else {
-                incoming = try FlowerShare.decoded(from: data)
+                deliver(.flower(try FlowerShare.decoded(from: data)))
             }
         } catch {
-            incomingFailure = error.localizedDescription
+            deliver(.failure(error.localizedDescription))
+        }
+    }
+
+    /// Whether nothing this view presents is in the way of another sheet.
+    private var isClearToPresent: Bool {
+        !isCapturing && !isShowingSettings && store.pendingReport == nil
+            && incoming == nil && incomingSwarm == nil && incomingBackup == nil
+            && incomingFailure == nil
+    }
+
+    /// Shows what was opened now, or as soon as the sheet in front closes.
+    /// Opening a file is a deliberate act, so capture and settings are put
+    /// away for it; an unread catch-up report is not, and is read first.
+    private func deliver(_ opened: Opened) {
+        if isClearToPresent {
+            present(opened)
+        } else {
+            waiting = opened
+            isCapturing = false
+            isShowingSettings = false
+        }
+    }
+
+    private func present(_ opened: Opened) {
+        switch opened {
+        case .flower(let share): incoming = share
+        case .swarm(let share): incomingSwarm = share
+        case .backup(let backup): incomingBackup = backup
+        case .failure(let message): incomingFailure = message
         }
     }
 
@@ -247,6 +356,36 @@ struct ContentView: View {
             get: { store.pendingReport != nil },
             set: { if !$0 { store.dismissReport() } }
         )
+    }
+}
+
+// MARK: - A save problem
+
+/// A save that could not be written or read. Rare, and worth saying: the
+/// store keeps playing through it, and without this the player had no way
+/// to know their progress was not being kept.
+private struct ErrorBanner: View {
+
+    let message: String
+    var onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(.footnote)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Dismiss", systemImage: "xmark", action: onDismiss)
+                .labelStyle(.iconOnly)
+                .font(.footnote.weight(.semibold))
+        }
+        .padding(12)
+        .background(.regularMaterial, in: .rect(cornerRadius: 14))
+        .padding(.horizontal)
+        .padding(.top, 4)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
 

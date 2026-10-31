@@ -92,6 +92,20 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// Honey the colony refuses to spend on wax, whatever the demand.
     public var buildHoneyReserve: Double = 25
 
+    /// Below this many drawn cells a colony is founding a nest rather than
+    /// extending one: a swarm in a bare cavity, a colony that has moved, or
+    /// one whose comb was destroyed. It then draws comb from the honey it
+    /// carried, flow or no flow. Without that it could never start — no
+    /// cells, nowhere to put nectar, so no foraging, so no flow, so no comb —
+    /// and every relocated or adopted colony died in a fortnight with honey
+    /// still in it. Under the 66 cells a new game starts with, so an ordinary
+    /// colony never meets it.
+    public var foundingCombCells: Int = 50
+
+    /// Days of the colony's own upkeep a founding colony keeps back from
+    /// building.
+    public var foundingReserveDays: Double = 2
+
     /// The share of a day's *surplus income* a colony will turn into wax.
     ///
     /// Comb is built out of the flow, not out of the larder. That is what

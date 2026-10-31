@@ -264,6 +264,8 @@ private struct StoresSection: View {
     /// worth seeing beside what is actually in the comb.
     let banked: Double
 
+    @Environment(\.lastLook) private var lastLook
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionTitle("Stores", systemImage: "archivebox.fill")
@@ -296,7 +298,11 @@ private struct StoresSection: View {
                 spacing: 12
             ) {
                 ForEach(ordered, id: \.self) { kind in
-                    ResourceTile(kind: kind, amount: stores.resources[kind] ?? 0)
+                    ResourceTile(
+                        kind: kind,
+                        amount: stores.resources[kind] ?? 0,
+                        delta: lastLook.map { (stores.resources[kind] ?? 0) - $0.resource(kind) }
+                    )
                 }
             }
         }
@@ -309,6 +315,9 @@ private struct ResourceTile: View {
 
     let kind: ResourceKind
     let amount: Double
+    /// How far it has come since the player last looked, when they have been
+    /// away long enough for that to be worth saying.
+    var delta: Double? = nil
 
     var body: some View {
         VStack(spacing: 4) {
@@ -321,6 +330,12 @@ private struct ResourceTile: View {
                 .font(.headline.monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                // The live tick changes these every few minutes; rolling the
+                // digits is what lets the player see the colony working.
+                .contentTransition(.numericText(value: amount.rounded()))
+                .animation(.snappy, value: amount.rounded())
+
+            if let delta { DeltaChip(delta: delta) }
 
             Text(kind.displayName)
                 .font(.caption2)
@@ -342,15 +357,21 @@ private struct PopulationSection: View {
 
     let population: PopulationSummary
 
+    @Environment(\.lastLook) private var lastLook
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionTitle("Population", systemImage: "person.3.fill")
 
             HStack(spacing: 0) {
-                CountPill(value: population.total, label: "Total")
-                CountPill(value: population.adults, label: "Adults")
-                CountPill(value: population.brood, label: "Brood")
-                CountPill(value: population.drones, label: "Drones")
+                CountPill(value: population.total, label: "Total",
+                          delta: lastLook.map { population.total - $0.total })
+                CountPill(value: population.adults, label: "Adults",
+                          delta: lastLook.map { population.adults - $0.adults })
+                CountPill(value: population.brood, label: "Brood",
+                          delta: lastLook.map { population.brood - $0.brood })
+                CountPill(value: population.drones, label: "Drones",
+                          delta: lastLook.map { population.drones - $0.drones })
             }
 
             BroodBar(population: population)
@@ -382,6 +403,7 @@ private struct CountPill: View {
 
     let value: Int
     let label: String
+    var delta: Int? = nil
 
     var body: some View {
         VStack(spacing: 2) {
@@ -389,6 +411,9 @@ private struct CountPill: View {
                 .font(.title3.weight(.semibold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
+                .contentTransition(.numericText(value: Double(value)))
+                .animation(.snappy, value: value)
+            if let delta { DeltaChip(delta: Double(delta)) }
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

@@ -74,23 +74,34 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
         /// from when it is out of touch.
         private var lastFileSent: Date?
 
+        enum SummaryClaim {
+            /// Nothing a glance would notice.
+            case none
+            /// Fresher numbers, a new headline, a new season: worth having,
+            /// not worth spending the complication budget on.
+            case routine
+            /// A decision opened or closed, the status or the top alert moved.
+            case important
+        }
+
         /// Whether something a glance would notice has changed, or enough time
-        /// has passed to be worth refreshing anyway. Records the send in the
-        /// same breath, so two threads cannot both decide to.
+        /// has passed to be worth refreshing anyway, and how much it matters.
+        /// Records the send in the same breath, so two threads cannot both
+        /// decide to.
         func claimSummary(
             _ summary: WatchSummary,
             force: Bool,
             minimumInterval: TimeInterval,
             now: Date = Date()
-        ) -> Bool {
+        ) -> SummaryClaim {
             lock.lock()
             defer { lock.unlock() }
 
-            let worthSending: Bool
+            let claim: SummaryClaim
             if force {
-                worthSending = true
+                claim = .important
             } else if let lastSentSummary, let lastSent {
-                worthSending = summary.status != lastSentSummary.status
+                if summary.status != lastSentSummary.status
                     || summary.topAlert?.kind != lastSentSummary.topAlert?.kind
                     // A decision opening or closing is the one thing the watch
                     // exists for, and none of the others necessarily moves
@@ -98,18 +109,23 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
                     // status, the top alert or the headline. Without this a
                     // question with half a day to answer it could wait out
                     // the fifteen-minute throttle first.
-                    || summary.decision?.kind != lastSentSummary.decision?.kind
-                    || summary.season != lastSentSummary.season
+                    || summary.decision?.kind != lastSentSummary.decision?.kind {
+                    claim = .important
+                } else if summary.season != lastSentSummary.season
                     || summary.shortHeadline != lastSentSummary.shortHeadline
-                    || now.timeIntervalSince(lastSent) >= minimumInterval
+                    || now.timeIntervalSince(lastSent) >= minimumInterval {
+                    claim = .routine
+                } else {
+                    claim = .none
+                }
             } else {
-                worthSending = true
+                claim = .important
             }
 
-            guard worthSending else { return false }
+            guard claim != .none else { return .none }
             lastSent = now
             lastSentSummary = summary
-            return true
+            return claim
         }
 
         func claimFile(force: Bool, minimumInterval: TimeInterval, now: Date = Date()) -> Bool {
@@ -122,6 +138,24 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
             }
             lastFileSent = now
             return true
+        }
+
+        /// Transfers cancelled because a newer save replaced them. They report
+        /// back as failures, and a failure lets the next file straight
+        /// through — so without remembering these, a watch out of range was
+        /// sent a fresh save, cancelling the last, on every change.
+        private var cancelled: Set<URL> = []
+
+        func markCancelled(_ url: URL) {
+            lock.lock()
+            defer { lock.unlock() }
+            cancelled.insert(url)
+        }
+
+        func wasCancelled(_ url: URL) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return cancelled.remove(url) != nil
         }
 
         /// Lets the next one through rather than waiting out the throttle.
@@ -181,25 +215,38 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
         // one failed into the console as "WCSession is not paired".
         guard session.activationState == .activated, session.isPaired,
               session.isWatchAppInstalled else { return }
-        guard throttle.claimSummary(
+        let claim = throttle.claimSummary(
             summary, force: force, minimumInterval: Self.minimumInterval
-        ) else { return }
+        )
+        guard claim != .none else { return }
 
         do {
             let payload = ["summary": try encoder.encode(summary)]
 
-            // Urgent news jumps the queue; routine updates ride the
-            // complication transfer, which survives the app not running.
-            if summary.status == .critical || summary.topAlert?.severity == .critical {
-                if session.isReachable {
-                    session.sendMessage(payload, replyHandler: nil) { [weak self] error in
-                        self?.logger.error("watch message failed: \(error.localizedDescription)")
-                    }
-                    return
+            // Urgent news jumps the queue, and falls back to the queue if the
+            // message does not get through — it used to be logged and lost,
+            // and a critical change then waited out the throttle.
+            if summary.status == .critical || summary.topAlert?.severity == .critical,
+               session.isReachable {
+                session.sendMessage(payload, replyHandler: nil) { [weak self] error in
+                    self?.logger.error("watch message failed: \(error.localizedDescription)")
+                    WCSession.default.transferCurrentComplicationUserInfo(payload)
                 }
+                return
             }
 
-            session.transferCurrentComplicationUserInfo(payload)
+            // The complication transfer has a budget of about fifty a day, and
+            // the headline alone changes every simulated day — two real hours.
+            // Spent on routine updates it ran out, after which every transfer
+            // became ordinary queued user info and arrived in a stale burst.
+            // So the budget is kept for what matters, and everything else goes
+            // as the application context, where only the latest is kept.
+            if claim == .important, session.isComplicationEnabled,
+               session.remainingComplicationUserInfoTransfers > 0 {
+                session.transferCurrentComplicationUserInfo(payload)
+            } else {
+                try session.updateApplicationContext(payload)
+            }
 
         } catch {
             // The claim was taken before the encode, so give it back. Without
@@ -228,9 +275,22 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
 
         do {
             let data = try GamePersistence.encodeForTransfer(simulation)
+            // A file of its own each time. They all used to share one path,
+            // rewritten while earlier transfers of it could still be queued.
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("colony-transfer.json")
+                .appendingPathComponent("colony-transfer-\(UUID().uuidString).json")
             try data.write(to: url, options: .atomic)
+
+            // Only the newest save is worth delivering. A watch out of range
+            // collected a backlog, and an older save landing after a newer one
+            // undid whatever the newer one carried.
+            for transfer in session.outstandingFileTransfers
+            where transfer.file.metadata?["kind"] as? String == "save" {
+                let stale = transfer.file.fileURL
+                throttle.markCancelled(stale)
+                transfer.cancel()
+                try? FileManager.default.removeItem(at: stale)
+            }
 
             session.transferFile(url, metadata: ["kind": "save"])
 
@@ -314,6 +374,12 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
         Task { @MainActor [weak self] in
             guard let self else { return }
             if let store = self.store {
+                // A watch message can wake a suspended app whose store is
+                // hours behind. Without catching up first the answer is judged
+                // against a colony that has not got to the decision yet, and
+                // the save afterwards writes that old colony over whatever a
+                // widget, notification or background refresh put there since.
+                store.catchUp()
                 if !store.apply(action) {
                     self.logger.debug(
                         "a decision from the watch arrived too late: \(identifier, privacy: .public)"
@@ -328,6 +394,9 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
     }
 
     func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
+        let url = fileTransfer.file.fileURL
+        try? FileManager.default.removeItem(at: url)
+        if throttle.wasCancelled(url) { return }
         if let error {
             logger.error("save transfer failed: \(error.localizedDescription)")
             throttle.forgetLastFile()
