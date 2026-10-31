@@ -151,19 +151,33 @@ the save over WatchConnectivity; see `WatchLink`.
 Identification is a bonus, never a gate: a flower the app cannot name still
 feeds the colony at a reduced yield.
 
-It works today, without a trained model, by matching Vision feature prints
-against reference photographs. No references are bundled yet, so the library
-starts empty and fills from flowers the player names themselves and flowers
-other people share with them — which means it gets better as the game is used.
-Curating a starter set of reference photographs is the cheapest real
-improvement available.
+The identifier is [BioCLIP 2](https://huggingface.co/imageomics/bioclip-2), an
+open model (MIT) that knows every flowering plant on Earth, run entirely on
+the phone. It is built rather than checked in, because it is 350 MB:
 
-**Do not start with the Oxford 102 dataset**, despite it being the obvious
-choice for flower classification. It is ornamental and glasshouse flowers;
-this catalogue is British bee forage, and about six of the thirty species
-overlap. See [docs/CLASSIFIER.md](docs/CLASSIFIER.md) for what to use instead,
-how model labels are mapped onto catalogue species, and which species will be
-hard to separate.
+```bash
+cd tools/bioclip
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python torch==2.7.0 torchvision==0.22.0 open_clip_torch coremltools numpy pandas pyarrow safetensors huggingface_hub pillow
+.venv/bin/python build.py all
+xcodegen generate
+```
+
+That downloads about 4.5 GB once, and writes `BioCLIP2.mlpackage` (the image
+encoder, 8-bit, ~305 MB), `BioCLIPTaxa.bin` (the taxon matrix, ~44 MB) and
+`BioCLIPTaxa.json` into `FlowerPower/Models/`, which is git-ignored. Run
+XcodeGen afterwards so the project picks the package up. **A build without
+these files is a working app**: it falls back to Vision's own flower labels,
+the on-device language model and feature-print matching, and names less.
+
+To see what the model makes of a photograph before building the app:
+
+```bash
+tools/bioclip/.venv/bin/python tools/bioclip/build.py check --coreml ~/Pictures/tulip.jpg
+```
+
+See [docs/CLASSIFIER.md](docs/CLASSIFIER.md) for the four rungs, the
+thresholds, and what the game does with a plant its catalogue does not model.
 
 Visual Look Up — the plant identification in Photos — has no public API and
 cannot be used. That is why a model is needed at all.

@@ -1188,6 +1188,68 @@ American animals British biomes.
 
 ---
 
+### 2026-09-16 — identification: every flower on Earth
+
+The app could not name a tulip. Kyle photographed well-known flowers and every
+one came back "a flower, but we cannot name it", and the reason was not the
+model but the vocabulary: every rung of the identifier was fenced by the
+game's closed list of thirty species and eighteen families. The on-device
+language model was made to choose a family from those eighteen, so a tulip,
+an orchid or a hydrangea had no legal answer; the feature-print library ships
+empty; no Core ML model was bundled; and `CaptureView` fell back to a bare
+classifier with no rungs at all if a photograph was handled before the async
+build finished. Even "Name It Yourself" offered the same thirty.
+
+**The taxonomy is open now.** `Taxon.family` is a `BotanicalFamily` — any
+family by name — and `PlantFamily` is what that name resolves to when the
+game models it. Saves are unchanged, because the family was always stored as
+its lower-cased Latin name. `WorldFamilies` holds notes and typical traits for
+some fifty families a player is likely to meet and the catalogue does not
+collect (peonies are all pollen; orchids are no use to a honey bee; eucalyptus
+is a flow); a family in neither table gets middling traits and a plain
+sentence. The collection screen lists such families under "Beyond the
+catalogue" without counting them toward the eighteen. `FlowerSpecies.generic`
+takes the identifier's common name, so the card says "Poet's Narcissus" over
+the Latin.
+
+**BioCLIP 2 is the identifier.** Open (MIT), commercial-safe, no server and
+no fee, which were the constraints. `tools/bioclip/build.py` converts the
+ViT-L/14 image tower to Core ML at 8 bits (305 MB) and builds a 44 MB matrix
+from the model's own published text embeddings: 42,690 species (everything
+iNaturalist or TreeOfLife has photographed, plus anything with an English
+common name), all 14,061 genera and all 469 families of flowering plant.
+Genus and family rows are the normalised means of their members.
+`TaxonEmbeddingIndex` in the package does the arithmetic — a softmax per rank,
+the species answer summed up into genus and family, the finest rank that
+clears its threshold wins — and is tested with a toy index. Neither the model
+nor the matrix is checked in; a build without them still works.
+
+Ten Wikimedia photographs through the Core ML package: daffodil, foxglove and
+sunflower placed to species (93%, 79%, 91%); rose, tulip, peony, hydrangea and
+dandelion to genus (all above 94%); the orchid to family (92%); lavender with a
+butterfly on it not placed, which is honest. Three things the run taught: the
+species threshold has to be high (0.7) because garden plants are cultivars and
+the model, offered only wild species, names the nearest wild one at sixty
+percent; and the family prototype rows are the weakest signal (Ranunculaceae
+69% on a daffodil against 97% for the summed narcissi), so they are
+discounted by half against the summed species evidence; and the genus
+threshold has to sit above a half, because summed evidence can pool in a
+lookalike (the Phalaenopsis gathered under Paphiopedilum at 57%).
+
+**Three cheaper rungs beneath it.** Vision's own classifier knows a couple of
+dozen flowers by name and the app was already running it as the plant gate;
+`VisionLabelTaxa` keeps its answer. The language model may now name any
+family, checked for shape rather than membership. The race in `CaptureView`
+waits for the classifier instead of identifying with nothing.
+
+Verified: the package suite, 172 XCTest + 386 Swift Testing, 0 failures
+(the Swift Testing count is up from 371 with `OpenTaxonomyTests`); the app's
+10 unit tests on the iOS 27 simulator; and the app launched on that simulator
+with the model built in, opened the capture screen, loaded the 57,220-name
+index and sat at 407 MB resident. Not seen on a phone: the model's load time
+and memory there (it is 305 MB on disk), the thresholds against a player's
+own photographs, and the picker's "Every Flowering Plant" section.
+
 ## 3. What is next
 
 ### Immediately, and only on a Mac
@@ -1223,22 +1285,21 @@ it is package work and needs none of a Mac, a device, real photographs or a
 trained model. Everything from 7 to 11 needs one of those, so none of it can be
 started here.
 
-7. **Curate reference photographs.** Still the cheapest real win for devices
-   without Apple Intelligence: the feature-print classifier works but ships
-   with an empty library, so it places nothing until the player does. Thirty
-   species, a handful of photographs each. `docs/CLASSIFIER.md` has the
-   sources.
-8. **Check the on-device model against real photographs.** The taxonomic
-   classifier is written and its answer-handling is tested, but nobody has
-   seen what the model actually says about a British hedgerow. The open
-   question is whether it places to family honestly or reaches for a species,
-   which is what the prompt is written to discourage.
-9. **Tune `FeaturePrintLibrary.maximumDistance` on device.** It is the number
-   that decides between naming things wrongly and naming nothing, and it was
-   set by reasoning rather than by measurement — feature-print distances are
-   not normalised, so it needs real photographs.
-10. **Train the classifier**, if neither of the above is good enough.
-   `docs/CLASSIFIER.md` is the brief.
+7. **~~Curate reference photographs.~~ Superseded on 2026-09-16** by BioCLIP
+   2, which ships knowing every flowering plant; the feature-print library
+   is now the last rung, for devices where the model was not built in.
+8. **Tune the BioCLIP thresholds on a phone.** `TaxonEmbeddingIndex`'s
+   species/genus/family thresholds (0.7 / 0.6 / 0.4) and `familyRowWeight`
+   were set from ten Wikimedia photographs on 2026-09-16. Photograph the
+   garden with the phone and read the `bioclip` log category, which prints
+   every rank's best answer. Also measure the model's load time and memory:
+   it is 305 MB, and if that is too much for the first launch, move it to an
+   on-demand resource.
+9. **Check the on-device language model against real photographs.** It is
+   the third rung now and may name any family; nobody has seen what it says
+   about a British hedgerow.
+10. **~~Train the classifier.~~ Not needed**; BioCLIP 2 covers the catalogue
+   and everything else.
 11. **App icon.** A generated placeholder is in the appiconset now
    (`tools/make_app_icon.py`) so the build does not fail on an empty set. It
    is not a design; replace it.

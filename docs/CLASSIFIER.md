@@ -25,9 +25,44 @@ Getting it wrong is worse than saying nothing: a patch placed as the wrong
 species is given the wrong corolla depth, the wrong nectar and the wrong bloom
 season, and tells the player something plainly false about the world.
 
-## The three routes, best first
+## The four routes, best first
 
-**1. The on-device model, through `TaxonomicClassifier`. Built.**
+**1. BioCLIP 2, on the phone. Built, 2026-09-16.**
+
+An open model (Imageomics, MIT licence) trained on two hundred million
+photographs of living things to put a picture and the text of its taxonomic
+name in the same place. Only the image half ships: a Core ML encoder of about
+300 MB, 8-bit, that turns a photograph into 768 numbers. The text half was run
+once, at build time, over every flowering plant the model knows — 42,690
+species, all 14,061 genera and all 469 families — and ships as a 44 MB matrix.
+Identifying a flower is one pass through the encoder and one down the matrix.
+
+`tools/bioclip/build.py` builds all three files into `FlowerPower/Models/`,
+which is not checked in. A build without them is a working app that names
+less. `TaxonEmbeddingIndex` in the package holds the matrix and does the
+arithmetic — a softmax at each rank, the species answer summed up into its
+genus and family, the finest rank that clears its threshold wins — and is
+tested. `BioCLIPClassifier` in the app runs the encoder.
+
+The species list is every flowering plant that iNaturalist or TreeOfLife has
+a photograph of, plus any with an English common name; the rest of the
+315,000 are reached through their genus and family rows. The thresholds
+(`speciesThreshold` 0.7, `genusThreshold` 0.6, `familyThreshold` 0.4, `familyRowWeight` 0.5) were
+set from ten Wikimedia photographs and want tuning on a phone against
+photographs taken the way players take them.
+
+**2. Vision's own labels. Built, 2026-09-16.**
+
+The classifier that ships with iOS has thirteen hundred labels, and a couple
+of dozen of them are flowers: rose, tulip, lily, orchid, daisy, dahlia,
+carnation, daffodil, chrysanthemum, marigold, petunia, begonia, snapdragon,
+cornflower, clover, sunflower, dandelion, rosemary, cactus. The app always ran
+this request as the "is this a plant?" gate and threw the rest away.
+`VisionLabelTaxa` in the package maps each label to the finest rank it
+honestly supports — a genus for tulip, a family for daisy, the catalogue entry
+for sunflower — and the gate's answer is read a second time.
+
+**3. The on-device language model, through `TaxonomicClassifier`. Built.**
 
 Foundation Models gained image attachments in iOS 27, so the system model can
 be handed a photograph. What makes it the right tool rather than merely an
@@ -36,6 +71,12 @@ schema, so the question is a form with a family, a genus, an epithet and a
 confidence, any of which may be left blank. The prompt argues against the
 model's instinct to name a species, because that instinct is exactly wrong for
 this problem.
+
+Until 2026-09-16 the family was chosen from a closed list of the eighteen the
+game models, which is why a tulip, an orchid or a hydrangea came back as "a
+flower, but we cannot name it": there was no legal answer. Any family is
+allowed now, checked for shape (a Latin name ending in -aceae) rather than
+membership.
 
 Answers are refused unless coherent - an epithet with no genus, a family with
 no plant, a confidence that is not a number. A genus the catalogue knows
@@ -46,7 +87,7 @@ Needs Apple Intelligence, so it cannot be the only path. Availability is
 reported with a reason, since "your device cannot" and "turn Apple Intelligence
 on" want different things said to the player.
 
-**2. Vision feature prints, nearest neighbour. Built.**
+**4. Vision feature prints, nearest neighbour. Built.**
 
 `GenerateImageFeaturePrintRequest` returns a vector describing an image, from a
 network Apple already trained. Reference photographs plus a nearest-neighbour
@@ -54,18 +95,30 @@ lookup is a working classifier with no training step and no model to ship, on
 every device. The arithmetic is `FeaturePrintLibrary` in the package and is
 tested; the Vision call is `FeaturePrints` in the app.
 
-No references are bundled yet. The library fills from flowers the player names
-and flowers people share, so it improves with use - curating a starter set is
-the cheapest real win available.
+No references are bundled. The library fills from flowers the player names and
+flowers people share, so it improves with use.
 
-**3. A trained Core ML model. The upgrade.**
-
-Most accurate, most work. The rest of this document is the brief.
-`FlowerClassifier` prefers a bundled model over the reference library
-automatically.
+**A trained Core ML classifier of the thirty catalogue species is no longer
+planned.** BioCLIP 2 covers them and everything else; the brief below is kept
+for the record of why Oxford 102 would have been the wrong dataset for it.
 
 **Visual Look Up is still not available.** No public API for third-party apps,
 checked again in September 2026.
+
+## What the game does with a plant it does not model
+
+`Taxon.family` is a `BotanicalFamily` — any family by name — rather than the
+`PlantFamily` enum, which is the eighteen the collection counts. A placement in
+Orchidaceae or Paeoniaceae is a real placement: it is shown on the capture
+card, listed on the collection screen under "Beyond the catalogue", and the
+colony is given the family's typical forage. `WorldFamilies` holds notes and
+traits for some fifty families a player is likely to meet (peonies are all
+pollen; orchids are no use to a honey bee; eucalyptus is a flow), and a family
+in neither table gets middling traits and a plain sentence. Saves are
+unchanged: the family was always stored as its lower-cased Latin name.
+
+"Name It Yourself" offers the catalogue first and then, when the taxon matrix
+is on the phone, every flowering plant there is.
 
 ---
 

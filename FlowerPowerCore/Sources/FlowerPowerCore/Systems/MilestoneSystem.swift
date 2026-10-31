@@ -183,12 +183,14 @@ public struct MilestoneSystem: SimulationSystem {
 
     // MARK: - Reading the world
 
-    /// The plant families the garden holds, however coarsely identified.
+    /// The modelled plant families the garden holds, however coarsely
+    /// identified. A family the catalogue does not model is a real placement
+    /// but not a collectible one, so it does not count here.
     ///
     /// Derived the same way `BotanyCollection` derives it, so the badge and
     /// the garden page can never disagree about how many families there are.
     private static func familiesInGarden(_ world: World) -> Set<PlantFamily> {
-        Set(world.patches.compactMap { $0.species?.taxon.family })
+        Set(world.patches.compactMap { $0.species?.taxon.family.known })
     }
 
     /// The simulated seasons in which the player has registered a flower.

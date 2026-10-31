@@ -91,8 +91,8 @@ public struct BloomPrompt: Equatable, Sendable {
         self.notYetPhotographed = flowering.filter { !collection.speciesCollected.contains($0.id) }
         self.keystones = flowering.filter(\.isKeystone)
 
-        let familiesFlowering = Set(flowering.map(\.family))
-        let familiesHeld = Set(collection.families.map(\.family))
+        let familiesFlowering = Set(flowering.compactMap(\.family.known))
+        let familiesHeld = Set(collection.families.compactMap(\.family.known))
         self.missingFamilies = familiesFlowering.subtracting(familiesHeld)
             .sorted { $0.scientificName < $1.scientificName }
     }

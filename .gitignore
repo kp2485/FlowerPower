@@ -45,3 +45,9 @@ Desktop.ini
 
 # Agent worktrees created by Claude Code sessions.
 .claude/worktrees/
+
+# The identifier is built, not checked in: `tools/bioclip/build.py` produces
+# a 300 MB Core ML package and a 44 MB taxon matrix into FlowerPower/Models.
+FlowerPower/Models/
+tools/bioclip/.venv/
+tools/bioclip/work/

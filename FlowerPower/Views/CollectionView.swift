@@ -53,7 +53,7 @@ struct CollectionView: View {
             }
 
             Section("Families in the garden") {
-                ForEach(collection.families) { entry in
+                ForEach(collection.families.filter(\.isModelled)) { entry in
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
                             Text(entry.family.commonName).font(.headline)
@@ -72,6 +72,35 @@ struct CollectionView: View {
                     }
                     .padding(.vertical, 2)
                     .accessibilityElement(children: .combine)
+                }
+            }
+
+            if !collection.familiesBeyondCatalogue.isEmpty {
+                Section {
+                    ForEach(collection.familiesBeyondCatalogue) { entry in
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(entry.family.commonName).font(.headline)
+                                Spacer()
+                                Text(entry.family.scientificName)
+                                    .font(.caption.italic())
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(entry.family.forageNote)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(detail(entry))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 2)
+                        .accessibilityElement(children: .combine)
+                    }
+                } header: {
+                    Text("Beyond the catalogue")
+                } footer: {
+                    Text("Families the game does not collect, that your bees have been given anyway.")
                 }
             }
 

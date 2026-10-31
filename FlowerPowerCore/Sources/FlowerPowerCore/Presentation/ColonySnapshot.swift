@@ -256,7 +256,7 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
 
     /// Where the plant sits botanically, to whatever rank was reached.
     public let taxon: Taxon?
-    public var family: PlantFamily? { taxon?.family }
+    public var family: BotanicalFamily? { taxon?.family }
     public var rank: TaxonomicRank? { taxon?.rank }
     public var scientificName: String? { taxon?.scientificName }
 

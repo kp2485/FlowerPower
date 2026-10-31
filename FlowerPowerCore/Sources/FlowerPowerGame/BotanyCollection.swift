@@ -19,7 +19,10 @@ import FlowerPowerCore
 public struct BotanyCollection: Equatable, Sendable {
 
     public struct FamilyEntry: Equatable, Identifiable, Sendable {
-        public let family: PlantFamily
+        /// Any family at all: the eighteen the game models, and whatever else
+        /// the identifier has placed a photograph in. An orchid in the garden
+        /// is listed as Orchidaceae, with a note on why the bees ignore it.
+        public let family: BotanicalFamily
         public let genera: Set<String>
         /// Catalogue species identified to species rank.
         public let speciesIDs: Set<String>
@@ -28,7 +31,10 @@ public struct BotanyCollection: Equatable, Sendable {
         /// The finest rank any patch in this family reached.
         public let bestRank: TaxonomicRank
 
-        public var id: PlantFamily { family }
+        public var id: BotanicalFamily { family }
+
+        /// Whether this is one of the families the collection counts.
+        public var isModelled: Bool { family.known != nil }
     }
 
     public let families: [FamilyEntry]
@@ -39,7 +45,7 @@ public struct BotanyCollection: Equatable, Sendable {
     public let speciesCollected: Set<String>
 
     public init(patches: [PatchSummary]) {
-        var byFamily: [PlantFamily: [PatchSummary]] = [:]
+        var byFamily: [BotanicalFamily: [PatchSummary]] = [:]
         for patch in patches {
             guard let family = patch.family else { continue }
             byFamily[family, default: []].append(patch)
@@ -81,14 +87,19 @@ public struct BotanyCollection: Equatable, Sendable {
 
         families = entries.sorted { $0.family.scientificName < $1.family.scientificName }
         missingFamilies = PlantFamily.allCases
-            .filter { byFamily[$0] == nil }
+            .filter { byFamily[BotanicalFamily($0)] == nil }
             .sorted { $0.scientificName < $1.scientificName }
         seasonsCovered = seasons
         speciesCollected = species
     }
 
-    public var familiesSeen: Int { families.count }
+    /// Modelled families found, out of `familiesTotal`. Families beyond the
+    /// catalogue are listed but not counted: the collection is the eighteen.
+    public var familiesSeen: Int { families.filter(\.isModelled).count }
     public var familiesTotal: Int { PlantFamily.allCases.count }
+    /// Families the identifier has placed a flower in that the catalogue does
+    /// not model. Real botany, outside the game's own list.
+    public var familiesBeyondCatalogue: [FamilyEntry] { families.filter { !$0.isModelled } }
     public var speciesTotal: Int { FlowerCatalogue.all.count }
 
     /// 0...1, how much of the year the garden has something for.

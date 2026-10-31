@@ -394,8 +394,10 @@ public final class GameStore {
     /// in.
     public func forageRequest(from senderName: String?, note: String? = nil) -> FlowerShare {
         let season = snapshot.season
-        let workable = Set(snapshot.patches.filter(\.isInBloom).compactMap(\.family))
-        let wanted = Set(FlowerCatalogue.inBloom(during: season).map(\.family))
+        // Modelled families only: a request names what the catalogue can
+        // describe, and a friend can only send what they can name.
+        let workable = Set(snapshot.patches.filter(\.isInBloom).compactMap { $0.family?.known })
+        let wanted = Set(FlowerCatalogue.inBloom(during: season).compactMap(\.family.known))
             .subtracting(workable)
             .sorted { $0.scientificName < $1.scientificName }
 

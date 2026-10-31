@@ -176,9 +176,18 @@ struct CaptureView: View {
                 return
             }
 
-            // Falls back to the plant gate alone if the capture screen was
-            // opened and used faster than the classifier could be built.
-            let identifier = classifier ?? FlowerClassifier()
+            // If the capture screen was opened and used faster than the
+            // classifier could be built, wait for it rather than identify
+            // with nothing: a bare classifier has no rungs at all, and
+            // would call every flower unnameable.
+            let identifier: FlowerIdentifying
+            if let classifier {
+                identifier = classifier
+            } else {
+                let built = await FlowerClassifier.bundled()
+                classifier = built
+                identifier = built
+            }
             let identification = try await identifier.identify(
                 cgImage,
                 orientation: image.imageOrientation.cgOrientation

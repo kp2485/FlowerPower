@@ -10,16 +10,21 @@
 //     needs no model, and is reliable at that coarse level. It is what stops a
 //     photograph of a car door becoming a nectar patch.
 //
-//  2. *What* plant, and how precisely can that honestly be said? Three ways to
+//  2. *What* plant, and how precisely can that honestly be said? Four ways to
 //     answer, tried best first:
 //
-//     The on-device model, through `TaxonomicClassifier`. It can place a
-//     flower to a family, a genus or a species and say which, which is the
-//     shape the game wants. Needs Apple Intelligence.
+//     BioCLIP 2, through `BioCLIPClassifier`: an open model that knows every
+//     flowering plant on Earth, bundled as a Core ML image encoder and a
+//     matrix of taxon names. Places to species, genus or family and says
+//     which. Needs the model to have been built (tools/bioclip).
 //
-//     A trained Core ML model, if one has been bundled. See
-//     docs/CLASSIFIER.md, which also explains why Oxford 102 is the wrong
-//     dataset for a catalogue of British bee forage.
+//     Vision's own labels. The classifier that ships with the OS knows a
+//     couple of dozen well-known flowers by name — rose, tulip, orchid,
+//     daffodil — and this rung keeps what the plant gate already asked it.
+//
+//     The on-device language model, through `TaxonomicClassifier`. Can name
+//     a family, genus or species from the photograph. Needs Apple
+//     Intelligence.
 //
 //     Otherwise nearest-neighbour matching against reference photographs using
 //     Vision feature prints. No model, no dataset; works on every device.
@@ -127,12 +132,7 @@ public struct FlowerClassifier: FlowerIdentifying {
     /// Minimum confidence before a placement is claimed at all.
     public static let placementThreshold: Double = 0.25
 
-    /// `VNCoreMLModel` is a class the SDK does not declare `Sendable`, and
-    /// `FlowerIdentifying` requires this type to be. Unsafe by declaration
-    /// rather than by omission: the model is loaded once, never mutated, and
-    /// Vision is documented as safe to hand one request handler at a time,
-    /// which is all `classifySpecies` does.
-    nonisolated(unsafe) private let model: VNCoreMLModel?
+    private let bioCLIP: BioCLIPClassifier?
     private let library: FeaturePrintLibrary?
     private let onDevice: TaxonomicClassifier?
     private let logger = Logger(subsystem: "com.linwoodtechnologies.flowerpower", category: "classifier")
@@ -140,35 +140,21 @@ public struct FlowerClassifier: FlowerIdentifying {
     /// Internal, not public, because `TaxonomicClassifier` is. Nothing outside
     /// the app module could call it anyway.
     init(
-        model: VNCoreMLModel? = nil,
+        bioCLIP: BioCLIPClassifier? = nil,
         library: FeaturePrintLibrary? = nil,
         onDevice: TaxonomicClassifier? = nil
     ) {
-        self.model = model
+        self.bioCLIP = bioCLIP
         self.library = library
         self.onDevice = onDevice
     }
 
     /// The best identifier available on this device right now.
-    public static func bundled(named name: String = "FlowerClassifier") async -> FlowerClassifier {
-        let library = await FeaturePrintStore.shared.library
+    public static func bundled() async -> FlowerClassifier {
+        async let bioCLIP = BioCLIPClassifier.bundled()
+        async let library = FeaturePrintStore.shared.library
         let onDevice = TaxonomicClassifier.isAvailable ? TaxonomicClassifier() : nil
-
-        guard let url = Bundle.main.url(forResource: name, withExtension: "mlmodelc") else {
-            return FlowerClassifier(model: nil, library: library, onDevice: onDevice)
-        }
-
-        do {
-            let coreML = try MLModel(contentsOf: url)
-            return FlowerClassifier(
-                model: try VNCoreMLModel(for: coreML),
-                library: library,
-                onDevice: onDevice
-            )
-        } catch {
-            // A missing or broken model degrades placement, never the game.
-            return FlowerClassifier(model: nil, library: library, onDevice: onDevice)
-        }
+        return await FlowerClassifier(bioCLIP: bioCLIP, library: library, onDevice: onDevice)
     }
 
     public func identify(
@@ -176,38 +162,64 @@ public struct FlowerClassifier: FlowerIdentifying {
         orientation: CGImagePropertyOrientation = .up
     ) async throws -> FlowerIdentification {
 
-        // Stage one: is this plant material?
-        guard try await FeaturePrints.looksLikePlantMaterial(image, orientation: orientation)
-        else { return .notAFlower }
+        // Stage one: is this plant material? Vision is asked once; the
+        // answer is kept, because its labels are also the second rung.
+        let labels = try await FeaturePrints.labels(for: image, orientation: orientation)
+        guard FeaturePrints.looksLikePlantMaterial(labels) else { return .notAFlower }
 
         // Stage two, best available answer first.
+
+        // BioCLIP 2: any flowering plant, to whatever rank it is sure of.
+        if let bioCLIP {
+            do {
+                if let placement = try bioCLIP.place(image, orientation: orientation),
+                   let taxon = placement.taxon {
+                    return identification(
+                        for: taxon,
+                        confidence: placement.confidence,
+                        commonName: placement.commonName,
+                        runnersUp: placement.alternatives.map {
+                            ($0.entry.taxon, Double($0.probability), $0.entry.commonName)
+                        }
+                    )
+                }
+            } catch {
+                // A model that fails on one image degrades that placement,
+                // never the game. The rungs below still run.
+                logger.error("bioclip failed: \(error.localizedDescription)")
+            }
+        }
+
+        // Vision named the flower outright.
+        if let named = FeaturePrints.namedFlower(in: labels) {
+            return identification(
+                for: named.species.taxon, confidence: named.confidence, known: named.species
+            )
+        }
+
+        // The on-device language model.
         if let onDevice, let placement = try? await onDevice.place(UIImage(cgImage: image)),
            placement.confidence >= Self.placementThreshold {
             return identification(for: placement.taxon, confidence: placement.confidence)
         }
 
-        let matches: [FlowerIdentification.Alternative]
-        if let model {
-            matches = try await classifySpecies(image, orientation: orientation, model: model)
-        } else if let library, !library.isEmpty {
-            matches = try await matchAgainstReferences(
+        // Reference photographs the player has labelled.
+        if let library, !library.isEmpty {
+            let matches = try await matchAgainstReferences(
                 image, orientation: orientation, library: library
             )
-        } else {
-            return .unplacedFlower
+            if let best = matches.first, best.confidence >= Self.placementThreshold {
+                return FlowerIdentification(
+                    taxon: best.species.taxon,
+                    species: best.species,
+                    confidence: best.confidence,
+                    looksLikeAFlower: true,
+                    alternatives: Array(matches.dropFirst().prefix(3))
+                )
+            }
         }
 
-        guard let best = matches.first, best.confidence >= Self.placementThreshold else {
-            return .unplacedFlower
-        }
-
-        return FlowerIdentification(
-            taxon: best.species.taxon,
-            species: best.species,
-            confidence: best.confidence,
-            looksLikeAFlower: true,
-            alternatives: Array(matches.dropFirst().prefix(3))
-        )
+        return .unplacedFlower
     }
 
     // MARK: - Stages
@@ -215,29 +227,45 @@ public struct FlowerClassifier: FlowerIdentifying {
     /// Builds a result from a placement at any rank.
     ///
     /// A species the catalogue knows becomes that catalogue entry. Anything
-    /// coarser becomes the family's or genus's typical forage, which is a real
-    /// description rather than a fallback.
+    /// coarser, or any plant the catalogue has never heard of, becomes the
+    /// family's or genus's typical forage, which is a real description rather
+    /// than a fallback. `commonName` is what the identifier called it, and
+    /// `runnersUp` are its other guesses at the same rank.
     private func identification(
         for taxon: Taxon,
-        confidence: Double
+        confidence: Double,
+        commonName: String? = nil,
+        known: FlowerSpecies? = nil,
+        runnersUp: [(taxon: Taxon, confidence: Double, commonName: String)] = []
     ) -> FlowerIdentification {
 
-        let known = FlowerCatalogue.all.first { $0.taxon == taxon }
-        let species = known ?? FlowerSpecies.generic(for: taxon)
+        let catalogued = known ?? FlowerCatalogue.all.first { $0.taxon == taxon }
+        let species = catalogued ?? FlowerSpecies.generic(for: taxon, commonName: commonName)
 
-        // Members of the same group the catalogue knows about, offered as
-        // "did you mean?" so a player can sharpen a family into a species.
+        // The identifier's own runners-up first, then members of the same
+        // group the catalogue knows about, so a player can sharpen a family
+        // into a species. Capped so the card does not become a list.
+        var alternatives: [FlowerIdentification.Alternative] = runnersUp.prefix(3).map { guess in
+            let match = FlowerCatalogue.all.first { $0.taxon == guess.taxon }
+            return FlowerIdentification.Alternative(
+                species: match ?? FlowerSpecies.generic(for: guess.taxon, commonName: guess.commonName),
+                confidence: guess.confidence
+            )
+        }
         let relatives = FlowerCatalogue.all
             .filter { taxon.contains($0.taxon) && $0.id != species.id }
             .prefix(3)
             .map { FlowerIdentification.Alternative(species: $0, confidence: confidence * 0.5) }
+        for relative in relatives where !alternatives.contains(where: { $0.species.id == relative.species.id }) {
+            alternatives.append(relative)
+        }
 
         return FlowerIdentification(
             taxon: taxon,
             species: species,
             confidence: confidence,
             looksLikeAFlower: true,
-            alternatives: Array(relatives)
+            alternatives: Array(alternatives.prefix(4))
         )
     }
 
@@ -254,42 +282,6 @@ public struct FlowerClassifier: FlowerIdentifying {
         return library.identifications(for: print).map {
             FlowerIdentification.Alternative(species: $0.species, confidence: $0.confidence)
         }
-    }
-
-    private func classifySpecies(
-        _ image: CGImage,
-        orientation: CGImagePropertyOrientation,
-        model: VNCoreMLModel
-    ) async throws -> [FlowerIdentification.Alternative] {
-
-        let request = VNCoreMLRequest(model: model)
-        // Flowers are usually the subject and centred; cropping to the centre
-        // square beats squashing the whole frame.
-        request.imageCropAndScaleOption = .centerCrop
-
-        let handler = VNImageRequestHandler(cgImage: image, orientation: orientation, options: [:])
-
-        do {
-            try handler.perform([request])
-        } catch {
-            throw FlowerClassifierError.visionFailed(underlying: error)
-        }
-
-        guard let observations = request.results as? [VNClassificationObservation] else {
-            return []
-        }
-
-        return observations
-            .compactMap { observation in
-                guard let species = FlowerCatalogue.match(label: observation.identifier) else {
-                    return nil
-                }
-                return FlowerIdentification.Alternative(
-                    species: species,
-                    confidence: Double(observation.confidence)
-                )
-            }
-            .sorted { $0.confidence > $1.confidence }
     }
 }
 

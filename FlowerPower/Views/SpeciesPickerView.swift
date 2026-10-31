@@ -10,17 +10,23 @@
 //  should be able to say so rather than watch their bees work a
 //  misidentified patch.
 //
-//  And until a model is trained and bundled, the classifier cannot name
-//  anything at all: stage one asks "is this a plant?", stage two asks "which
-//  one?", and stage two is optional. With no model every flower is
-//  unidentified and yields 60% of normal, for ever. That is a playable game
-//  but a dull one, and it makes the whole catalogue — thirty species with
-//  different nectar, different seasons, and the keystone plants that carry a
-//  colony through the gaps — invisible.
+//  And a build without the BioCLIP model cannot name much at all: stage one
+//  asks "is this a plant?", stage two asks "which one?", and stage two is
+//  optional. With nothing to answer it every flower is unidentified and
+//  yields 60% of normal, for ever. That is a playable game but a dull one,
+//  and it makes the whole catalogue — thirty species with different nectar,
+//  different seasons, and the keystone plants that carry a colony through
+//  the gaps — invisible.
 //
 //  So the player can name it. That is a deliberate choice to trust them: this
 //  is a game about going outside and looking at flowers, and somebody who has
 //  knelt down to photograph a viper's bugloss probably knows what it is.
+//
+//  The catalogue comes first, because those are the plants the game is about.
+//  Below it, when the taxon index is on the phone, is every flowering plant
+//  there is: a player who knows their peony is a peony can say so, and the
+//  colony will be given a peony — all pollen, no nectar — rather than a
+//  generic flower.
 //
 
 import SwiftUI
@@ -41,6 +47,7 @@ struct SpeciesPickerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
+    @State private var index: TaxonEmbeddingIndex?
 
     private var results: [FlowerSpecies] {
         guard !search.isEmpty else { return FlowerCatalogue.all }
@@ -49,6 +56,14 @@ struct SpeciesPickerView: View {
             species.commonName.lowercased().contains(needle)
                 || (species.scientificName?.lowercased().contains(needle) ?? false)
         }
+    }
+
+    /// Everything else the identifier knows that matches, minus what the
+    /// catalogue already offered.
+    private var worldResults: [TaxonEmbeddingIndex.Entry] {
+        guard let index, !search.isEmpty else { return [] }
+        let catalogued = Set(results.map(\.taxon))
+        return index.search(search, limit: 30).filter { !catalogued.contains($0.taxon) }
     }
 
     var body: some View {
@@ -71,8 +86,23 @@ struct SpeciesPickerView: View {
                         row(species)
                     }
                 }
+
+                if !worldResults.isEmpty {
+                    Section {
+                        ForEach(worldResults, id: \.self) { entry in
+                            worldRow(entry)
+                        }
+                    } header: {
+                        Text("Every Flowering Plant")
+                    } footer: {
+                        Text("Plants the catalogue does not describe. Your bees will work one as its family typically forages.")
+                    }
+                }
             }
             .searchable(text: $search, prompt: "Search flowers")
+            .task {
+                index = await TaxonIndexStore.shared.index
+            }
             .navigationTitle("What Is It?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -111,6 +141,26 @@ struct SpeciesPickerView: View {
                         .imageScale(.small)
                         .accessibilityLabel("keystone")
                 }
+            }
+        }
+    }
+
+    private func worldRow(_ entry: TaxonEmbeddingIndex.Entry) -> some View {
+        Button {
+            let taxon = entry.taxon
+            let species = FlowerCatalogue.all.first { $0.taxon == taxon }
+                ?? FlowerSpecies.generic(for: taxon, commonName: entry.commonName)
+            onChoose(species)
+            dismiss()
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.commonName.isEmpty ? entry.scientificName : entry.commonName)
+                    .foregroundStyle(.primary)
+                Text(entry.commonName.isEmpty
+                     ? "\(entry.rank.displayName) · \(BotanicalFamily(entry.family).commonName)"
+                     : "\(entry.scientificName) · \(BotanicalFamily(entry.family).commonName)")
+                    .font(.caption.italic())
+                    .foregroundStyle(.secondary)
             }
         }
     }

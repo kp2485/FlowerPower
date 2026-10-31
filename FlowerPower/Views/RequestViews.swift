@@ -108,7 +108,9 @@ struct ReceiveRequestView: View {
         let wanted = Set(request.wanted ?? [])
         return store.snapshot.patches
             .filter { patch in
-                guard let family = patch.family else { return false }
+                // A request names modelled families; a flower placed beyond
+                // the catalogue cannot be what somebody asked for.
+                guard let family = patch.family?.known else { return false }
                 return (wanted.isEmpty || wanted.contains(family)) && !patch.hasFaded
             }
             .sorted { $0.vigour > $1.vigour }
