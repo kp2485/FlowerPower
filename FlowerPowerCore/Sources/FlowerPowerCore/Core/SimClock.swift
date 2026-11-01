@@ -75,6 +75,10 @@ public struct SimClock: Codable, Equatable, Sendable {
 
     public static let defaultWinterSpeed: Double = 2
 
+    /// Far past any colony that could ever be played, and short of the point
+    /// where `tick + pending` and the arithmetic built on it can overflow.
+    public static let maximumTick = 100_000_000
+
     /// Real seconds already accounted for by the ticks processed so far.
     /// Kept rather than recomputed, so a catch-up walks only the pending ticks.
     public private(set) var realSecondsAtTick: Double
@@ -109,7 +113,7 @@ public struct SimClock: Codable, Equatable, Sendable {
         // minute. A restore saves at once, so either
         // would happen again on every launch.
         epoch = try container.decode(Date.self, forKey: .epoch)
-        tick = max(0, try container.decode(Int.self, forKey: .tick))
+        tick = min(max(0, try container.decode(Int.self, forKey: .tick)), Self.maximumTick)
         let rate = try container.decode(Double.self, forKey: .realSecondsPerTick)
         realSecondsPerTick = rate.isFinite ? min(max(rate, 60), 86_400) : Self.defaultRealSecondsPerTick
         maxCatchUpDays = min(max(try container.decode(Int.self, forKey: .maxCatchUpDays), 1), 3650)
@@ -192,6 +196,14 @@ public struct SimClock: Codable, Equatable, Sendable {
     public mutating func rebase(ifAheadOf date: Date, tolerance: TimeInterval = 600) {
         let elapsed = date.timeIntervalSince(epoch)
         guard realSecondsAtTick - elapsed > tolerance else { return }
+        epoch = date.addingTimeInterval(-realSecondsAtTick)
+    }
+
+    /// Moves the epoch so the current tick falls at `date` whichever way the
+    /// colony has drifted. A restored backup uses this: the colony picks up
+    /// from the moment it was saved, rather than living every hour since in
+    /// one silent catch-up a few seconds after it came back.
+    public mutating func resume(at date: Date) {
         epoch = date.addingTimeInterval(-realSecondsAtTick)
     }
 

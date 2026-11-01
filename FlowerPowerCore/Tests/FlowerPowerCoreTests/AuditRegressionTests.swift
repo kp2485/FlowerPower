@@ -36,6 +36,26 @@ struct AuditRegressionTests {
         #expect(decoded.world == simulation.world)
     }
 
+    /// A new constant takes its standard value, which would leave Forgiving
+    /// without its ceiling and give Harsh a kindness it is not measured with.
+    @Test("A colony saved before the fix gets what its own setting has")
+    func oldForgivingSaveIsCarriedOver() throws {
+        func reopened(_ config: SimulationConfig) throws -> SimulationConfig {
+            let data = try JSONEncoder().encode(Fixture.thrivingSimulation(config: config))
+            var root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            var stored = try #require(root["config"] as? [String: Any])
+            stored["storesCeilingCells"] = nil
+            stored["nurseReversionShare"] = nil
+            root["config"] = stored
+            let older = try JSONSerialization.data(withJSONObject: root)
+            return try JSONDecoder().decode(Simulation.self, from: older).config
+        }
+
+        #expect(try reopened(.gentle) == .gentle)
+        #expect(try reopened(.standard) == .standard)
+        #expect(try reopened(.harsh) == .harsh)
+    }
+
     /// A backup is a file anyone can send. These values in one hung or
     /// crashed the app on every launch after restoring it.
     @Test("A clock with hostile values decodes to something that cannot hang or trap")

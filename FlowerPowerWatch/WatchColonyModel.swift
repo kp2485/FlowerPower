@@ -264,8 +264,13 @@ final class WatchColonyModel: NSObject {
     func answer(_ identifier: String) -> Bool {
         guard let action = DecisionAction(identifier: identifier) else { return false }
         let asked = summary?.decision?.kind
-        let applied = applyLocally(action)
+        let appliedHere = applyLocally(action)
         send(decision: identifier)
+        // The watch's save can be hours behind the phone, so a question fresh
+        // from the phone can be one the local copy has never heard of. Only
+        // the phone can refuse those: the warning buzz here was wrong, and it
+        // threw away the real question for the watch's stale summary.
+        let applied = appliedHere || !isStale
         // Held until the phone is seen to have it. Not opening the nest up,
         // which is not checked against any decision: laid over a save again
         // it would draw another batch of comb every time one arrived.
@@ -368,6 +373,12 @@ final class WatchColonyModel: NSObject {
     /// touches the model hops to the main actor explicitly.
     func refresh() {
         loadFromSharedContainer()
+        // With no save on the watch to fall back on, the local catch-up has
+        // nothing to offer, and an old summary is all there is. It should at
+        // least say so.
+        if let lastUpdated, Date().timeIntervalSince(lastUpdated) > Self.staleAfter {
+            isStale = true
+        }
 
         guard WCSession.isSupported(), WCSession.default.isReachable else { return }
         WCSession.default.sendMessage(["request": "summary"], replyHandler: { @Sendable [weak self] reply in

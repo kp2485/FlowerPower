@@ -18,6 +18,7 @@ import FlowerPowerCore
 struct WatchRootView: View {
 
     @Environment(WatchColonyModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -39,10 +40,15 @@ struct WatchRootView: View {
                 .navigationTitle("Hive")
                 .navigationBarTitleDisplayMode(.inline)
             } else {
-                WaitingView { model.refresh() }
+                WaitingView(isOutOfStep: model.isOutOfStep) { model.refresh() }
             }
         }
         .onAppear { model.refresh() }
+        // A raised wrist brings a suspended app back without an appearance, so
+        // this is what stops hours-old numbers being shown as current.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.refresh() }
+        }
     }
 }
 
@@ -108,7 +114,7 @@ private struct DecisionPage: View {
 
                 Text("Or leave it to the bees, which is what happens if you do nothing.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 4)
@@ -190,7 +196,7 @@ private struct StatusPage: View {
                 } else if isStale {
                     Label("Out of touch with your phone", systemImage: "antenna.radiowaves.left.and.right.slash")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 4)
@@ -256,7 +262,7 @@ private struct NumbersPage: View {
 
                 Text(summary.generatedAt, style: .relative)
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .padding(.top, 4)
             }
             .padding(.horizontal, 4)
@@ -316,6 +322,7 @@ private struct WatchReading: View {
 
 private struct WaitingView: View {
 
+    var isOutOfStep = false
     var onRetry: () -> Void
 
     /// In a scroll view because it does not fit otherwise. Held to the
@@ -328,9 +335,11 @@ private struct WaitingView: View {
                     .font(.largeTitle)
                     .foregroundStyle(WatchTheme.honey)
                     .accessibilityHidden(true)
-                Text("No colony yet")
+                Text(isOutOfStep ? "Out of step" : "No colony yet")
                     .font(.headline)
-                Text("Open FlowerPower on your iPhone.")
+                Text(isOutOfStep
+                     ? "Update FlowerPower on your iPhone and watch."
+                     : "Open FlowerPower on your iPhone.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

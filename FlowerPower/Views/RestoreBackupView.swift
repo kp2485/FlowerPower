@@ -82,7 +82,7 @@ struct RestoreBackupView: View {
                     date: .abbreviated, time: .shortened
                 ))
                 LabeledContent("Colony", value: summary.status.displayName)
-                LabeledContent("Day", value: "\(summary.day)")
+                LabeledContent("Day", value: "\(summary.day + 1)")
                 LabeledContent("Season", value: summary.season.rawValue.capitalized)
                 LabeledContent("Bees", value: "\(summary.beeCount)")
                 LabeledContent("Flowers", value: "\(summary.flowerCount)")
@@ -93,40 +93,54 @@ struct RestoreBackupView: View {
                 Text("In the Backup")
             }
 
-            Section {
-                LabeledContent("Colony", value: store.snapshot.status.displayName)
-                LabeledContent("Day", value: "\(store.snapshot.day)")
-                LabeledContent("Bees", value: "\(store.snapshot.population.total)")
-                LabeledContent("Flowers", value: "\(store.snapshot.patches.count)")
-            } header: {
-                Text("On This Phone")
-            } footer: {
-                Text("Restoring replaces all of it — the colony, the comb, the queens and the flowers in your garden — with what is in the backup. Your photographs stay in your photo library. There is no undo.")
+            // On a first run there is nothing to compare it with. What the
+            // store holds then is a placeholder nobody chose, and this screen
+            // used to offer it up as "200 bees" the player was about to lose.
+            if store.needsSetup {
+                Section {
+                    Button("Restore This Colony") { restore(archive) }
+                } footer: {
+                    Text("It picks up from the day it was saved. A photograph taken on another phone stays on that phone, so its flower arrives with a blank thumbnail.")
+                }
+            } else {
+                Section {
+                    LabeledContent("Colony", value: store.snapshot.status.displayName)
+                    LabeledContent("Day", value: "\(store.snapshot.displayDay)")
+                    LabeledContent("Bees", value: "\(store.snapshot.population.total)")
+                    LabeledContent("Flowers", value: "\(store.snapshot.patches.count)")
+                } header: {
+                    Text("On This Phone")
+                } footer: {
+                    Text("Restoring replaces all of it — the colony, the comb, the queens and the flowers in your garden — with what is in the backup, and it picks up from the day it was saved. Your photographs stay where they are, so a flower from another phone arrives with a blank thumbnail. There is no undo.")
+                }
+
+                Section {
+                    Button("Restore This Colony", role: .destructive) {
+                        isConfirming = true
+                    }
+                } footer: {
+                    if let version = archive.appVersion {
+                        Text("Written by FlowerPower \(version).")
+                    }
+                }
             }
 
-            Section {
-                Button("Restore This Colony", role: .destructive) {
-                    isConfirming = true
-                }
-            } footer: {
-                if let version = archive.appVersion {
-                    Text("Written by FlowerPower \(version).")
-                }
-            }
         }
         .confirmationDialog(
             "Replace this phone's colony?",
             isPresented: $isConfirming,
             titleVisibility: .visible
         ) {
-            Button("Restore", role: .destructive) {
-                store.restore(from: archive)
-                dismiss()
-            }
+            Button("Restore", role: .destructive) { restore(archive) }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The colony on this phone will be gone. If you might want it back, export a backup of it first.")
         }
+    }
+
+    private func restore(_ archive: SaveArchive) {
+        store.restore(from: archive)
+        dismiss()
     }
 
     // MARK: - A backup that cannot

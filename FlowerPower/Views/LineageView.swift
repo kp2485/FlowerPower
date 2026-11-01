@@ -77,6 +77,7 @@ struct LineageView: View {
                     }
                 }
             }
+            .childSheet()
         }
     }
 }
@@ -114,7 +115,7 @@ private struct QueenRow: View {
             if let ending = queen.ending {
                 Text(ending.displayName)
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 2)
@@ -130,7 +131,7 @@ private struct QueenRow: View {
 
     private var reign: String {
         let days = queen.reignDays(on: today)
-        let mated = queen.patrilines.map { "mated with \($0) drones" } ?? "unmated"
-        return "Reigned \(days) days, \(mated)"
+        let mated = queen.patrilines.map { "mated with \($0.counted("drone"))" } ?? "unmated"
+        return "Reigned \(days.counted("day")), \(mated)"
     }
 }

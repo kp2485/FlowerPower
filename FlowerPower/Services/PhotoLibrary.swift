@@ -21,6 +21,22 @@ import FlowerPowerGame
 
 enum PhotoLibrary {
 
+    // MARK: - Copies
+
+    private static let copiesKey = "photoCopies"
+
+    /// The copy made of a picked photograph, by the picker's identifier for
+    /// it, for a player whose limited access means the original cannot be read.
+    static func copy(of pickerIdentifier: String) -> String? {
+        (UserDefaults.standard.dictionary(forKey: copiesKey) as? [String: String])?[pickerIdentifier]
+    }
+
+    static func remember(copy: String, of pickerIdentifier: String) {
+        var copies = UserDefaults.standard.dictionary(forKey: copiesKey) as? [String: String] ?? [:]
+        copies[pickerIdentifier] = copy
+        UserDefaults.standard.set(copies, forKey: copiesKey)
+    }
+
     // MARK: - Authorisation
 
     /// Requests only what the app needs: adding is never required, and read
@@ -163,10 +179,21 @@ enum PhotoLibrary {
     /// of a 48-megapixel original decoded whole.
     static let workingPixelSize: CGFloat = 2048
 
+    /// Past any photograph a phone takes, panoramas included. A `.flower` is
+    /// capped in bytes, and a few megabytes of flat PNG can claim to be 30,000
+    /// pixels square, which is gigabytes the moment anything decodes it.
+    static let maximumPixels = 120_000_000
+
     /// Decodes image data straight to a working-size image, with its EXIF
     /// orientation applied so the pixels are upright and `.up` is true.
     static func workingImage(from data: Data) -> UIImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width.multipliedReportingOverflow(by: height).partialValue <= maximumPixels,
+              width > 0, height > 0
+        else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,

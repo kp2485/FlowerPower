@@ -117,7 +117,7 @@ private struct PopulationChart: View {
             return "No days recorded."
         }
         let peak = samples.map(\.adults).max() ?? last.adults
-        return "\(samples.count) days. "
+        return "\(samples.count.counted("day")). "
             + "Adults from \(first.adults) to \(last.adults), at most \(peak). "
             + "Brood from \(first.brood) to \(last.brood). "
             + "\(last.winterBees) winter bees now."
@@ -163,6 +163,12 @@ private struct PopulationChart: View {
                 "Brood": Theme.broodNest,
                 "Winter bees": Theme.propolis
             ])
+            // Three lines apart by more than hue.
+            .chartLineStyleScale([
+                "Adults": StrokeStyle(lineWidth: 2),
+                "Brood": StrokeStyle(lineWidth: 2, dash: [6, 3]),
+                "Winter bees": StrokeStyle(lineWidth: 2, dash: [2, 3])
+            ])
         }
     }
 }
@@ -207,7 +213,7 @@ private struct StoresChart: View {
         }
         let lowest = samples.map(\.edibleEnergy).min() ?? last.edibleEnergy
         let short = last.edibleEnergy < last.winterRequirement
-        return "\(samples.count) days. "
+        return "\(samples.count.counted("day")). "
             + "Stores from \(Int(first.edibleEnergy.rounded())) to "
             + "\(Int(last.edibleEnergy.rounded())) units, lowest \(Int(lowest.rounded())). "
             + "The winter needs \(Int(last.winterRequirement.rounded())), "
@@ -272,11 +278,11 @@ private struct TemperatureChart: View {
         guard !samples.isEmpty else { return "No days recorded." }
         let nest = samples.map(\.nestTemperature)
         let outside = samples.map(\.outsideTemperature)
-        return "\(samples.count) days. "
+        return "\(samples.count.counted("day")). "
             + "The nest held between \(Int((nest.min() ?? 0).rounded())) and "
             + "\(Int((nest.max() ?? 0).rounded())) degrees, against outside "
             + "\(Int((outside.min() ?? 0).rounded())) to "
-            + "\(Int((outside.max() ?? 0).rounded())). Brood needs 34."
+            + "\(Int((outside.max() ?? 0).rounded())). Brood needs 35."
     }
 
     var body: some View {
@@ -307,11 +313,11 @@ private struct TemperatureChart: View {
                 }
                 .interpolationMethod(.monotone)
 
-                // Brood needs 34°C or so. How flat the nest line stays across
+                // Brood needs 35°C or so. How flat the nest line stays across
                 // a cold snap is the colony's thermoregulation, drawn.
-                // 34.0 rather than 34: every y value in a chart has to be the
+                // 35.0 rather than 35: every y value in a chart has to be the
                 // same plottable type, and the temperatures are Doubles.
-                RuleMark(y: .value("Brood nest", 34.0))
+                RuleMark(y: .value("Brood nest", 35.0))
                     .foregroundStyle(Color.secondary.opacity(0.4))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
             }
@@ -337,9 +343,9 @@ private struct IntakeChart: View {
         let total = samples.reduce(0) { $0 + $1.nectarIntake }
         let best = samples.map(\.nectarIntake).max() ?? 0
         let empty = samples.filter { $0.nectarIntake < 0.5 }.count
-        return "\(Int(total.rounded())) units over \(samples.count) days. "
+        return "\(Int(total.rounded()).counted("unit")) over \(samples.count.counted("day")). "
             + "The best day brought in \(Int(best.rounded())), "
-            + "and \(empty) days brought in nothing."
+            + "and \(empty.counted("day")) brought in nothing."
     }
 
     var body: some View {
@@ -385,6 +391,10 @@ private struct ChartCard<Content: View>: View {
     let summary: String
     let content: Content
 
+    /// Grows with the text, or at the larger sizes the legend and axes took
+    /// most of a fixed height and left the line a sliver.
+    @ScaledMetric private var chartHeight: CGFloat = 170
+
     init(
         title: String,
         symbolName: String,
@@ -411,7 +421,7 @@ private struct ChartCard<Content: View>: View {
             }
 
             content
-                .frame(height: 170)
+                .frame(height: chartHeight)
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 4)) { value in
                         AxisGridLine()
@@ -456,7 +466,7 @@ private struct RecordFootnote: View {
             Text("Recorded from day \(first + 1) to day \(last + 1). "
                  + "The colony keeps the last \(ColonyHistory.limit) days.")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }

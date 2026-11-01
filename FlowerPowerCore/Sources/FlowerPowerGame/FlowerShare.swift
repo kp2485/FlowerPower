@@ -79,6 +79,14 @@ public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
     /// Catalogue identifier, resolved against the *recipient's* catalogue.
     /// `nil`, or a name they do not have, simply means unidentified.
     public var speciesID: String?
+    /// The name of a plant outside the catalogue. A flower BioCLIP named is
+    /// placed by its taxon alone, and an identifier like `taxon:Tulipa` means
+    /// nothing to a catalogue lookup, so it arrived unnamed after the sender
+    /// had been promised otherwise. Rebuilt on arrival from the taxon, which
+    /// is all that decides its traits: nothing about how it forages is taken
+    /// on trust. Optional, so older files still open.
+    public var taxon: Taxon?
+    public var taxonCommonName: String?
     public var confidence: Double
     public var takenAt: Date
     /// Whatever the sender chose to be called. Never filled in automatically
@@ -93,6 +101,8 @@ public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
         version: Int = FlowerShare.currentVersion,
         id: String = UUID().uuidString,
         speciesID: String?,
+        taxon: Taxon? = nil,
+        taxonCommonName: String? = nil,
         confidence: Double,
         takenAt: Date,
         sharedBy: String?,
@@ -102,6 +112,8 @@ public struct FlowerShare: Codable, Equatable, Sendable, Identifiable {
         self.version = version
         self.id = id
         self.speciesID = speciesID
+        self.taxon = taxon
+        self.taxonCommonName = taxonCommonName
         self.confidence = confidence
         self.takenAt = takenAt
         self.sharedBy = sharedBy
@@ -243,6 +255,12 @@ extension FlowerShare {
             copy.speciesID = nil
         }
 
+        copy.taxonCommonName = taxonCommonName.map(Self.trimmedForDisplay).flatMap { $0.isEmpty ? nil : $0 }
+        // Names of that length are not plants, and they reach a label.
+        if let taxon, [taxon.genus, taxon.specificEpithet].contains(where: { ($0?.count ?? 0) > 80 }) {
+            copy.taxon = nil
+        }
+
         copy.sharedBy = sharedBy.map(Self.trimmedForDisplay).flatMap { $0.isEmpty ? nil : $0 }
         copy.note = note.map(Self.trimmedForDisplay).flatMap { $0.isEmpty ? nil : $0 }
 
@@ -252,7 +270,9 @@ extension FlowerShare {
             copy.takenAt = Date()
         }
 
-        if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        // Kept for ever in the colony's list of what it has imported, and
+        // written into every save afterwards.
+        if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || id.count > 128 {
             copy.id = UUID().uuidString
         }
 
@@ -277,16 +297,28 @@ extension FlowerShare {
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\r", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .prefix(80)
-            .description
+            .cappedForDisplay
     }
 
     public var species: FlowerSpecies? {
         speciesID.flatMap(FlowerCatalogue.species(withID:))
+            ?? taxon.map { FlowerSpecies.generic(for: $0, commonName: taxonCommonName) }
     }
 
     /// What to call it in the interface before it is imported.
     public var displayName: String {
         species?.commonName ?? "An unidentified flower"
+    }
+}
+
+extension String {
+
+    /// Eighty characters, and no more than a few hundred scalars. `prefix`
+    /// counts what a person sees as one character, and a single one can be
+    /// stacked with thousands of combining marks.
+    var cappedForDisplay: String {
+        var capped = String.UnicodeScalarView()
+        capped.append(contentsOf: String(prefix(80)).unicodeScalars.prefix(320))
+        return String(capped)
     }
 }

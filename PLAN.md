@@ -31,11 +31,55 @@ most of what it does there is still to be walked. See "The first Mac build",
 | Xcode targets | All four compile, and the test targets (Xcode 26.5, 2026-09-14; Xcode 27 against the iOS 27 SDK, 2026-09-15, one warning left — see "Xcode 27"). 10 unit tests and 5 UI test runs pass on an iOS 27 simulator. Four tabs since 2026-09-15: Colony, Nest, World, Garden |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
-| Balance, standard preset, world off | 89% first year, **62%** second, 2.50 swarms per colony per two years (200 colonies, deterministic release build, 2026-09-16). It was 89% / 66% / 2.49 from 2026-09-06 to 2026-09-15, reproduced byte for byte across the record-keeping systems and across the world's Phase 1; the four points went on two foraging corrections that Phase 2 forced. See the ledger below |
-| Balance, the world | The garden and the country together, which is what the app now plays: **90% first year, 68% second**, 2.68 swarms, 926 autumn stores, 378 winter cluster, 7.7 chunks known. Wild forage with no photographs at all: **46%** first year. `--policy scout` against instinct: **64%** at two years, a four-point price (200 colonies, 2026-09-16). See "the country" in section 2 |
-| Balance, other presets | Gentle 92% / 60%, harsh 64% / 14% (200 colonies, 2026-09-12, before the Phase 2 foraging corrections and not re-taken since). Gentle is *worse* at two years: better-fed colonies swarm more |
+| Balance, standard preset, world off | 90% first year, **76%** second, 3.36 swarms per colony per two years (200 colonies, deterministic release build, 2026-11-01, with nurse reversion). It was 89% / 62% / 2.50 from 2026-09-16 to 2026-10-31; before that 89% / 66% / 2.49 from 2026-09-06, reproduced byte for byte across the record-keeping systems and across the world's Phase 1. See the ledger below |
+| Balance, the world | The garden and the country together, which is what the app now plays: **93% first year, 80% second, 38% third**, 3.60 swarms, 1,202 autumn stores, 489 winter cluster, 7.7 chunks known. Wild forage with no photographs at all: **48%** first year, 22% second. `--policy scout` against instinct: **74%** at two years, a six-point price (200 colonies, 2026-11-01). Before nurse reversion, from 2026-09-16: 90% / 68% / 25%, 2.68 swarms. See "the country" in section 2 and "Forgiving, and dying on a full larder" below |
+| Balance, other presets | Forgiving **96% / 88%**, 78% at three years, 3.81 swarms; harsh 56% / 13%, 0.23 swarms (200 colonies, the world on, 2026-11-01). Forgiving was 92% / 25% until 2026-10-31: see "Forgiving, and dying on a full larder" below. It is 72–88% at two years on every site, 75% on wild forage alone. |
 | Balance, distance | Every world-off number above was measured at `beesim`'s default 400 m, which was the recorded 89% / 66% baseline until 2026-09-16 and is 89% / 62% now. The app's own flowers sat at the engine's nominal 800 m, which measured 86% / 54%. The garden the world plants them in measured 86% / 64% on 2026-09-15. Phase 2's corrections and its dance-distance exponent moved all of that again, and the garden with the country around it is the row above. See "the ground" and "the country" in section 2 |
 | `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale`; `--world` for the world as the app plays it, `--world --patches 0` for wild forage alone, `--biome <name>` to force the home biome |
+
+#### Forgiving, and dying on a full larder
+
+2026-10-31. Forgiving was the deadliest of the two easier settings at two years,
+25% against Natural's 68%, and the report called most of those deaths starvation.
+They were not: the colonies fell with 2,600 honey in store. `beesim` was reading a
+`starving` flag that never cleared, and judging a dead colony by stores that robbers
+had been at for months. It now records the larder at the moment of collapse and has
+a `honey bound` cause. Two faults, both traced one colony at a time:
+
+1. **Honey took every cell.** Nothing stopped nectar filling the last empty cell, so
+   on Forgiving's income the comb was full by the second spring and the queen had
+   nowhere to lay. `storesCeilingCells = 350` stops the foragers there, about 1,400
+   honey. It is a count rather than a share of the cavity: half of the 200-cell nest
+   under a branch cannot hold one winter's honey, and a share took that site from
+   70% to 8%.
+2. **Nobody was young enough to feed the new queen.** Nurses are two to ten days old
+   and a swarmed colony lays nothing for a month. She came into lay, was not fed, and
+   starved among hundreds of bees. `nurseReversionShare = 0.1` sends older bees back
+   to nursing when she goes unfed, as real foragers do.
+
+Neither is enough alone: 76% with the ceiling, 20% with the nurses, 88% with both. A
+colony at the ceiling reads as a full larder rather than a dearth, or it evicted its
+drones and told the player little was coming in. Saves on Forgiving from before this
+are given both constants as they load.
+
+**Natural took the nurses too, the same day; Harsh took neither and diffs clean.**
+The trap was never Forgiving's alone. Reversion moves Natural from 90 / 68 / 25 to
+**93 / 80 / 38** at one, two and three years, with 3.60 swarms against 2.68 and 1,202
+autumn stores against 920. Natural does not get the ceiling: on its income a colony
+rarely fills the comb, and only 2 of 200 die honey bound at two years. Harsh with
+reversion would be 28% at two years rather than 13%, and that has not been taken.
+A colony saved before this takes the value of its own setting as it loads.
+
+**It flattened the swarm answers.** Two-year survival on Natural is now 80% for doing
+nothing, 78% for making room, 81% for adding comb, 82% for dividing and 82% for room
+then dividing, which is noise at 200 colonies. Making room stays first because it is
+the cheapest to try, not because it is the best, and Siri no longer says it is.
+`--policy scout` costs six points now, 74% against 80%.
+
+**Sites are the next problem, and reversion barely touches them.** Natural at two
+years: inside walls 75, cave 76, shed 67, burrow 55, termite mound 39, fallen tree 18,
+nest box 18, cliff 0, branch 0. Most of those die of starvation in a small cavity. The
+nest box's copy calls it "Built for bees", and the cliff's does not warn of anything.
 
 #### The balance baseline, and why the numbers moved
 

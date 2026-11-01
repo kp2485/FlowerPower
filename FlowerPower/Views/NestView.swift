@@ -51,6 +51,7 @@ struct NestView: View {
             }
             .sheet(isPresented: $showingJobs) {
                 JobAssignmentView()
+                    .childSheet()
             }
         }
     }
@@ -72,6 +73,12 @@ private struct CombPanel: View {
                     .foregroundStyle(.secondary)
             }
 
+            if snapshot.nest.builtCells > CombLayout.maximumDrawn {
+                Text("Too many to draw one by one, so this is to scale.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
             CombCanvas(contents: CombLayout.contents(for: snapshot))
                 .aspectRatio(1.15, contentMode: .fit)
                 .frame(maxWidth: .infinity)
@@ -87,10 +94,16 @@ private struct CombPanel: View {
 
     private var accessibilityDescription: String {
         let population = snapshot.population
+        let stores = [ResourceKind.beeBread, .pollen, .nectar, .honey].compactMap { kind -> String? in
+            let amount = Int((snapshot.stores.resources[kind] ?? 0).rounded())
+            return amount > 0 ? "\(amount) \(kind.displayName.lowercased())" : nil
+        }
+        let queenCells = snapshot.nest.queenCells.count
         return """
         \(snapshot.nest.builtCells) cells. \
-        \(population.brood) brood in the centre, \
-        stores around the edge, \
+        \(population.brood) brood in the centre. \
+        \(queenCells > 0 ? "\(queenCells.counted("queen cell")). " : "")\
+        Stores around the edge: \(stores.isEmpty ? "none" : stores.joined(separator: ", ")). \
         \(snapshot.nest.freeCells) cells empty.
         """
     }
@@ -111,34 +124,64 @@ enum CellContent: Equatable {
         case .queenCell: return Theme.queen
         }
     }
+
+    /// A letter for each band, for a player who has asked for more than colour
+    /// to go on. Brood and the two kinds of pollen store are several shades of
+    /// the same thing however well the palette is chosen.
+    var letter: String? {
+        switch self {
+        case .empty: return nil
+        case .brood(.egg): return "E"
+        case .brood(.larva): return "L"
+        case .brood: return "S"
+        case .stores(.beeBread): return "B"
+        case .stores(.pollen): return "P"
+        case .stores(.nectar): return "N"
+        case .stores(.honey): return "H"
+        case .stores: return nil
+        case .queenCell: return "Q"
+        }
+    }
 }
 
 /// Turns colony counts into a concentric comb layout.
 enum CombLayout {
 
+    /// As many hexagons as can be told apart on a phone.
+    static let maximumDrawn = 900
+
     /// Cells are ordered from the centre outward, so simply filling the array
     /// in order — brood first, then pollen, then honey — reproduces the real
     /// arrangement of a brood nest.
     static func contents(for snapshot: ColonySnapshot) -> [CellContent] {
-        let total = max(1, min(snapshot.nest.builtCells, 900))
+        let built = max(1, snapshot.nest.builtCells)
+        let total = min(built, maximumDrawn)
         var cells: [CellContent] = []
         cells.reserveCapacity(total)
+
+        // A big nest is drawn to scale rather than cut off. Filling the first
+        // 900 and stopping dropped the outermost band, which is the honey, so
+        // a full larder in a wall cavity showed almost none.
+        let scale = Double(total) / Double(built)
+        func drawn(_ count: Int) -> Int {
+            count > 0 ? max(1, Int((Double(count) * scale).rounded())) : 0
+        }
 
         // Queen cells hang at the very centre, where they are impossible to miss.
         cells.append(contentsOf: Array(repeating: .queenCell, count: snapshot.nest.queenCells.count))
 
         let population = snapshot.population
-        cells.append(contentsOf: Array(repeating: .brood(.egg), count: population.eggs))
-        cells.append(contentsOf: Array(repeating: .brood(.larva), count: population.larvae))
-        cells.append(contentsOf: Array(repeating: .brood(.pupa), count: population.pupae))
+        cells.append(contentsOf: Array(repeating: .brood(.egg), count: drawn(population.eggs)))
+        cells.append(contentsOf: Array(repeating: .brood(.larva), count: drawn(population.larvae)))
+        cells.append(contentsOf: Array(repeating: .brood(.pupa), count: drawn(population.pupae)))
 
         // Pollen forms the band immediately outside the brood — the bees keep
         // their protein where the nurses are.
         for kind in [ResourceKind.beeBread, .pollen, .nectar, .honey] {
             let amount = snapshot.stores.resources[kind] ?? 0
             guard amount > 0 else { continue }
-            let count = Int((amount / kind.unitsPerCell).rounded(.up))
-            cells.append(contentsOf: Array(repeating: .stores(kind), count: count))
+            let count = drawn(Int((amount / kind.unitsPerCell).rounded(.up)))
+            cells.append(contentsOf: Array(repeating: .stores(kind), count: min(count, total)))
         }
 
         if cells.count < total {
@@ -156,6 +199,8 @@ private struct CombCanvas: View {
 
     let contents: [CellContent]
 
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+
     var body: some View {
         Canvas { context, size in
             guard !contents.isEmpty else { return }
@@ -172,6 +217,15 @@ private struct CombCanvas: View {
                     with: .color(Color(.systemBackground).opacity(0.55)),
                     lineWidth: max(0.5, layout.radius * 0.08)
                 )
+
+                if differentiateWithoutColor, let letter = content.letter {
+                    context.draw(
+                        Text(letter)
+                            .font(.system(size: layout.radius * 1.1, weight: .semibold))
+                            .foregroundStyle(.black),
+                        at: centre
+                    )
+                }
             }
         }
         .drawingGroup()
@@ -254,25 +308,33 @@ private struct HexGrid {
 
 private struct CombLegend: View {
 
-    private let entries: [(String, Color)] = [
-        ("Eggs", Theme.colour(for: .egg)),
-        ("Larvae", Theme.colour(for: .larva)),
-        ("Sealed brood", Theme.colour(for: .pupa)),
-        ("Bee bread", Theme.colour(for: .beeBread)),
-        ("Pollen", Theme.colour(for: .pollen)),
-        ("Nectar", Theme.colour(for: .nectar)),
-        ("Honey", Theme.colour(for: .honey)),
-        ("Queen cell", Theme.queen),
-        ("Empty", Color(.systemGray5))
+    private let entries: [(String, CellContent)] = [
+        ("Eggs", .brood(.egg)),
+        ("Larvae", .brood(.larva)),
+        ("Sealed brood", .brood(.pupa)),
+        ("Bee bread", .stores(.beeBread)),
+        ("Pollen", .stores(.pollen)),
+        ("Nectar", .stores(.nectar)),
+        ("Honey", .stores(.honey)),
+        ("Queen cell", .queenCell),
+        ("Empty", .empty)
     ]
+
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
-            ForEach(entries, id: \.0) { name, colour in
+            ForEach(entries, id: \.0) { name, content in
                 HStack(spacing: 6) {
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(colour)
+                        .fill(content.colour)
+                        .strokeBorder(Color.primary.opacity(0.3), lineWidth: 0.5)
                         .frame(width: 12, height: 12)
+                        .overlay {
+                            if differentiateWithoutColor, let letter = content.letter {
+                                Text(letter).font(.system(size: 9, weight: .semibold)).foregroundStyle(.black)
+                            }
+                        }
                     Text(name)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -293,7 +355,7 @@ private struct JobBreakdown: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionTitle("Who is doing what", systemImage: "person.2.badge.gearshape.fill")
+            SectionTitle("Who can do what", systemImage: "person.2.badge.gearshape.fill")
 
             let jobs = population.jobs
                 .sorted { $0.value > $1.value }
@@ -332,13 +394,14 @@ private struct JobBreakdown: View {
                         .frame(height: 0)
                     }
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(job.displayName): \(count) bees")
+                    .accessibilityLabel("\(job.displayName): \(count.counted("bee"))")
                 }
             }
 
-            Text("A worker's job follows her age. She cleans cells, then nurses, then builds and ripens, then guards, and finally forages until she wears out.")
+            Text("A worker's job follows her age. She cleans cells, then nurses, then builds and ripens, then guards, and finally forages until she wears out."
+                 + (population.winterBees > 0 ? " Winter bees can do anything, so each is counted under every job." : ""))
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

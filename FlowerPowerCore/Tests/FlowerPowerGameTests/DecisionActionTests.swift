@@ -233,17 +233,18 @@ struct DecisionActionTests {
         #expect(store.simulationForTransfer == before)
     }
 
-    @Test("Letting them go is answered by doing nothing at all")
+    @Test("Letting them go closes the question and leaves the swarm alone")
     func letSwarmGo() {
         let store = makeStore { simulation in
             simulation.world.pendingSwarm = PendingSwarm(startedOnDay: 0, departsOnDay: 6)
         }
-        let before = store.simulationForTransfer
+        var before = store.simulationForTransfer
+        before.world.pendingSwarm?.accepted = true
 
         #expect(store.apply(.letSwarmGo), "the decision was answered, even though nothing was done")
         #expect(
             store.simulationForTransfer == before,
-            "letting a swarm go is the absence of an action, not an action"
+            "letting a swarm go records the answer and touches nothing else"
         )
     }
 

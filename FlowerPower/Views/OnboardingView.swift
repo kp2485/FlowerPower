@@ -13,8 +13,8 @@
 //  something going wrong:
 //
 //   1. The bees are wild and the player is not their owner. There is no shop.
-//   2. Photographs are the only forage there is, and they fade — so the game
-//      is asking for a walk rather than for taps.
+//   2. Photographs are the forage that counts, and they fade — so the game is
+//      asking for a walk rather than for taps.
 //   3. The colony runs while the app is closed, and will ask questions with
 //      windows on them. Silence is an answer: the bees fall back on instinct,
 //      which is usually decent and occasionally fatal.
@@ -81,6 +81,10 @@ struct OnboardingView: View {
     @State private var page = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// The notification page. Re-read from Help, the hemisphere is already
+    /// settled and Settings is where it is changed.
+    private var lastPage: Int { Self.pages.count + (asksForNotifications ? 1 : 0) }
+
     private static let pages: [Page] = [
         Page(
             symbol: "hexagon.fill",
@@ -92,9 +96,9 @@ struct OnboardingView: View {
         ),
         Page(
             symbol: "camera.fill",
-            title: "Flowers are the only forage",
+            title: "Flowers are your part",
             lines: [
-                "Photograph a real flower and your bees can work it. There is no other source of nectar in the game: a colony with nothing to fly to starves, however well it is run.",
+                "Photograph a real flower and your bees can work it. They will find what grows wild around them too, but a flower you bring them is far richer, and a colony left to the wild alone often does not see its first spring.",
                 "And flowers do not last. A patch is at its best for about two months and is gone a few months later, so a garden photographed once in spring is empty by autumn. Keep finding new ones, and keep them across different families, so that whatever the season there is something still in bloom."
             ]
         ),
@@ -116,15 +120,20 @@ struct OnboardingView: View {
                         .tag(index)
                 }
 
+                if asksForNotifications {
+                    HemispherePage()
+                        .tag(Self.pages.count)
+                }
+
                 NotificationPage(asks: asksForNotifications, onAnswer: onFinish)
-                    .tag(Self.pages.count)
+                    .tag(lastPage)
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
 
             // The last page carries its own two answers, so the shared
             // button below would be a third way off it.
-            if page < Self.pages.count {
+            if page < lastPage {
                 Button {
                     // The page still turns; under Reduce Motion it is simply
                     // on the next page rather than sliding there.
@@ -139,6 +148,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.honey)
+                .foregroundStyle(Theme.onHoney)
                 .controlSize(.large)
                 .padding()
             }
@@ -187,6 +197,47 @@ struct OnboardingView: View {
         }
     }
 
+    // MARK: - Which way the year runs
+
+    /// Which flowers to suggest depends on this and nothing else in the game
+    /// can tell: the app has no location, and every southern player was being
+    /// sent out to look for northern flowers. The phone's region makes a
+    /// decent first guess, and the player has the last word.
+    private struct HemispherePage: View {
+
+        @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.likelyHere.rawValue
+
+        var body: some View {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Image(systemName: "globe")
+                        .font(.system(size: 56))
+                        .foregroundStyle(Theme.honey)
+                        .accessibilityHidden(true)
+
+                    Text("Where you walk")
+                        .font(.largeTitle.weight(.semibold))
+
+                    Text("Your bees live on a year of their own, but the flowers you can photograph are on yours. This sets which ones the game suggests you look for. You can change it in Settings.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Picker("Hemisphere", selection: $hemisphereRaw) {
+                        Text("Northern").tag(Hemisphere.northern.rawValue)
+                        Text("Southern").tag(Hemisphere.southern.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(24)
+                .padding(.bottom, 40)
+            }
+            // Written even if the guess is left alone, so it stays what was
+            // shown here and does not follow a later change of region.
+            .onAppear { UserDefaults.standard.set(hemisphereRaw, forKey: "hemisphere") }
+        }
+    }
+
     // MARK: - Asking for notifications
 
     /// The one page with a decision on it.
@@ -216,11 +267,11 @@ struct OnboardingView: View {
                     Text("When they need you")
                         .font(.largeTitle.weight(.semibold))
 
-                    Text("A decision can be answered straight from the notification — hold the entrance, make room, keep the entrance open — without opening the app at all. There is also one morning report a day, at an hour you choose.")
+                    Text("A decision can be answered straight from the notification — hold the entrance, make room, keep the entrance open — without opening the app at all. There is one morning report a day, around an hour you choose, and word when something goes badly wrong.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Nothing else. An idle game that pings about nothing gets its notifications turned off, and then it cannot say the one thing that matters. You can switch any of the three off in Settings.")
+                    Text("Nothing idle. A game that pings about nothing gets its notifications turned off, and then it cannot say the one thing that matters. You can switch any of the three off in Settings. iOS decides when the game may wake, so word can arrive late; the dashboard is always up to date.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -237,11 +288,12 @@ struct OnboardingView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(Theme.honey)
+                        .foregroundStyle(Theme.onHoney)
                         .controlSize(.large)
                         .disabled(isAsking)
 
                         Button("Not Now") { onAnswer() }
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, minHeight: 44)
                             .disabled(isAsking)
                     } else {
                         Button {
@@ -252,6 +304,7 @@ struct OnboardingView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(Theme.honey)
+                        .foregroundStyle(Theme.onHoney)
                         .controlSize(.large)
                     }
                 }
@@ -260,6 +313,19 @@ struct OnboardingView: View {
                 .padding(.bottom, 40)
             }
         }
+    }
+}
+
+extension Hemisphere {
+
+    /// A first guess from the phone's region. The app has no location and is
+    /// not going to ask for one to choose between two answers.
+    static var likelyHere: Hemisphere {
+        let southern: Set<String> = [
+            "AO", "AR", "AU", "BO", "BR", "BW", "CL", "FJ", "LS", "MG", "MW",
+            "MZ", "NA", "NC", "NZ", "PE", "PG", "PY", "SZ", "TZ", "UY", "ZA", "ZM", "ZW"
+        ]
+        return southern.contains(Locale.current.region?.identifier ?? "") ? .southern : .northern
     }
 }
 

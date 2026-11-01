@@ -184,8 +184,21 @@ public struct World: Codable, Equatable, Sendable {
     }
 
     /// A dearth. Colonies stop rearing brood, evict drones and start robbing.
+    ///
+    /// Not a colony that has stopped bringing nectar in because it is full.
+    /// Income falls to nothing at the ceiling either way, and that one is the
+    /// opposite of short.
     public func isInDearth(_ config: SimulationConfig) -> Bool {
-        averageNectarIntake < Double(hive.adultCount) * config.dearthThresholdPerBee
+        guard !hasFullLarder(config) else { return false }
+        return averageNectarIntake < Double(hive.adultCount) * config.dearthThresholdPerBee
+    }
+
+    /// Stores are at `storesCeilingCells`, near enough. The margin is there
+    /// because a colony at the ceiling eats a little and tops it up, and an
+    /// exact comparison would call that a dearth every other day.
+    public func hasFullLarder(_ config: SimulationConfig) -> Bool {
+        config.storesCeilingCells > 0
+            && Double(hive.cellsOccupiedByStores) >= 0.95 * Double(config.storesCeilingCells)
     }
 
     /// Patches actually worth flying to right now.

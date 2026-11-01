@@ -154,7 +154,9 @@ public struct ResourcePool: Codable, Equatable, Sendable {
         for (kind, amount) in ordered where kind.occupiesComb {
             cells += amount / kind.unitsPerCell
         }
-        return Int(cells.rounded(.up))
+        // `Int` traps on anything it cannot hold, and this is reached from the
+        // very first look at a backup somebody sent.
+        return cells < 1e15 ? Int(cells.rounded(.up)) : Int(1e15)
     }
 
     public var isEmpty: Bool { amounts.isEmpty }

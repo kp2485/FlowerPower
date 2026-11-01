@@ -54,18 +54,24 @@ struct AskForForageView: View {
                         .lineLimit(1...3)
                 }
 
-                Section {
-                    if let prepared {
-                        ShareLink(item: prepared) {
-                            Label("Ask a Friend", systemImage: "square.and.arrow.up")
-                                .frame(maxWidth: .infinity)
+                // Nothing to ask for means nothing to send: a request with no
+                // families on it read to the friend as "short of forage", and
+                // every flower they had came up as a match.
+                if request?.wanted?.isEmpty == false {
+                    Section {
+                        if let prepared {
+                            ShareLink(item: prepared) {
+                                Label("Ask a Friend", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Theme.honey)
+                            .foregroundStyle(Theme.onHoney)
+                            .controlSize(.large)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.honey)
-                        .controlSize(.large)
+                    } footer: {
+                        Text("They open it in FlowerPower and see which of their flowers would help.")
                     }
-                } footer: {
-                    Text("They open it in FlowerPower and see which of their flowers would help.")
                 }
             }
             .navigationTitle("Ask for Forage")

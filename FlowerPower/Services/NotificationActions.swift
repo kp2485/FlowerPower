@@ -101,15 +101,14 @@ enum NotificationActions {
             ))
         }
 
-        // Ordered by what the measurement actually says, which is not the
-        // order they were built in. Over 200 colonies across two years,
-        // two-year survival is 76% for making room, 66% for doing nothing at
-        // all, 62% for adding comb and 56% for dividing. Talking them out of
-        // it is the best answer there is, so it goes first.
+        // Lightest first. Survival no longer ranks these: over 200 colonies
+        // across two years every answer lands between 78% and 82%, with doing
+        // nothing at 80%. Making room costs some foraging while it holds and
+        // commits the colony to nothing, so it goes first.
         //
         // Adding comb was briefly the only thing offered here, and dropping
-        // "Make Room" from the list quietly removed the most valuable option
-        // the player had.
+        // "Make Room" from the list quietly removed the player's cheapest
+        // option.
         categories.insert(UNNotificationCategory(
             identifier: Category.swarmPreparing.rawValue,
             actions: [
@@ -304,7 +303,7 @@ extension NotificationActions {
         [
             snapshot.activeThreat.map(ColonyNews.identifier(for:)) ?? "",
             snapshot.posture.rawValue,
-            snapshot.pendingSwarm.map { ColonyNews.identifier(for: $0) + "\($0.discouraged)" } ?? "",
+            snapshot.pendingSwarm.map { ColonyNews.identifier(for: $0) + "\($0.isAnswered)" } ?? "",
             snapshot.departedSwarm.map { "\($0.day)" } ?? "",
             "\(snapshot.feedDecisionOpen)\(snapshot.scoutDecisionOpen)\(snapshot.entranceDecisionOpen)",
             "\(snapshot.canAddComb)"
@@ -313,11 +312,11 @@ extension NotificationActions {
 
     private static func isStillAsked(_ identifier: String, in snapshot: ColonySnapshot) -> Bool {
         if identifier.hasPrefix("threat-") {
-            guard let threat = snapshot.activeThreat, snapshot.posture == .instinct else { return false }
+            guard let threat = snapshot.activeThreat, !threat.isAnswered(by: snapshot.posture) else { return false }
             return ColonyNews.identifier(for: threat) == identifier
         }
         if identifier.hasPrefix("swarm-") {
-            guard let swarm = snapshot.pendingSwarm, !swarm.discouraged else { return false }
+            guard let swarm = snapshot.pendingSwarm, !swarm.isAnswered else { return false }
             return ColonyNews.identifier(for: swarm) == identifier
         }
         if identifier.hasPrefix("departed-") { return snapshot.departedSwarm != nil }

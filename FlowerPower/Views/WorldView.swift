@@ -70,7 +70,13 @@ struct WorldView: View {
     /// A stand of something wild the player tapped. Shown in a card under the
     /// map beside the chunk's, for the same reason: it is three short facts,
     /// and a sheet to read three facts is the wrong trade.
-    @State private var selectedWild: PatchSummary?
+    /// By identifier and looked up live, so its bloom and its count of bees
+    /// follow the colony rather than stopping at the moment of the tap.
+    @State private var selectedWildID: EntityID?
+
+    private var selectedWild: PatchSummary? {
+        snapshot.wildPatches.first { $0.id == selectedWildID }
+    }
 
     /// Every chunk the map draws.
     ///
@@ -100,10 +106,10 @@ struct WorldView: View {
                             onSelectPatch: { selectedPatch = $0 },
                             onSelectChunk: {
                                 selectedChunk = $0
-                                selectedWild = nil
+                                selectedWildID = nil
                             },
                             onSelectWild: {
-                                selectedWild = $0
+                                selectedWildID = $0.id
                                 selectedChunk = nil
                             },
                             onPhotograph: onPhotograph,
@@ -113,8 +119,10 @@ struct WorldView: View {
                         if let wild = selectedWild {
                             WildStandCard(
                                 patch: wild,
-                                chunk: terrain.chunk(containing: wild.cell ?? .origin)
-                            ) { selectedWild = nil }
+                                chunk: terrain.chunk(containing: wild.cell ?? .origin),
+                                plantable: terrain.emptyCells.contains { $0.cell == wild.cell }
+                                    ? { onPhotograph(wild.cell) } : nil
+                            ) { selectedWildID = nil }
                         }
 
                         if let chunk = selectedChunk {
@@ -152,12 +160,20 @@ struct WorldView: View {
                                 camera.focus = MapGeometry.point(for: .origin)
                             }
                         }
-                        .disabled(camera.isFitted || camera.isOnNest)
+                        // At the fit the whole map is in frame, wherever the
+                        // focus was left, so there is nothing for it to do.
+                        .disabled(camera.zoom <= 1 || camera.isOnNest)
                     }
                 }
             }
+            // The cards are about ground the colony has just left behind.
+            .onChange(of: store.colonyChanges) { _, _ in
+                selectedChunk = nil
+                selectedWildID = nil
+            }
             .sheet(item: $selectedPatch) { patch in
                 FlowerDetailView(patch: patch)
+                    .childSheet()
             }
         }
     }
@@ -184,21 +200,12 @@ private struct GroundHeader: View {
 
     /// How the garden is doing, and what would make it bigger.
     ///
-    /// The milestone titles are taken from `Milestone` rather than written out
-    /// again, so the sentence here and the badge in the Milestones screen
-    /// cannot drift apart.
     private var gardenLine: String {
-        let counted = "\(planted) of \(terrain.garden.count) cells planted"
-        switch terrain.gardenRings {
-        case 1:
-            return counted + " — ring 2 opens at "
-                + Milestone.tenFlowers.title.lowercased() + "."
-        case 2:
-            return counted + " — ring 3 opens at "
-                + Milestone.tenFamilies.title.lowercased() + "."
-        default:
-            return counted + ". The garden is as wide as it goes."
-        }
+        // Worked out from what the engine does: the flower that finds every
+        // open ring full opens the next. This used to quote milestones that
+        // rarely decide it, and to call a garden with no limit finished.
+        "\(planted) of \(terrain.garden.count.counted("cell")) planted. "
+            + "A new ring opens when these are full."
     }
 
     /// Where the scouting party is, when there is one out.
@@ -206,7 +213,7 @@ private struct GroundHeader: View {
         guard let days = terrain.scoutsDaysRemaining, days > 0 else {
             return "Scouts are out — back today."
         }
-        return "Scouts are out — back in \(days) day\(days == 1 ? "" : "s")."
+        return "Scouts are out — back in \(days.counted("day"))."
     }
 
     var body: some View {
@@ -255,11 +262,13 @@ private struct NeighbourCard: View {
                     .labelStyle(.iconOnly)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
 
             Text(chunk.biome.displayName)
                 .font(.subheadline)
-                .foregroundStyle(Theme.colour(for: chunk.biome))
+                .foregroundStyle(.secondary)
 
             Text(chunk.biome.summary)
                 .font(.caption)
@@ -281,11 +290,13 @@ private struct WildStandCard: View {
 
     let patch: PatchSummary
     let chunk: Chunk?
+    /// For a stand growing on an empty cell of the garden, which a tap used to
+    /// treat as the cell alone, so the stand could never be looked at.
+    var plantable: (() -> Void)?
     var onDismiss: () -> Void
 
     private var workingLine: String {
-        let bees = patch.foragersWorkingIt
-        return "\(bees) bee\(bees == 1 ? "" : "s") working it"
+        "\(patch.foragersWorkingIt.counted("bee")) working it"
     }
 
     var body: some View {
@@ -298,12 +309,14 @@ private struct WildStandCard: View {
                     .labelStyle(.iconOnly)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
 
             if let chunk {
                 Text(chunk.name)
                     .font(.subheadline)
-                    .foregroundStyle(Theme.wild)
+                    .foregroundStyle(Theme.wildInk)
             }
 
             HStack(spacing: 10) {
@@ -311,12 +324,19 @@ private struct WildStandCard: View {
                     patch.isInBloom ? "In bloom" : "Not in bloom",
                     systemImage: patch.isInBloom ? "sun.max.fill" : "moon.zzz.fill"
                 )
-                .foregroundStyle(patch.isInBloom ? Theme.wild : .secondary)
+                .foregroundStyle(patch.isInBloom ? Theme.wildInk : .secondary)
 
                 Text(workingLine)
                     .foregroundStyle(.secondary)
             }
             .font(.caption)
+
+            if let plantable {
+                Button("Plant a Flower Here", systemImage: "camera.fill", action: plantable)
+                    .buttonStyle(.bordered)
+                    .tint(Theme.honey)
+                    .font(.subheadline.weight(.medium))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
@@ -446,7 +466,7 @@ private struct WorldMap: View {
                     focusY: layout.focus.y,
                     bounds: bounds,
                     flights: reduceMotion ? [] : flights,
-                    bloom: bloom,
+                    bloom: reduceMotion ? nil : bloom,
                     reveals: reveals
                 )
             }
@@ -624,7 +644,7 @@ private struct WorldMap: View {
 
         // The nest, at the origin, in honey.
         let nest = layout.path(for: .origin)
-        context.fill(nest, with: .color(Theme.honey))
+        context.fill(nest, with: .color(Theme.honeyFill))
         context.stroke(
             nest,
             with: .color(Theme.propolis),
@@ -697,20 +717,24 @@ private struct WorldMap: View {
     private func handleTap(at point: CGPoint, layout: MapLayout) {
         let cell = layout.cell(at: point, snappingTo: terrain.garden)
 
-        if let garden = terrain.garden.first(where: { $0.cell == cell }) {
-            if let patch = patch(in: garden) {
-                onSelectPatch(patch)
-            } else {
-                onPhotograph(garden.cell)
-            }
+        let garden = terrain.garden.first { $0.cell == cell }
+        if let garden, let patch = patch(in: garden) {
+            onSelectPatch(patch)
             return
         }
 
         // Something the bees found. Ahead of the chunk, because a stand is the
         // smaller and more particular thing to have aimed at: a player who
-        // wanted the parish can tap the ground beside it.
+        // wanted the parish can tap the ground beside it. Ahead of an empty
+        // garden cell too, since the ring can open over a stand, and the card
+        // offers the planting.
         if let wild = wildByCell[cell] {
             onSelectWild(wild)
+            return
+        }
+
+        if let garden {
+            onPhotograph(garden.cell)
             return
         }
 
@@ -848,14 +872,18 @@ private struct WorldMap: View {
             }
 
             if !terrain.rumoured.isEmpty {
-                Text("\(terrain.rumoured.count) stretches of country the dancers have pointed at and nobody has been to.")
+                Text("\(terrain.rumoured.count.counted("stretch", plural: "stretches")) of country the dancers have pointed at and nobody has been to.")
             }
 
             // One line per stretch of country rather than one per stand:
             // there are hundreds of these and a list of them is not a map. A
             // parish and what is out in it is what a forager would say.
-            ForEach(wildInBloom, id: \.name) { chunk in
-                Text("\(chunk.name): \(chunk.species.spokenList) in bloom.")
+            ForEach(Array(wildInBloom.enumerated()), id: \.offset) { _, chunk in
+                Button {
+                    onSelectWild(chunk.firstStand)
+                } label: {
+                    Text("\(chunk.name): \(chunk.species.spokenList) in bloom.")
+                }
             }
 
             ForEach(planted) { cell in
@@ -866,14 +894,24 @@ private struct WorldMap: View {
                 }
             }
 
-            if !terrain.emptyCells.isEmpty {
+            // By ring, so where a flower goes can be chosen here as well: ring
+            // 1 is the close one, and worth more than a tap could say.
+            ForEach(emptyByRing, id: \.ring) { group in
                 Button {
-                    onPhotograph(nil)
+                    onPhotograph(group.first)
                 } label: {
-                    Text("\(terrain.emptyCells.count) empty cells in the garden. Photograph a flower to plant one.")
+                    Text("\(group.count.counted("empty cell")) in ring \(group.ring) of the garden. Photograph a flower to plant one.")
                 }
             }
         }
+    }
+
+    private var emptyByRing: [(ring: Int, count: Int, first: HexCoordinate)] {
+        Dictionary(grouping: terrain.emptyCells, by: \.ring)
+            .sorted { $0.key < $1.key }
+            .compactMap { ring, cells in
+                cells.first.map { (ring, cells.count, $0.cell) }
+            }
     }
 
     /// The six directions, in the order `HexCoordinate.directions` fixes them
@@ -884,7 +922,7 @@ private struct WorldMap: View {
 
     private func label(for planted: PlantedCell) -> String {
         let metres = Int(planted.garden.distanceMetres)
-        let remaining = Int(planted.patch.remainingFraction * 100)
+        let remaining = Int((planted.patch.remainingFraction * 100).rounded())
         return "\(planted.patch.speciesName), ring \(planted.garden.ring), "
             + "\(metres) metres from the nest, \(remaining) percent left."
     }
@@ -914,21 +952,27 @@ private struct WorldMap: View {
     private struct WildChunk {
         let name: String
         let species: [String]
+        /// Where a screen reader goes to hear about them.
+        let firstStand: PatchSummary
     }
 
     private var wildInBloom: [WildChunk] {
         var species: [ChunkCoordinate: Set<String>] = [:]
+        var first: [ChunkCoordinate: PatchSummary] = [:]
         for patch in snapshot.wildPatches where patch.isInBloom {
             guard let cell = patch.cell else { continue }
-            species[ChunkCoordinate.containing(cell), default: []].insert(patch.speciesName)
+            let chunk = ChunkCoordinate.containing(cell)
+            species[chunk, default: []].insert(patch.speciesName)
+            if first[chunk] == nil { first[chunk] = patch }
         }
 
         // Walked in the discovered order so the reading is stable between
         // ticks, and named from the terrain so a stand in ground that has
         // somehow gone unknown is left out rather than given a coordinate.
         return terrain.discovered.compactMap { chunk in
-            guard let names = species[chunk.coordinate], !names.isEmpty else { return nil }
-            return WildChunk(name: chunk.name, species: names.sorted())
+            guard let names = species[chunk.coordinate], !names.isEmpty,
+                  let stand = first[chunk.coordinate] else { return nil }
+            return WildChunk(name: chunk.name, species: names.sorted(), firstStand: stand)
         }
     }
 }
@@ -1068,7 +1112,7 @@ private struct MapLife: View, Animatable {
             let rect = CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)
             context.stroke(
                 Path(ellipseIn: rect),
-                with: .color(Theme.honey.opacity(1 - local)),
+                with: .color(Theme.honeyFill.opacity(1 - local)),
                 lineWidth: max(1, layout.radius * 0.18 * (1 - local))
             )
         }

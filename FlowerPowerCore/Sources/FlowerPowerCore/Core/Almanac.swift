@@ -234,7 +234,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .queenEmerged:
                 write(.queen, "A new queen emerges.", day: day)
             case .queenMated(let patrilines):
-                write(.queen, "\(queen) returns from her mating flight, mated with \(patrilines) drones.", day: day)
+                write(.queen, "\(queen) returns from her mating flight, mated with \(patrilines.counted("drone")).", day: day)
             case .matingFlightFailed:
                 write(.queen, "The virgin queen does not return from her mating flight.", day: day)
             case .queenLost:
@@ -242,7 +242,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .supersededQueen:
                 write(.queen, "\(queen) is superseded.", day: day)
             case .swarmed(let lost):
-                write(.swarm, "A swarm leaves with \(lost) bees and the old queen.", day: day)
+                write(.swarm, "A swarm leaves with \(lost.counted("bee")) and the old queen.", day: day)
             case .swarmPreparing(let departs):
                 write(.swarm, "Swarm cells are capped; the colony will divide in about \(max(1, departs - day)) days.", day: day)
             case .swarmAbandoned:
@@ -250,10 +250,10 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .combAdded(let cells):
                 write(.colony, "The nest is opened up: room for \(cells) more cells.", day: day)
             case .colonyDivided(let left):
-                write(.swarm, "The colony is divided on purpose. \(left) bees leave with \(queen); "
+                write(.swarm, "The colony is divided on purpose. \(left.counted("bee")) leave with \(queen); "
                       + "the flying bees stay.", day: day)
             case .absconded(let lost):
-                write(.colony, "The colony absconds, \(lost) bees abandoning the nest.", day: day)
+                write(.colony, "The colony absconds, \(lost.counted("bee")) abandoning the nest.", day: day)
             case .layingWorkersAppeared:
                 write(.queen, "Laying workers appear. There is no way back from this.", day: day)
             case .colonyCollapsed:
@@ -265,7 +265,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .raidSucceeded(let predator, let stores):
                 write(.threat, "\(predator.displayName) get in and take \(Int(stores.rounded())) units of stores.", day: day)
             case .combLost(let count):
-                write(.threat, "\(count) cells of comb are destroyed.", day: day)
+                write(.threat, "\(count.counted("cell")) of comb are destroyed.", day: day)
             case .infectionDetected(let pathogen):
                 write(.disease, "\(pathogen.displayName) is found in the colony.", day: day)
             case .infectionCritical(let pathogen):
@@ -273,7 +273,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .infectionCleared(let pathogen):
                 write(.disease, "The colony clears \(pathogen.displayName.lowercased()).", day: day)
             case .winterStoresLow(let have, let need):
-                write(.stores, "Winter stores are short: \(Int(have)) of \(Int(need)) needed.", day: day)
+                write(.stores, "Winter stores are short: \(Int(have.rounded())) of \(Int(need.rounded())) needed.", day: day)
             case .entranceSealed(let sealed):
                 write(.colony, sealed
                       ? "The bees seal the entrance with propolis for winter."
@@ -370,7 +370,7 @@ public extension Almanac {
                 : "You divided it \(tally.splits) times.")
         }
         if tally.combAdded > 0 {
-            notes.append("You gave the bees \(tally.combAdded) cells of comb.")
+            notes.append("You gave the bees \(tally.combAdded.counted("cell")) of comb.")
         }
         if tally.queensRaised > 0 {
             notes.append(queenNote(tally))

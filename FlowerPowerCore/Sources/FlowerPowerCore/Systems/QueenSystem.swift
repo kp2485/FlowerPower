@@ -18,11 +18,37 @@ public struct QueenSystem: DailySystem {
     public init() {}
 
     public func updateDaily(_ world: inout World, _ context: inout TickContext) {
+        recallNurses(&world, &context)
         attemptMatingFlight(&world, &context)
         layEggs(&world, &context)
         considerQueenRearing(&world, &context)
         emergeQueens(&world, &context)
         checkForLayingWorkers(&world, &context)
+    }
+
+    // MARK: - Reversion
+
+    /// Sends older workers back to nursing when the queen is going unfed.
+    ///
+    /// Keyed on her jelly rather than the nurse count, because a colony with
+    /// no nurses and nothing to feed, late in autumn, has no call to give up
+    /// foragers. Pinned bees stay on the job the player gave them.
+    private func recallNurses(_ world: inout World, _ context: inout TickContext) {
+        let share = context.config.nurseReversionShare
+        guard share > 0, world.hive.isQueenright,
+              world.hive.resources[.royalJelly] < context.config.queenRoyalJellyPerDay else {
+            return
+        }
+
+        let wanted = Int((Double(world.hive.adultWorkerCount) * share).rounded(.up))
+        var short = wanted - world.hive.bees.filter { $0.performs(.nurseBee) }.count
+        for index in world.hive.bees.indices where short > 0 {
+            let bee = world.hive.bees[index]
+            guard bee.kind == .worker, bee.isAdult, bee.assignedJob == nil,
+                  !bee.isCapable(of: .nurseBee) else { continue }
+            world.hive.bees[index].revertToNursing()
+            short -= 1
+        }
     }
 
     // MARK: - Mating

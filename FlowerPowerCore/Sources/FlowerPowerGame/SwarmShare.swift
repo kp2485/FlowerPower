@@ -31,6 +31,9 @@ public struct SwarmShare: Codable, Equatable, Sendable, Identifiable {
     /// model's scale. Anything past this is not a swarm.
     public static let maximumWorkers = 600
 
+    /// A swarm is a few numbers and two short strings.
+    public static let maximumBytes = 64 * 1024
+
     public var version: Int
     public var id: String
     /// The queen who left, with her number and name if she had one.
@@ -137,7 +140,7 @@ public struct SwarmShare: Codable, Equatable, Sendable, Identifiable {
     }
 
     public static func decoded(from data: Data) throws -> SwarmShare {
-        guard data.count < 64 * 1024 else { throw Failure.notASwarmFile }
+        guard data.count < maximumBytes else { throw Failure.notASwarmFile }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601

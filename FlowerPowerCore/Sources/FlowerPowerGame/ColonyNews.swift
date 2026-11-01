@@ -160,15 +160,15 @@ public struct ColonyNews: Equatable, Sendable {
                 identifier: identifier(for: threat),
                 title: "\(threat.predator.displayName) at the nest",
                 body: "\(threat.style.displayName). The colony holds by instinct unless you say otherwise. "
-                    + "\(threat.daysRemaining(on: after.day)) days to decide."
+                    + "\(threat.daysRemaining(on: after.day).counted("day")) to decide."
             ))
         }
-        if let swarm = after.pendingSwarm, before.pendingSwarm != swarm, !swarm.discouraged {
+        if let swarm = after.pendingSwarm, before.pendingSwarm != swarm, !swarm.isAnswered {
             news.append(ColonyNews(
                 identifier: identifier(for: swarm),
                 title: "The colony is preparing to swarm",
                 body: "Swarm cells are started. They will divide in about "
-                    + "\(swarm.daysRemaining(on: after.day)) days. "
+                    + "\(swarm.daysRemaining(on: after.day).counted("day")). "
                     + (after.canAddComb
                        ? "Room is the answer to congestion; a deliberate split "
                             + "is the other one."

@@ -111,6 +111,10 @@ struct TrialOutcome {
     /// effectively finished, as opposed to the day the last bee died.
     var dayOfCollapse: Int?
     var seasonOfCollapse: Season?
+    /// Whether the colony fell with the cavity still full of honey. A dead
+    /// colony's stores are robbed for months afterwards, so what it ended with
+    /// says nothing about what it died of.
+    var honeyBoundAtCollapse = false
     var swarms = 0
     /// Attacks the colony met, and how many it saw off. The rate between them
     /// is what `defensibility`, the postures and alarm pheromone all actually
@@ -373,6 +377,9 @@ enum Trials {
                 if outcome.dayOfCollapse == nil, simulation.hive.adultWorkerCount <= 5, day > 20 {
                     outcome.dayOfCollapse = day
                     outcome.seasonOfCollapse = Season(day: simulation.day)
+                    outcome.honeyBoundAtCollapse =
+                        Double(simulation.hive.cellsOccupiedByStores)
+                            >= 0.6 * Double(simulation.hive.comb.capacity)
                 }
 
                 if simulation.hive.bees.isEmpty { break }
@@ -398,6 +405,8 @@ enum Trials {
                 outcome.causeOfDeath = "queenless"
             } else if snapshot.queen.state == .droneLayer || snapshot.queen.state == .virgin {
                 outcome.causeOfDeath = "queen unmated"
+            } else if outcome.honeyBoundAtCollapse {
+                outcome.causeOfDeath = "honey bound"
             } else if snapshot.stores.edibleEnergy < 20 || starvedRecently {
                 outcome.causeOfDeath = "starvation"
             } else if (outcome.deaths[.disease] ?? 0) > 20 {

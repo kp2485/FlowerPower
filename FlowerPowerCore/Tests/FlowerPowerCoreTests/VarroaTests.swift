@@ -24,8 +24,11 @@ final class VarroaTests: XCTestCase {
         // holds for a single year. That is a real effect and it belongs to the
         // balance tables in PLAN.md, not here — this test is about how mites
         // grow on a colony of known composition, so the composition is held.
+        // Nurse reversion is held for the same reason: a colony that keeps its
+        // new queen rears more brood, which took this to 0.308.
         var config = config
         config.wildPatchDensity = 0
+        config.nurseReversionShare = 0
         var simulation = Fixture.thrivingSimulation(config: config, seed: seed)
         simulation.world.hive.pathogens[.varroa] = config.pathogenSeedLevel
 

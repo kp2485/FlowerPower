@@ -90,9 +90,11 @@ struct SpeciesPickerView: View {
                     }
                 }
 
-                Section(search.isEmpty ? "All Flowers" : "Matches") {
-                    ForEach(results, id: \.id) { species in
-                        row(species)
+                if !results.isEmpty {
+                    Section(search.isEmpty ? "All Flowers" : "Matches") {
+                        ForEach(results, id: \.id) { species in
+                            row(species)
+                        }
                     }
                 }
 

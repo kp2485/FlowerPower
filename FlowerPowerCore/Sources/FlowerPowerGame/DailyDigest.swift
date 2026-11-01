@@ -71,8 +71,8 @@ public struct DailyDigest: Equatable, Sendable {
         if report.netPopulationChange != 0, abs(report.netPopulationChange) >= 10 {
             let change = report.netPopulationChange
             lines.append(change > 0
-                         ? "Up \(change) bees to \(snapshot.population.total)."
-                         : "Down \(-change) bees to \(snapshot.population.total).")
+                         ? "Up \(change.counted("bee")) to \(snapshot.population.total)."
+                         : "Down \((-change).counted("bee")) to \(snapshot.population.total).")
         }
 
         // Only the headline, and a headline that says everything is fine, is

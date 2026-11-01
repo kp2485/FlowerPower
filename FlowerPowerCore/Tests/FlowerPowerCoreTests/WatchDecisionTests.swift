@@ -80,9 +80,8 @@ struct WatchDecisionTests {
 
         #expect(decision.kind == .swarm)
         #expect(decision.daysRemaining == 6)
-        // Measured over 200 colonies across two years: 76% two-year survival
-        // for making room, 66% for doing nothing, 62% for adding comb, 56% for
-        // dividing. The best answer is the oldest one, so it goes first.
+        // Lightest first, because survival no longer ranks them: 78% to 82%
+        // at two years, with doing nothing at 80%.
         #expect(decision.options.first?.identifier == "swarm.discourage")
         #expect(decision.options.last?.identifier == "swarm.let")
     }

@@ -140,6 +140,8 @@ public struct CatchUpReport: Equatable, Sendable {
     /// Kept in arrival order and capped, so the UI can show a readable
     /// timeline without unbounded growth.
     public private(set) var highlights: [SimEvent] = []
+    /// The day of each highlight, in step with `highlights`.
+    public private(set) var highlightDays: [Int] = []
     public static let highlightLimit = 60
 
     public init() {}
@@ -177,10 +179,11 @@ public struct CatchUpReport: Equatable, Sendable {
         merged.groundedDays += later.groundedDays
         merged.milestones += later.milestones
         merged.highlights = Array((highlights + later.highlights).prefix(Self.highlightLimit))
+        merged.highlightDays = Array((highlightDays + later.highlightDays).prefix(Self.highlightLimit))
         return merged
     }
 
-    public mutating func record(_ event: SimEvent) {
+    public mutating func record(_ event: SimEvent, day: Int = 0) {
         switch event {
         case .emerged(let kind):
             emerged[kind, default: 0] += 1
@@ -226,9 +229,22 @@ public struct CatchUpReport: Equatable, Sendable {
             break
         }
 
-        if event.isHighlight, highlights.count < Self.highlightLimit {
-            highlights.append(event)
+        guard event.isHighlight else { return }
+
+        // Said again each day it stays true. Only the latest figure is news,
+        // and three in a row buried everything between them.
+        if case .winterStoresLow = event,
+           let earlier = highlights.lastIndex(where: {
+               if case .winterStoresLow = $0 { return true }
+               return false
+           }) {
+            highlights.remove(at: earlier)
+            highlightDays.remove(at: earlier)
         }
+
+        guard highlights.count < Self.highlightLimit else { return }
+        highlights.append(event)
+        highlightDays.append(day)
     }
 }
 
@@ -238,13 +254,15 @@ extension SimEvent {
     /// only counting. Births and deaths happen constantly; a swarm does not.
     public var isHighlight: Bool {
         switch self {
+        // Weather included: it turns every day or two, so an 82-day absence read
+        // as a forecast with a wasp somewhere in the middle of it.
         case .emerged, .died, .eggsLaid, .cellsBuilt, .overheating, .chilling,
-             .starving, .patchDepleted, .groundedByWeather:
+             .starving, .patchDepleted, .groundedByWeather, .weatherChanged:
             return false
         case .queenCellStarted, .queenEmerged, .queenMated, .matingFlightFailed,
              .queenLost, .queenFailing, .swarmed, .absconded, .supersededQueen,
              .layingWorkersAppeared, .colonyCollapsed, .combLost,
-             .patchOutOfBloom, .nectarFlowBegan, .dearth, .weatherChanged,
+             .patchOutOfBloom, .nectarFlowBegan, .dearth,
              .infectionDetected, .infectionCleared, .infectionCritical,
              .attacked, .attackRepelled, .raidSucceeded, .winterStoresLow,
              .threatBegan, .threatEnded, .swarmPreparing, .swarmAbandoned,

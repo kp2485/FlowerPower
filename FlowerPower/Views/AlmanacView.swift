@@ -13,6 +13,7 @@ struct AlmanacView: View {
 
     @Environment(GameStore.self) private var store
     @State private var year: Int?
+    @ScaledMetric private var dayColumn: CGFloat = 56
 
     private var almanac: Almanac { store.snapshot.almanac }
     private var years: [Int] {
@@ -42,7 +43,7 @@ struct AlmanacView: View {
                                     Text("Day \(entry.dayOfYear)")
                                         .font(.caption.monospacedDigit())
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 56, alignment: .leading)
+                                        .frame(width: dayColumn, alignment: .leading)
                                     Label(entry.text, systemImage: entry.kind.symbolName)
                                         .font(.subheadline)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -137,7 +138,7 @@ struct YearInReviewCard: View {
             if !review.queens.isEmpty {
                 Text(review.queens.map(\.title).spokenList + " reigned.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

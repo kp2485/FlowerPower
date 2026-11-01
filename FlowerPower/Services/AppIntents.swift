@@ -64,8 +64,8 @@ struct CheckColonyIntent: AppIntent {
         guard var simulation = try? GamePersistence().load() else {
             return .result(
                 dialog: IntentDialog(
-                    stringLiteral: "There is no colony yet. Photograph a flower "
-                        + "and a swarm will find you."
+                    stringLiteral: "There is no colony yet. Open FlowerPower "
+                        + "to choose where the swarm settles."
                 ),
                 view: HiveSnippet(summary: nil)
             )
@@ -249,9 +249,8 @@ struct MakeRoomIntent: AppIntent {
     static var title: LocalizedStringResource { "Make Room" }
 
     static var description: IntentDescription {
-        // The best answer to a swarm there is: 76% two-year survival against
-        // 66% for doing nothing, 62% for opening the nest up and 56% for
-        // dividing. See `NotificationActions.register`.
+        // The lightest answer to a swarm, and the one offered first. See
+        // `NotificationActions.register`.
         IntentDescription("Builders draw comb and foragers hold back, to ease the crowding that sends a swarm out.")
     }
 
@@ -413,13 +412,13 @@ enum ColonyIntents {
 
 // MARK: - The decision a widget can answer
 
-/// A decision open right now, with the best answer to it already chosen.
+/// A decision open right now, with the first answer to it already chosen.
 ///
 /// The choosing is the package's, not this file's: `HivePosture.options`
 /// returns the postures worth offering against an attack in measured order,
 /// so its first entry is the best answer there is, and making room is the
-/// best answer to a swarm. A widget has room for one button and it should be
-/// that one.
+/// lightest answer to a swarm. A widget has room for one button and it should
+/// be that one.
 ///
 /// Ordered siege before swarm, matching `ColonyNews`: a siege resolves in a
 /// day or two and a swarm takes the better part of a week, so the tighter
@@ -433,12 +432,13 @@ enum OpenDecision: Equatable, Sendable {
     case scout
 
     init?(_ snapshot: ColonySnapshot) {
+        guard snapshot.status.isAlive else { return nil }
         // Only while the siege is still unanswered. Once the player has
         // chosen, a button for the "best" answer would override their choice.
-        if snapshot.posture == .instinct,
-           let posture = snapshot.activeThreat?.options.first(where: { $0 != .instinct }) {
+        if let threat = snapshot.activeThreat, !threat.isAnswered(by: snapshot.posture),
+           let posture = threat.options.first(where: { $0 != .instinct }) {
             self = .siege(posture)
-        } else if let swarm = snapshot.pendingSwarm, !swarm.discouraged {
+        } else if let swarm = snapshot.pendingSwarm, !swarm.isAnswered {
             self = .swarm
         } else if snapshot.scoutDecisionOpen {
             self = .scout
@@ -448,7 +448,7 @@ enum OpenDecision: Equatable, Sendable {
     }
 }
 
-/// The best answer as a button that acts without opening the app.
+/// That answer as a button that acts without opening the app.
 ///
 /// The switch over `HivePosture` is the one thing in this feature that could
 /// not be put in the package: it maps an engine type onto App Intents types,

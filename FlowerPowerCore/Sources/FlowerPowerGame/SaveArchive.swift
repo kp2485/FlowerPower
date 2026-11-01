@@ -170,15 +170,17 @@ public struct SaveArchive: Codable, Equatable, Sendable, Identifiable {
     /// hundred megabytes of nested JSON will happily spend the phone's memory
     /// finding out it is not a colony.
     ///
-    /// There is no `validated()` here, unlike the other two travelling types,
-    /// and the reason is worth being explicit about: a save is not a handful
-    /// of fields that can be clamped into range but the entire engine state,
-    /// and a clamp over thousands of bees would be a second, unverified copy
-    /// of every invariant the systems already maintain. What guards this
-    /// instead is that a save decodes as a `Simulation` at all — the strictly
-    /// typed, non-optional shape of `World` refuses most of what a corrupt or
-    /// hand-edited file could be — and that the engine is written to survive
-    /// states it did not produce, since it has to survive its own old saves.
+    /// There is no `validated()` here, unlike the other two travelling types:
+    /// a save is not a handful of fields that can be clamped into range but
+    /// the entire engine state, and a clamp over thousands of bees would be a
+    /// second, unverified copy of every invariant the systems already
+    /// maintain. So a file is taken whole or refused. It must decode as a
+    /// `Simulation`, which the strictly typed shape of `World` makes hard for
+    /// a corrupt one, and it must pass `isPlausible`, which stops what the
+    /// types cannot: a hand-edited number. A honey figure of 1e300 decoded
+    /// perfectly and then trapped in `Int()` the moment the summary was drawn,
+    /// and a tick near `Int.max` would have been saved by a restore and
+    /// trapped on every launch afterwards.
     public static func decoded(from data: Data) throws -> SaveArchive {
         guard data.count <= maximumBytes else {
             throw Failure.tooLarge(data.count)
@@ -187,6 +189,9 @@ public struct SaveArchive: Codable, Equatable, Sendable, Identifiable {
         if let archive = try? decoder().decode(SaveArchive.self, from: data) {
             guard archive.formatVersion <= currentFormatVersion else {
                 throw Failure.fromANewerVersion(archive.formatVersion)
+            }
+            guard isPlausible(data), archive.simulation.world.hive.resources.cellsOccupied <= maximumCellsOfStores else {
+                throw Failure.notASaveFile
             }
             return archive
         }
@@ -204,6 +209,38 @@ public struct SaveArchive: Codable, Equatable, Sendable, Identifiable {
         }
 
         throw Failure.notASaveFile
+    }
+
+    /// Past anything a colony's numbers reach: the largest in a real save is
+    /// the running total of real seconds, about 4e6 at a year and a half.
+    static let largestPlausibleFigure = 1e10
+
+    /// The biggest cavity is 1,620 cells. This leaves room for a future site
+    /// and still refuses a figure that would have the comb drawn cell by cell.
+    static let maximumCellsOfStores = 100_000
+
+    /// Walks every number in the file rather than naming the fields, because
+    /// any one of them can reach an `Int()` or an array count somewhere.
+    /// The random state and the seeds are the exceptions: they are meant to
+    /// fill 64 bits, and nothing does arithmetic on them that can trap.
+    private static func isPlausible(_ data: Data) -> Bool {
+        guard let root = try? JSONSerialization.jsonObject(with: data) else { return false }
+
+        func plausible(_ value: Any) -> Bool {
+            switch value {
+            case let dictionary as [String: Any]:
+                return dictionary.allSatisfy { key, value in
+                    key == "rng" || key == "seed" || plausible(value)
+                }
+            case let array as [Any]:
+                return array.allSatisfy(plausible)
+            case let number as NSNumber:
+                return abs(number.doubleValue) <= largestPlausibleFigure
+            default:
+                return true
+            }
+        }
+        return plausible(root)
     }
 
     /// Just the version field, so a future file can be recognised as one

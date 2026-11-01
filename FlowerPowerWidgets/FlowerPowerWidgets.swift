@@ -161,6 +161,7 @@ struct HiveWidgetView: View {
                             .tint(WidgetTheme.caution)
                             .font(.caption2)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     } else {
                         HStack {
                             Label("\(summary.population)", systemImage: "hexagon.fill")
@@ -225,9 +226,12 @@ struct HiveActivity: Widget {
                         .accessibilityHidden(true)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("\(context.state.daysRemaining)d")
-                        .font(.headline.monospacedDigit())
-                        .accessibilityLabel(daysLabel(context.state.daysRemaining))
+                    // A mating flight has no countdown; "0d" read as overdue.
+                    if context.attributes.kind != .matingFlight {
+                        Text("\(context.state.daysRemaining)d")
+                            .font(.headline.monospacedDigit())
+                            .accessibilityLabel(daysLabel(context.state.daysRemaining))
+                    }
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.attributes.title).font(.headline)
@@ -239,9 +243,11 @@ struct HiveActivity: Widget {
                 Image(systemName: context.attributes.symbol)
                     .accessibilityLabel(context.attributes.title)
             } compactTrailing: {
-                Text("\(context.state.daysRemaining)d")
-                    .monospacedDigit()
-                    .accessibilityLabel(daysLabel(context.state.daysRemaining))
+                if context.attributes.kind != .matingFlight {
+                    Text("\(context.state.daysRemaining)d")
+                        .monospacedDigit()
+                        .accessibilityLabel(daysLabel(context.state.daysRemaining))
+                }
             } minimal: {
                 Image(systemName: context.attributes.symbol)
                     .accessibilityLabel(context.attributes.title)

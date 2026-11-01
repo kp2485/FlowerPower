@@ -424,6 +424,10 @@ public struct TerrainSummary: Codable, Equatable, Sendable {
 public struct ColonySnapshot: Codable, Equatable, Sendable {
 
     public let day: Int
+    /// The day as it is written for a person. `day` counts from zero, and some
+    /// screens added one while others did not, so the same morning could be
+    /// day 586 on the dashboard and day 587 in History.
+    public var displayDay: Int { day + 1 }
     public let season: Season
     public let hourOfDay: Int
     public let weather: Weather
@@ -604,7 +608,7 @@ extension Simulation {
                 )
             },
             entranceSealed: world.entranceSealed,
-            entranceDecisionOpen: season == .autumn && !world.entranceSealed,
+            entranceDecisionOpen: season == .autumn && world.entranceDecision == nil && !world.entranceSealed,
             daysUntilSpring: Season.daysUntilSpring(from: clock.day),
             canAddComb: canAddComb,
             canAffordComb: canAffordComb,
@@ -839,12 +843,17 @@ extension Simulation {
         }
 
         if world.isInFlow(config) { return "The nectar is flowing." }
+        if world.hasFullLarder(config) { return "Larder full. The rest of the comb is the queen's." }
         if world.isInDearth(config) { return "A dearth — little is coming in." }
         if hive.comb.queenCells.contains(where: { $0.purpose == .swarm }) {
             return "Preparing to swarm."
         }
 
-        return "Foraging steadily."
+        // Not "steadily" under a Struggling badge. The alerts say why.
+        switch colonyStatus() {
+        case .struggling, .critical: return "Foraging, but not keeping up."
+        default: return "Foraging steadily."
+        }
     }
 
     /// What the cluster is doing, which changes four times over the winter.
@@ -862,7 +871,7 @@ extension Simulation {
 
         // Being short is the only thing worth saying, if it is true.
         if !hive.isWinterReady, hive.resources.edibleEnergy < hive.winterStoresRequired * 0.6 {
-            return "Clustered, and short of stores with \(untilSpring) days to spring."
+            return "Clustered, and short of stores with \(untilSpring.counted("day")) to spring."
         }
 
         if progress < 0.25 {
@@ -870,7 +879,7 @@ extension Simulation {
                 + "its centre at thirty-five degrees."
         }
         if progress < Season.winterDormancyEnds {
-            return "The deep of it. \(untilSpring) days to spring, and every "
+            return "The deep of it. \(untilSpring.counted("day")) to spring, and every "
                 + "one of them paid for out of the larder."
         }
         if hive.broodCount == 0 {
@@ -936,8 +945,8 @@ extension Simulation {
                 severity: .critical,
                 title: "No Queen",
                 detail: hive.comb.hasQueenCells
-                    ? "Queenless for \(hive.daysQueenless) days, with \(hive.comb.queenCells.count) queen cells under way."
-                    : "Queenless for \(hive.daysQueenless) days, with no replacement being raised.",
+                    ? "Queenless for \(hive.daysQueenless.counted("day")), with \(hive.comb.queenCells.count) queen cells under way."
+                    : "Queenless for \(hive.daysQueenless.counted("day")), with no replacement being raised.",
                 suggestion: hive.canStillRearAQueen
                     ? "There is still young brood to raise a queen from."
                     : "There is no young brood left to raise a queen from."

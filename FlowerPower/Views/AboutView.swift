@@ -38,7 +38,7 @@ struct AboutView: View {
             }
 
             Section {
-                Text("The difficulty is measured, not guessed. Across 200 simulated colonies run for two years each, 89% see their first spring and 66% their second on the standard setting. That is close to what happens to real unmanaged swarms, and it means losing a colony is the ordinary arc of the thing rather than a punishment.")
+                Text("The difficulty is measured, not guessed. Across 200 simulated colonies on the Natural setting, 93% see their first spring, 80% their second and 38% their third. Losing a colony is the ordinary arc of the thing rather than a punishment.")
                 Text("Five modelling errors were found by tracing single colonies through their deaths rather than by reading the average — comb being drawn out of the winter larder, a second swarm cast on the day a new queen mated, and three queen bugs before those. Each of them made the game easier or harder for a reason that had nothing to do with design.")
                     .foregroundStyle(.secondary)
             } header: {

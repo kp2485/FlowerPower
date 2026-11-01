@@ -19,6 +19,10 @@ public struct ThreatSystem: DailySystem {
         // A siege that has run its course resolves with whatever posture the
         // colony holds today. Until then, nothing else comes to the door —
         // one crisis at a time is plenty, and it keeps the decision clear.
+        // A siege on a colony that has died since it began has nobody left to
+        // ask. The hive itself is still fair game: see below.
+        if world.hive.isCollapsed { world.activeThreat = nil }
+
         if let threat = world.activeThreat {
             if context.day >= threat.resolvesOnDay {
                 world.activeThreat = nil
@@ -30,7 +34,9 @@ public struct ThreatSystem: DailySystem {
                 guard predator.activeSeasons.contains(context.season) else { continue }
                 guard context.rng.chance(encounterChance(predator, world, context)) else { continue }
 
-                if predator.hasDecisionWindow {
+                // An abandoned nest is robbed like any other, with no window on
+                // it, or a dead colony went on being asked how to defend itself.
+                if predator.hasDecisionWindow, !world.hive.isCollapsed {
                     // The window opens. The player has until it closes.
                     let threat = ActiveThreat(
                         predator: predator,

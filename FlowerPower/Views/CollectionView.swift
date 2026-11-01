@@ -16,7 +16,7 @@ import FlowerPowerGame
 struct CollectionView: View {
 
     @Environment(GameStore.self) private var store
-    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.likelyHere.rawValue
 
     private var collection: BotanyCollection { BotanyCollection(patches: store.snapshot.patches) }
     private var hemisphere: Hemisphere { Hemisphere(rawValue: hemisphereRaw) ?? .northern }
@@ -68,7 +68,7 @@ struct CollectionView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Text(detail(entry))
                             .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 2)
                     .accessibilityElement(children: .combine)
@@ -92,7 +92,7 @@ struct CollectionView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                             Text(detail(entry))
                                 .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 2)
                         .accessibilityElement(children: .combine)
@@ -139,6 +139,10 @@ struct CollectionView: View {
     /// the country that nobody photographed.
     private var hasWildForage: Bool { !store.snapshot.wildPatches.isEmpty }
 
+    /// An unnamed flower has no family to be counted under, so a garden of
+    /// them can look empty here while the bees are busy on it.
+    private var hasUnnamedFlowers: Bool { store.snapshot.patches.contains { !$0.isIdentified } }
+
     private var calendar: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Bloom calendar")
@@ -171,10 +175,12 @@ struct CollectionView: View {
                 // in a season the shelf has nothing for. Saying otherwise
                 // would be telling the player their bees are starving while
                 // the foragers are out on the heath.
-                Text("Nothing in the garden flowers in \(collection.seasonsMissing.map { $0.rawValue }.spokenList). "
-                     + (hasWildForage
-                        ? "The bees are left with whatever they can find wild."
-                        : "The colony has no forage then."))
+                Text("Nothing \(hasUnnamedFlowers ? "named " : "")in the garden flowers in \(collection.seasonsMissing.map { $0.rawValue }.spokenList). "
+                     + (hasUnnamedFlowers
+                        ? "Your unnamed flowers may still cover it."
+                        : hasWildForage
+                            ? "The bees are left with whatever they can find wild."
+                            : "The colony has no forage then."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -213,7 +219,7 @@ struct BloomPromptCard: View {
             if let wild = prompt.wildKeystone {
                 Label(wild, systemImage: "location.north.circle")
                     .font(.subheadline)
-                    .foregroundStyle(Theme.wild)
+                    .foregroundStyle(Theme.wildInk)
                     .fixedSize(horizontal: false, vertical: true)
             }
 

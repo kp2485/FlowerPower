@@ -123,6 +123,16 @@ public enum Predator: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// For the middle of a sentence: "a wasp", "an opossum", "robber bees".
+    public var withArticle: String {
+        let name = displayName.lowercased()
+        switch self {
+        case .robberBee, .ant, .waxMoth, .hiveBeetle: return name
+        case .opossum: return "an " + name
+        default: return "a " + name
+        }
+    }
+
     public var attackStyle: AttackStyle {
         switch self {
         case .bear, .badger, .human: return .catastrophic

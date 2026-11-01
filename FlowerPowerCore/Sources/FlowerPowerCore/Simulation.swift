@@ -24,6 +24,11 @@ public struct Simulation: Codable, Equatable, Sendable {
     /// read-only to consumers, who must go through the player-action methods.
     public internal(set) var world: World
     public internal(set) var clock: SimClock
+
+    /// See `SimClock.resume(at:)`.
+    public mutating func resumeClock(at date: Date) {
+        clock.resume(at: date)
+    }
     public var config: SimulationConfig
 
     private var rng: SeededRandom
@@ -106,6 +111,15 @@ public struct Simulation: Codable, Equatable, Sendable {
         for patch in patches {
             simulation.carryOver(patch, fromDay: inheritedOnDay)
         }
+        // The rings the garden had grown to come with it. A new colony's
+        // terrain starts at one, so a flower in ring 3 kept its cell and dropped
+        // off the map: undrawn, untappable, and free to be planted over.
+        let furthest = simulation.world.patches
+            .filter { !$0.isWild }
+            .compactMap(\.cell)
+            .map { HexCoordinate.origin.distance(to: $0) }
+            .max() ?? 1
+        simulation.world.terrain?.unlockRings(upTo: furthest)
         // Or the same `.flower` file, still sitting in a message thread,
         // imports a second time into the new colony.
         simulation.world.importedShares.formUnion(importedShares)
@@ -224,7 +238,7 @@ public struct Simulation: Codable, Equatable, Sendable {
 
         for _ in 0..<ticks {
             for event in step() {
-                report.record(event)
+                report.record(event, day: clock.day)
             }
         }
 
@@ -405,9 +419,13 @@ public struct Simulation: Codable, Equatable, Sendable {
             return cell
         }
 
-        // Every open ring is full. The garden grows.
-        let opened = terrain.openNextRing()
-        return opened.first
+        // Every open ring is full. The garden grows, and the new ring may hold
+        // a flower already: a planting has to find a cell of its own.
+        while true {
+            if let cell = terrain.openNextRing().first(where: { !taken.contains($0) }) {
+                return cell
+            }
+        }
     }
 
     /// Whether any patch still standing is in this cell.
@@ -588,6 +606,9 @@ public struct Simulation: Codable, Equatable, Sendable {
     /// - Returns: how many bees actually took the job up.
     @discardableResult
     public mutating func emphasise(_ job: WorkerJob) -> Int {
+        // Put back if no bee can do it. Every pin is cleared on the way
+        // through, so a job nobody was fit for quietly undid the one in force.
+        let before = world.hive.bees
         var assigned = 0
 
         for index in world.hive.bees.indices {
@@ -604,6 +625,7 @@ public struct Simulation: Codable, Equatable, Sendable {
             }
         }
 
+        if assigned == 0 { world.hive.bees = before }
         return assigned
     }
 
@@ -678,9 +700,11 @@ public struct Simulation: Codable, Equatable, Sendable {
     }
 
     /// Answers a siege. The posture holds until the threat resolves.
-    public mutating func respond(to threat: ActiveThreat, with posture: HivePosture) {
-        guard world.activeThreat == threat else { return }
+    @discardableResult
+    public mutating func respond(to threat: ActiveThreat, with posture: HivePosture) -> Bool {
+        guard world.activeThreat == threat else { return false }
         adoptPosture(posture, forDays: max(1, threat.resolvesOnDay - clock.day + 1))
+        return true
     }
 
     /// Tries to talk the colony out of swarming. Reduces the chance; does
@@ -690,6 +714,11 @@ public struct Simulation: Codable, Equatable, Sendable {
         pending.discouraged = true
         world.pendingSwarm = pending
         adoptPosture(.makeRoom, forDays: max(1, pending.departsOnDay - clock.day + 1))
+    }
+
+    /// Leaves them to it. Nothing about the swarm changes; the question closes.
+    public mutating func acceptSwarm() {
+        world.pendingSwarm?.accepted = true
     }
 
     // MARK: Answering congestion
@@ -969,8 +998,10 @@ public struct Simulation: Codable, Equatable, Sendable {
     public mutating func decideEntrance(sealed: Bool?) {
         world.entranceDecision = sealed
         guard let sealed, season == .autumn else { return }
-        if sealed, !world.entranceSealed,
-           world.hive.resources[.propolis] >= config.entranceSealPropolis {
+        if sealed, !world.entranceSealed {
+            // Short of propolis the word stands, and `PostureSystem` seals it
+            // the day they have enough. Nothing has happened yet to record.
+            guard world.hive.resources[.propolis] >= config.entranceSealPropolis else { return }
             world.hive.resources.drain(config.entranceSealPropolis, of: .propolis)
             world.entranceSealed = true
         } else if !sealed, world.entranceSealed {
@@ -1131,7 +1162,8 @@ public struct Simulation: Codable, Equatable, Sendable {
             inheriting: patches,
             inheritedOnDay: clock.day,
             importedShares: world.importedShares,
-            generation: world.lineage.generation + 1
+            generation: world.lineage.generation + 1,
+            queenName: world.lineage.queens.first { $0.number == swarm.queenNumber }?.name
         )
     }
 
@@ -1146,7 +1178,8 @@ public struct Simulation: Codable, Equatable, Sendable {
         inheriting patches: [FlowerPatch] = [],
         inheritedOnDay: Int? = nil,
         importedShares: Set<String> = [],
-        generation: Int = 1
+        generation: Int = 1,
+        queenName: String? = nil
     ) -> Simulation {
         var simulation = newGame(
             at: location, startingAt: date, config: config,
@@ -1183,10 +1216,13 @@ public struct Simulation: Codable, Equatable, Sendable {
 
         // Her number comes with her.
         let carried = swarm.queenNumber.map { number in
-            QueenRecord(
+            var record = QueenRecord(
                 number: number, motherNumber: nil, emergedOnDay: 0,
                 matedOnDay: 0, patrilines: swarm.genetics.patrilines
             )
+            // And her name, if she was given one.
+            record.name = queenName
+            return record
         }
         simulation.world.lineage = Lineage.continuing(from: carried, generation: generation)
         return simulation

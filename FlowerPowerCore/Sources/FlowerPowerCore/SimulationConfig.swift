@@ -273,6 +273,14 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// draw on stores that still have to last.
     public var winterBuildUpStart: Double = Season.winterDormancyEnds + 0.05
 
+    /// Share of the adults that go back to nursing when a queen goes unfed.
+    ///
+    /// A nurse is two to ten days old and a swarmed colony lays nothing for a
+    /// month, so its new queen comes into lay with nobody left young enough to
+    /// feed her. Real foragers regrow their glands and revert. At zero they do
+    /// not, and she starves in a colony of hundreds with a full larder.
+    public var nurseReversionShare: Double = 0.1
+
     /// Open brood one nurse can actually feed. Brood beyond this starves
     /// however much food is in store, because the jelly has to come out of a
     /// nurse's glands.
@@ -526,6 +534,20 @@ public struct SimulationConfig: Codable, Equatable, Sendable {
     /// Days a patch takes to decline from full to nothing once it starts.
     public var patchFadeDays: Int = 120
 
+    /// Cells of stores past which the foragers leave the comb to the queen.
+    /// Zero means there is no such point.
+    ///
+    /// Nothing else stops nectar taking the last empty cell, and a queen with
+    /// nowhere to lay is a colony that swarms itself away and dies on a full
+    /// larder. On standard forage a colony rarely earns enough for that to
+    /// matter; a richer preset needs this.
+    ///
+    /// A count rather than a share of the cavity, and that is deliberate: half
+    /// of a 200-cell nest under a branch cannot hold the honey for one winter,
+    /// and a share took that site from 70% to 8% at two years. A small nest
+    /// has to be free to fill itself.
+    public var storesCeilingCells: Int = 0
+
     // MARK: - Swarming
 
     /// How far into spring a colony must be before it will swarm, and how far
@@ -757,6 +779,14 @@ extension SimulationConfig {
     /// virgin queen surviving a mating flight. Measured across thirty colonies,
     /// richer forage alone dropped survival from 70% to 40%. A gentler game has
     /// to damp the swarming too.
+    ///
+    /// That was not the whole of it, and damping the swarms never got this
+    /// preset past 25% at two years. What killed those colonies was the extra
+    /// forage itself: honey filled the comb and left the queen nowhere to lay,
+    /// and a swarmed colony's new queen came into lay with nobody young enough
+    /// to feed her. Both died on a full larder, and neither is fixed by the
+    /// other: 76% with the ceiling alone, 20% with the nurses alone, 88%
+    /// together.
     public static var gentle: SimulationConfig {
         var config = SimulationConfig()
 
@@ -774,6 +804,9 @@ extension SimulationConfig {
         config.broodStarvationRate *= 0.5
         config.hygienicRemovalRate *= 1.6
         config.guardStrength *= 1.5
+
+        // Room for the queen.
+        config.storesCeilingCells = 350
 
         // And a colony that stays together.
         config.swarmCellChance *= 0.35
@@ -808,6 +841,9 @@ extension SimulationConfig {
         // and harsh — which already cuts forage by nearly a third — collapsed
         // to 7% survival on the inherited value.
         config.winterProvisioningMargin = 1.3
+        // A swarmed colony's new queen goes unfed here, as it once did on every
+        // setting. Harsh is measured and described on that footing.
+        config.nurseReversionShare = 0
         return config
     }
 }

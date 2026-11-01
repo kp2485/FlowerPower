@@ -48,23 +48,45 @@ enum LiveActivities {
         // Update or start the rest.
         for (kind, item) in wanted {
             if let activity = running.first(where: { $0.attributes.kind == kind }) {
+                // The title is fixed for an activity's life, so a hornet
+                // arriving as a wasp left needs one of its own.
+                if activity.attributes.title != item.attributes.title {
+                    let id = activity.id
+                    Task { await end(id) }
+                    start(item)
+                    continue
+                }
                 // This runs on every live tick; most of them change nothing.
                 guard activity.content.state != item.state else { continue }
                 let id = activity.id
                 let state = item.state
                 Task { await update(id, to: state) }
             } else {
-                do {
-                    _ = try Activity.request(
-                        attributes: item.attributes,
-                        content: .init(state: item.state, staleDate: nil),
-                        pushType: nil
-                    )
-                } catch {
-                    logger.debug("could not start live activity: \(error.localizedDescription)")
-                }
+                start(item)
             }
         }
+    }
+
+    private static func start(_ item: Item) {
+        do {
+            _ = try Activity.request(
+                attributes: item.attributes,
+                content: .init(state: item.state, staleDate: staleDate()),
+                pushType: nil
+            )
+        } catch {
+            logger.debug("could not start live activity: \(error.localizedDescription)")
+        }
+    }
+
+    /// When what is on the lock screen stops being trustworthy.
+    ///
+    /// Its countdown is in simulated days and only moves while the app or a
+    /// background wake runs, so "2d" could sit there for hours being wrong
+    /// with nothing to say so. A simulated day is two real hours; past that
+    /// the system dims it as out of date.
+    nonisolated private static func staleDate() -> Date {
+        Date().addingTimeInterval(2.5 * 3600)
     }
 
     // MARK: - Off the main actor
@@ -77,7 +99,9 @@ enum LiveActivities {
     private nonisolated static func end(_ id: String) async {
         guard let activity = Activity<HiveActivityAttributes>.activities
             .first(where: { $0.id == id }) else { return }
-        await activity.end(nil, dismissalPolicy: .default)
+        // At once: `.default` left the last "holds by instinct, 2d" sitting on
+        // the lock screen for hours after the siege it described had ended.
+        await activity.end(nil, dismissalPolicy: .immediate)
     }
 
     @concurrent
@@ -87,7 +111,7 @@ enum LiveActivities {
     ) async {
         guard let activity = Activity<HiveActivityAttributes>.activities
             .first(where: { $0.id == id }) else { return }
-        await activity.update(.init(state: state, staleDate: nil))
+        await activity.update(.init(state: state, staleDate: staleDate()))
     }
 
     private struct Item {
@@ -100,6 +124,10 @@ enum LiveActivities {
     ) -> [HiveActivityAttributes.Kind: Item] {
         var items: [HiveActivityAttributes.Kind: Item] = [:]
 
+        // A virgin queen can outlive the rest of a dead colony, and a siege
+        // can stay on the record. Neither is worth a place on the lock screen.
+        guard snapshot.status.isAlive else { return items }
+
         if let threat = snapshot.activeThreat {
             let total = max(1, threat.resolvesOnDay - threat.beganOnDay)
             let elapsed = min(total, snapshot.day - threat.beganOnDay)
@@ -110,12 +138,12 @@ enum LiveActivities {
                     symbol: "exclamationmark.shield.fill"
                 ),
                 state: .init(
-                    status: snapshot.posture == .instinct
-                        ? "The colony holds by instinct"
-                        : "Holding: \(snapshot.posture.displayName)",
+                    status: threat.isAnswered(by: snapshot.posture)
+                        ? "Holding: \(snapshot.posture.displayName)"
+                        : "The colony holds by instinct",
                     progress: Double(elapsed) / Double(total),
                     posture: snapshot.posture.displayName,
-                    decisionOpen: snapshot.posture == .instinct,
+                    decisionOpen: !threat.isAnswered(by: snapshot.posture),
                     daysRemaining: threat.daysRemaining(on: snapshot.day)
                 )
             )
@@ -131,10 +159,12 @@ enum LiveActivities {
                     symbol: "arrow.triangle.branch"
                 ),
                 state: .init(
-                    status: swarm.discouraged ? "Making room; they may still go" : "Swarm cells capped",
+                    status: swarm.discouraged
+                        ? "Making room; they may still go"
+                        : swarm.isAnswered ? "You are letting them go" : "Swarm cells capped",
                     progress: Double(elapsed) / Double(total),
                     posture: snapshot.posture.displayName,
-                    decisionOpen: !swarm.discouraged,
+                    decisionOpen: !swarm.isAnswered,
                     daysRemaining: swarm.daysRemaining(on: snapshot.day)
                 )
             )

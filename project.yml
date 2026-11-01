@@ -126,7 +126,6 @@ targets:
         # match `BackgroundRefresh.taskIdentifier`.
         UIBackgroundModes:
           - fetch
-          - processing
         BGTaskSchedulerPermittedIdentifiers:
           - com.linwoodtechnologies.flowerpower.refresh
 

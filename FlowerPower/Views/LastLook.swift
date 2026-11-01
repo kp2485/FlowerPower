@@ -51,6 +51,11 @@ struct LastLook: Codable, Equatable {
         }
     }
 
+    /// For a colony that is not the one that was last looked at.
+    static func forget() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
     static func stored() -> LastLook? {
         guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode(LastLook.self, from: data)
@@ -60,6 +65,17 @@ struct LastLook: Codable, Equatable {
 extension EnvironmentValues {
     /// The last look, when it is old enough to be worth comparing against.
     @Entry var lastLook: LastLook?
+}
+
+/// The chip's change, said aloud. A tile's own label replaces whatever is
+/// inside it, so the chip's label was never reached.
+func spoken(delta: Double?) -> String {
+    guard let delta else { return "" }
+    let rounded = Int(delta.rounded())
+    guard rounded != 0 else { return "" }
+    return rounded > 0
+        ? ", up \(rounded) since you last looked"
+        : ", down \(abs(rounded)) since you last looked"
 }
 
 /// "+120" or "−8", small, under a figure.

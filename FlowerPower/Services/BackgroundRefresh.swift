@@ -24,6 +24,7 @@
 import Foundation
 import BackgroundTasks
 import UserNotifications
+import WidgetKit
 import FlowerPowerCore
 import FlowerPowerGame
 import os
@@ -131,6 +132,9 @@ enum BackgroundRefresh {
 
         watchLink.send(simulation, summary: simulation.watchSummary(now: now))
         await MainActor.run { LiveActivities.reconcile(with: after) }
+        // Nothing else tells the widget a colony has moved on while the app
+        // is shut, and it could read "Collapsed" over a living one for hours.
+        WidgetCenter.shared.reloadAllTimelines()
         await notifyIfNeeded(before: before, after: after)
         await NotificationActions.withdrawClosedDecisions(in: after)
         await digestIfDue(report: report, snapshot: after, now: now)
@@ -196,6 +200,11 @@ enum BackgroundRefresh {
     }
 
     // MARK: - Notifications
+
+    /// What iOS will actually let through, whatever the toggles here say.
+    static func notificationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
 
     static func requestNotificationPermission() async {
         _ = try? await UNUserNotificationCenter.current()

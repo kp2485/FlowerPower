@@ -10,6 +10,7 @@
 //
 
 import SwiftUI
+import UserNotifications
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -17,6 +18,14 @@ struct SettingsView: View {
 
     @Environment(GameStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
+
+    /// What iOS says, read each time this screen is looked at. Everything here
+    /// was a toggle of the app's own, all on by default, so a player who
+    /// tapped Not Now, or restored a backup before the prompt was ever
+    /// reached, saw three switches on and never heard a thing.
+    @State private var notificationStatus: UNAuthorizationStatus?
 
     @State private var isRelocating = false
     @State private var isConfirmingRestart = false
@@ -29,7 +38,7 @@ struct SettingsView: View {
 
     @AppStorage("hiveHum") private var humEnabled = false
     @AppStorage("digestHour") private var digestHour = 8
-    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.likelyHere.rawValue
 
     // The three kinds of notification, switched separately. Defaulting to true
     // is what makes an absent key mean "on", which is how
@@ -63,7 +72,7 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $isRelocating) {
-                NewColonyView(reason: .relocating) { site in
+                NewColonyView(reason: .relocating, currentSite: store.snapshot.nest.siteType) { site in
                     store.relocateHive(to: HiveLocation(type: site))
                     isRelocating = false
                 }
@@ -72,10 +81,8 @@ struct SettingsView: View {
                 AskForForageView()
             }
             .sheet(isPresented: $isRereadingIntroduction) {
-                // Not asking for notification permission a second time: iOS
-                // shows that prompt once and afterwards the answer lives in
-                // the system's own Settings, so a button here would do
-                // nothing at all.
+                // Not asking for notification permission here: the section
+                // above is where that lives, and knows what iOS last said.
                 OnboardingView(asksForNotifications: false) {
                     isRereadingIntroduction = false
                 }
@@ -126,7 +133,7 @@ struct SettingsView: View {
         } header: {
             Text("Difficulty")
         } footer: {
-            Text("Changes apply from now on. Over 200 simulated colonies, about 92% see their first spring on Forgiving, 89% on Natural and 64% on Harsh; by the second spring it is 60%, 66% and 14%. Forgiving is not safer over two years: well-fed colonies swarm more, and every swarm stakes the colony on a virgin queen's mating flight.")
+            Text("Changes apply from now on. Over 200 simulated colonies in a tree cavity, about 96% see their first spring on Forgiving, 93% on Natural and 56% on Harsh; by the second spring it is 88%, 80% and 13%. A smaller or more exposed site does worse.")
         }
     }
 
@@ -153,7 +160,7 @@ struct SettingsView: View {
     private var gardenSection: some View {
         Section {
             LabeledContent("Flowers photographed", value: "\(store.snapshot.patches.count)")
-            LabeledContent("Still in bloom", value: "\(store.snapshot.patches.filter(\.isInBloom).count)")
+            LabeledContent("In bloom", value: "\(store.snapshot.patches.filter { $0.isInBloom && !$0.hasFaded }.count)")
             LabeledContent("Gone over", value: "\(store.snapshot.patches.filter(\.hasFaded).count)")
         } header: {
             Text("Garden")
@@ -188,7 +195,7 @@ struct SettingsView: View {
         } header: {
             Text("Rhythm")
         } footer: {
-            Text("One report a day, at the hour you choose; decisions still arrive when they open. At double speed a winter lasts about four real days instead of seven. The hemisphere sets which flowers are in season for your walks.")
+            Text("One report a day, on the first chance the game gets after the hour you choose. At double speed a winter lasts about four real days instead of seven. The hemisphere sets which flowers are in season for your walks.")
         }
     }
 
@@ -212,14 +219,46 @@ struct SettingsView: View {
     /// says so rather than leaving it to be discovered.
     private var notificationsSection: some View {
         Section {
-            Toggle("Decisions", isOn: $notifyDecisions)
-            Toggle("Morning report", isOn: $notifyDigest)
-            Toggle("Colony news", isOn: $notifyNews)
+            switch notificationStatus {
+            case .notDetermined:
+                Button("Turn On Notifications") {
+                    Task { @MainActor in
+                        await BackgroundRefresh.requestNotificationPermission()
+                        await readNotificationStatus()
+                    }
+                }
+            case .denied:
+                Label("Notifications are off for FlowerPower in iOS Settings.", systemImage: "bell.slash")
+                    .foregroundStyle(.secondary)
+                Button("Open iOS Settings") {
+                    if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                        openURL(url)
+                    }
+                }
+            default:
+                EmptyView()
+            }
+            Group {
+                Toggle("Decisions", isOn: $notifyDecisions)
+                Toggle("Morning report", isOn: $notifyDigest)
+                Toggle("Colony news", isOn: $notifyNews)
+            }
+            .disabled(notificationStatus == .notDetermined || notificationStatus == .denied)
         } header: {
             Text("Notifications")
         } footer: {
-            Text("Decisions are a siege, swarm cells, a full nest, a swarm that has left, the autumn entrance — each with a window, each answerable from the notification itself. Colony news is everything else the colony does badly, including the day it ends. The morning report is one summary a day at the hour set above.")
+            Text("Decisions are a siege, swarm cells, a full nest, a swarm that has left, the autumn entrance — each with a window, each answerable from the notification itself. Colony news is everything else the colony does badly, including the day it ends. The morning report is one summary a day. iOS decides when the game may wake, so any of these can arrive hours late, and a short siege can open and close between wakes. The dashboard always has the whole of it.")
         }
+        .task { @MainActor in await readNotificationStatus() }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { @MainActor in await readNotificationStatus() }
+        }
+    }
+
+    @MainActor
+    private func readNotificationStatus() async {
+        notificationStatus = await BackgroundRefresh.notificationStatus()
     }
 
     // MARK: - Backup
@@ -259,7 +298,7 @@ struct SettingsView: View {
         } header: {
             Text("Backup")
         } footer: {
-            Text("The file is the whole colony and its garden — every bee, the comb, the queens and the flowers you have photographed. Keep it somewhere you keep things. Opening one on another phone replaces that phone's colony, so it is a way to move a colony rather than to share one.")
+            Text("The file is the whole colony and its garden — every bee, the comb, the queens and the flowers you have photographed. Not the pictures of them: those stay on this phone, so on another phone the flowers arrive and work as before, with blank thumbnails. Keep it somewhere you keep things. Opening one on another phone replaces that phone's colony, so it is a way to move a colony rather than to share one.")
         }
         // Keyed on the day, so a colony that has moved on gets a fresh file
         // and one that has not is not re-encoded on every redraw.
@@ -334,7 +373,7 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            LabeledContent("Day", value: "\(store.snapshot.day)")
+            LabeledContent("Day", value: "\(store.snapshot.displayDay)")
             LabeledContent("Season", value: store.snapshot.season.rawValue.capitalized)
         } footer: {
             Text("One simulated hour passes every five real minutes, so a simulated day takes about two hours and a year about a month. The colony keeps going while the app is closed.")
@@ -370,11 +409,11 @@ enum Difficulty: String, CaseIterable, Identifiable {
     var detail: String {
         switch self {
         case .gentle:
-            return "Richer forage, milder weather, fewer raiders. Colonies grow large and swarm often, which is its own risk."
+            return "Richer forage, milder weather, fewer raiders. Foragers leave room for the queen, and older bees go back to nursing when they must. Colonies still swarm often."
         case .standard:
-            return "Tuned against real colony behaviour. Most colonies see their first spring; few see their third."
+            return "Tuned against real colony behaviour. Most colonies see two springs; fewer than half see a third."
         case .harsh:
-            return "A third less forage, hard winters, disease and predators pressing. A third of colonies do not see their first spring, and few see a second."
+            return "A third less forage, hard winters, disease and predators pressing. Nearly half of colonies do not see their first spring, and few see a second."
         }
     }
 

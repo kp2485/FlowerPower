@@ -65,6 +65,7 @@ struct MilestonesView: View {
         .navigationTitle("Milestones")
         .sheet(item: $reading) { reading in
             BadgeDetail(milestone: reading.milestone, dayEarned: reading.day)
+                .childSheet()
         }
     }
 
@@ -155,6 +156,9 @@ private struct BadgeDetail: View {
 
     var body: some View {
         NavigationStack {
+            // Scrolling, and able to grow: at medium alone a longer description
+            // ran off a small phone with no way of reaching the end of it.
+            ScrollView {
             VStack(spacing: 20) {
                 ZStack {
                     Circle()
@@ -187,12 +191,11 @@ private struct BadgeDetail: View {
                 } else {
                     Text("Not yet.")
                         .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
-
-                Spacer()
             }
             .padding()
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -200,6 +203,6 @@ private struct BadgeDetail: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }

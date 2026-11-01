@@ -73,8 +73,9 @@ struct ShareFlowerView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(Theme.honey)
+                        .foregroundStyle(Theme.onHoney)
                         .controlSize(.large)
-                    } else {
+                    } else if failure == nil {
                         HStack {
                             Spacer()
                             ProgressView()
@@ -132,7 +133,7 @@ struct ShareFlowerView: View {
         }
 
         guard let source, let data = SharedImageStore.prepareForSharing(source) else {
-            failure = "That photograph could not be prepared to send."
+            failure = "That photograph is not on this phone, so it cannot be sent."
             return
         }
 

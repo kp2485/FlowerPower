@@ -75,8 +75,24 @@ extension SimulationConfig {
 
         guard
             let encoded = try? JSONEncoder().encode(JSONValue.object(merged)),
-            let config = try? JSONDecoder().decode(SimulationConfig.self, from: encoded)
+            var config = try? JSONDecoder().decode(SimulationConfig.self, from: encoded)
         else { return .standard }
+
+        // Two exceptions to a new constant taking its standard value, both for
+        // a colony saved before it existed. The ceiling is half of what makes
+        // Forgiving survive a second year, and Forgiving would otherwise stay
+        // on the settings that were killing it. Nurse reversion is off on
+        // Harsh, and the standard value would quietly make Harsh easier.
+        func isLike(_ preset: SimulationConfig) -> Bool {
+            abs(config.pathogenArrivalMultiplier - preset.pathogenArrivalMultiplier) < 0.001
+                && abs(config.predatorStrength - preset.predatorStrength) < 0.001
+        }
+        if overrides["storesCeilingCells"] == nil, isLike(.gentle) {
+            config.storesCeilingCells = SimulationConfig.gentle.storesCeilingCells
+        }
+        if overrides["nurseReversionShare"] == nil, isLike(.harsh) {
+            config.nurseReversionShare = SimulationConfig.harsh.nurseReversionShare
+        }
         return config
     }
 }

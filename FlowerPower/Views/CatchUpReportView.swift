@@ -33,7 +33,7 @@ struct CatchUpReportView: View {
                     Header(report: report, headline: store.snapshot.headline)
 
                     if !report.highlights.isEmpty {
-                        HighlightsCard(events: report.highlights)
+                        HighlightsCard(events: report.highlights, days: report.highlightDays)
                     }
 
                     PopulationChangeCard(report: report)
@@ -98,25 +98,44 @@ private struct Header: View {
 private struct HighlightsCard: View {
 
     let events: [SimEvent]
+    let days: [Int]
+
+    /// The dot says how much this matters, which a sighted player reads at a
+    /// glance and nobody else gets at all.
+    private func spoken(_ event: SimEvent) -> String {
+        switch event.severity {
+        case .critical: return "Serious: \(event.narration)"
+        case .warning: return "Warning: \(event.narration)"
+        case .notable, .routine: return event.narration
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitle("What happened", systemImage: "sparkles")
 
-            ForEach(Array(events.enumerated()), id: \.offset) { _, event in
+            ForEach(Array(events.enumerated()), id: \.offset) { index, event in
                 HStack(alignment: .top, spacing: 10) {
                     Circle()
                         .fill(Theme.colour(for: event.severity))
                         .frame(width: 7, height: 7)
                         .padding(.top, 6)
 
-                    Text(event.narration)
-                        .font(.subheadline)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(event.narration)
+                            .font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if days.indices.contains(index) {
+                            Text("Day \(days[index] + 1)")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
                     Spacer(minLength: 0)
                 }
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(spoken(event))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,10 +152,10 @@ private struct PopulationChangeCard: View {
             SectionTitle("The colony", systemImage: "person.3.fill")
 
             HStack {
-                Stat(value: report.eggsLaid, label: "Eggs laid", tint: Theme.colour(for: .egg))
+                Stat(value: report.eggsLaid, label: "Eggs laid", tint: .primary)
                 Stat(value: report.totalEmerged, label: "Emerged", tint: Theme.healthy)
                 Stat(value: report.totalDeaths, label: "Died", tint: Theme.alarm)
-                Stat(value: report.cellsBuilt, label: "Cells built", tint: Theme.comb)
+                Stat(value: report.cellsBuilt, label: "Cells built", tint: Theme.honey)
             }
 
             let net = report.netPopulationChange
@@ -212,7 +231,7 @@ private struct RaidsCard: View {
             }
 
             if report.storesRaided > 0 {
-                Text("\(Int(report.storesRaided)) of stores taken.")
+                Text("\(Int(report.storesRaided.rounded()).counted("unit")) of stores taken.")
                     .font(.caption)
                     .foregroundStyle(Theme.alarm)
             }

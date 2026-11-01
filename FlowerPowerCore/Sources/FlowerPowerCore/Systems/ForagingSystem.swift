@@ -147,8 +147,15 @@ public struct ForagingSystem: SimulationSystem {
         // Comb space limits how much unripened nectar the colony can accept. A
         // "honey bound" colony physically cannot take more in, which is one of
         // the real triggers for swarming.
+        //
+        // `storesCeilingCells` is what stops that being fatal: past it the
+        // foragers leave the rest of the comb to the queen.
         let freeCells = Double(world.hive.freeCells)
-        var nectarSpace = max(0, freeCells * ResourceKind.nectar.unitsPerCell)
+        let ceiling = context.config.storesCeilingCells
+        let nectarCells = ceiling > 0
+            ? min(freeCells, Double(ceiling - world.hive.cellsOccupiedByStores))
+            : freeCells
+        var nectarSpace = max(0, nectarCells * ResourceKind.nectar.unitsPerCell)
         var pollenSpace = max(0, freeCells * ResourceKind.pollen.unitsPerCell)
 
         // Pollen collection is demand-driven in a way nectar is not. Nectar
