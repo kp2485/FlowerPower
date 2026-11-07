@@ -59,15 +59,52 @@ final class CatchUpPerformanceTests: XCTestCase {
     }
 
     /// The ceiling the game actually ships with. A player who puts the phone
-    /// down for a fortnight must not be teleported.
+    /// down for a year must not be teleported.
+    ///
+    /// The bound is for a debug build on a busy desktop, which is what this
+    /// suite runs in, and it is deliberately loose. The number that matters
+    /// is the release one: a founding colony's year catches up in 0.28 s and
+    /// a 250–700-bee world colony's in under half a second, process start
+    /// included (measured 2026-09-24, when the ceiling went from 180 days to
+    /// 365). Debug is about ten times slower and, with other builds running
+    /// beside it, took 6.0 s — which failed a 5 s bound that had been written
+    /// for a 180-day ceiling and never re-derived. A tight bound on a debug
+    /// timing is a test of the machine's load, not of the engine.
     func testCatchingUpTheFullCeilingIsFastEnoughForAWidget() {
         let elapsed = timeCatchUp(days: SimClock.defaultMaxCatchUpDays)
 
         XCTAssertLessThan(
-            elapsed, 5.0,
-            "a full-ceiling catch-up has to finish inside a widget's budget, "
-            + "with room for hardware far slower than this"
+            elapsed, 15.0,
+            "a full-ceiling catch-up has to finish inside a widget's budget in "
+            + "release; in debug on a loaded machine it should still be seconds, "
+            + "not minutes"
         )
+    }
+
+    /// A whole year, the figure the ceiling is decided against. Printed as
+    /// well as asserted, so `swift test -c release -Xswiftc -enable-testing
+    /// --filter CatchUpPerformanceTests` is the timing probe.
+    ///
+    /// Two years, not one: a founding colony is small for its first spring,
+    /// and the absence that matters is a year away from an established one.
+    /// The second catch-up is the colony at full size.
+    func testCatchingUpAYear() {
+        var simulation = colony()
+        simulation.catchUpCeilingDays = 365
+
+        var slowest = 0.0
+        for year in 1...2 {
+            let target = simulation.date(afterSimulatedDays: 365)
+            let started = Date()
+            let report = simulation.advance(to: target)
+            let elapsed = Date().timeIntervalSince(started)
+            slowest = max(slowest, elapsed)
+
+            XCTAssertEqual(report.daysSimulated, 365)
+            print(String(format: "catch-up year %d (%d bees at the end): %6.1f ms",
+                         year, simulation.hive.population, elapsed * 1000))
+        }
+        XCTAssertLessThan(slowest, 10.0, "a year's catch-up has become pathological")
     }
 
     /// Cost should track the number of ticks, not something worse. A colony is

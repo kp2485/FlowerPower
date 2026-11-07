@@ -285,8 +285,15 @@ final class ViabilityTests: XCTestCase {
     /// in PLAN.md's balance tables, where it is — and this test is about the
     /// engine starving a colony that truly has nothing, which is a different
     /// claim.
+    ///
+    /// And nothing wild found later, either: `ExplorationSystem` stocks the
+    /// chunks a colony discovers. Once house bees and foragers could nurse
+    /// when nobody younger could (2026-09-24), this colony lived long enough
+    /// to find a stand, and was 72 bees on 178 honey on day 200 — alive
+    /// because it found food, which is not what this test is asking.
     func testColonyWithNoForageDies() {
         var simulation = Fixture.barrenSimulation(seed: 4)
+        simulation.config.wildPatchDensity = 0
 
         for _ in 0..<200 {
             _ = simulation.stepDay()
@@ -578,140 +585,5 @@ final class ViabilityTests: XCTestCase {
             survivors(.gentle), survivors(.harsh),
             "the gentle preset is not actually gentler"
         )
-    }
-
-    /// Forgiving spent a long time being deadlier than Natural at two years,
-    /// 25% against 68%, and it took two changes to the model to end that.
-    /// Natural's figure is in `PLAN.md`; a majority here is enough to say the
-    /// old ending has not come back.
-    func testForgivingColoniesSeeASecondSpring() {
-        let seeds = [UInt64(8_919), 24_757, 40_595, 56_433]
-        let survivors = seeds.filter { seed in
-            runYear(seed: seed, days: 730, patches: 9, config: .gentle).hive.adultWorkerCount > 5
-        }
-        XCTAssertGreaterThanOrEqual(survivors.count, 3, "Forgiving is killing colonies again")
-    }
-
-    // MARK: - Dying on a full larder
-
-    /// The ceiling on stores, measured in a colony with more forage than it
-    /// could ever bring in. Without it the comb fills and the queen stops.
-    func testForagersLeaveTheCombToTheQueen() {
-        var config = SimulationConfig.standard
-        config.storesCeilingCells = 40
-
-        var simulation = Fixture.thrivingSimulation(config: config)
-        simulation.forceWeather()
-        simulation.world.hive.resources[.nectar] = 0
-        simulation.world.hive.resources[.honey] = 44 * ResourceKind.honey.unitsPerCell
-        let before = simulation.hive.resources[.nectar]
-
-        simulation.runDays(1)
-
-        XCTAssertLessThanOrEqual(
-            simulation.hive.resources[.nectar], before,
-            "nectar came in past the ceiling"
-        )
-    }
-
-    /// Income stops at the ceiling, and that used to read as a dearth: drones
-    /// evicted and "little is coming in" over 1,400 honey.
-    func testAFullLarderIsNotADearth() {
-        var config = SimulationConfig.standard
-        config.storesCeilingCells = 40
-
-        var simulation = Fixture.thrivingSimulation(config: config)
-        simulation.world.recentNectarIntake = [0, 0, 0]
-        simulation.world.hive.resources[.honey] = 44 * ResourceKind.honey.unitsPerCell
-        XCTAssertTrue(simulation.world.hasFullLarder(config))
-        XCTAssertFalse(simulation.world.isInDearth(config))
-
-        simulation.world.hive.resources[.honey] = 0
-        simulation.world.hive.resources[.nectar] = 0
-        simulation.world.hive.resources[.pollen] = 0
-        simulation.world.hive.resources[.beeBread] = 0
-        XCTAssertFalse(simulation.world.hasFullLarder(config))
-        XCTAssertTrue(simulation.world.isInDearth(config), "a real dearth has to stay one")
-    }
-
-    func testAColonyUnderTheCeilingForagesAsItAlwaysDid() {
-        var ceilinged = SimulationConfig.standard
-        ceilinged.storesCeilingCells = 100_000
-
-        var free = Fixture.thrivingSimulation(config: .standard)
-        var capped = Fixture.thrivingSimulation(config: ceilinged)
-        free.runDays(10)
-        capped.runDays(10)
-
-        XCTAssertEqual(free.world, capped.world)
-    }
-
-    /// A swarmed colony lays nothing for a month, so by the time its new
-    /// queen comes into lay nobody is young enough to feed her. She used to
-    /// starve in a colony of hundreds with a full larder.
-    func testOlderBeesGoBackToNursingForAnUnfedQueen() {
-        func colony(share: Double) -> Simulation {
-            var config = SimulationConfig.standard
-            config.nurseReversionShare = share
-
-            var simulation = Fixture.thrivingSimulation(config: config)
-            simulation.world.hive.resources[.royalJelly] = 0
-            for index in simulation.world.hive.bees.indices
-            where simulation.world.hive.bees[index].kind == .worker {
-                let bee = simulation.world.hive.bees[index]
-                simulation.world.hive.bees[index] = Bee(
-                    id: bee.id, kind: .worker, stage: .adult, daysInStage: 30,
-                    patriline: bee.patriline, vitality: bee.vitality, behaviouralAge: 30
-                )
-            }
-            return simulation
-        }
-
-        var without = colony(share: 0)
-        let adults = without.hive.adultWorkerCount
-        without.runDays(1)
-        XCTAssertEqual(without.hive.bees.filter { $0.performs(.nurseBee) }.count, 0)
-
-        var with = colony(share: 0.1)
-        with.runDays(1)
-        XCTAssertGreaterThanOrEqual(
-            with.hive.bees.filter { $0.performs(.nurseBee) }.count,
-            adults / 20,
-            "nobody went back to nursing"
-        )
-        XCTAssertGreaterThan(with.hive.resources[.royalJelly], 0, "and nobody fed her")
-    }
-
-    /// A bee the player pinned is doing what she was told.
-    func testPinnedBeesStayOnTheirJob() {
-        var config = SimulationConfig.standard
-        config.nurseReversionShare = 1
-
-        var simulation = Fixture.thrivingSimulation(config: config)
-        simulation.world.hive.resources[.royalJelly] = 0
-        for index in simulation.world.hive.bees.indices
-        where simulation.world.hive.bees[index].kind == .worker {
-            let bee = simulation.world.hive.bees[index]
-            simulation.world.hive.bees[index] = Bee(
-                id: bee.id, kind: .worker, stage: .adult, daysInStage: 30,
-                patriline: bee.patriline, vitality: bee.vitality,
-                assignedJob: .foragingBee, behaviouralAge: 30
-            )
-        }
-
-        simulation.runDays(1)
-
-        XCTAssertEqual(simulation.hive.bees.filter { $0.performs(.nurseBee) }.count, 0)
-    }
-
-    /// Each setting's quoted figures depend on these staying where they are.
-    func testWhichSettingHasWhich() {
-        XCTAssertEqual(SimulationConfig.gentle.storesCeilingCells, 350)
-        XCTAssertEqual(SimulationConfig.standard.storesCeilingCells, 0)
-        XCTAssertEqual(SimulationConfig.harsh.storesCeilingCells, 0)
-
-        XCTAssertEqual(SimulationConfig.gentle.nurseReversionShare, 0.1)
-        XCTAssertEqual(SimulationConfig.standard.nurseReversionShare, 0.1)
-        XCTAssertEqual(SimulationConfig.harsh.nurseReversionShare, 0)
     }
 }

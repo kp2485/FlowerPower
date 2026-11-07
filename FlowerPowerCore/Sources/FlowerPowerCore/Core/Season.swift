@@ -38,6 +38,9 @@ public enum Season: String, Codable, CaseIterable, Sendable {
         // top up their stores after the summer flow ended, and they starved in
         // February with the year's honey already eaten.
         case .autumn: return 0.65
+        // The landscape at large. The few stands that do bloom in winter are
+        // given `SimulationConfig.winterForageMultiplier` instead, and the
+        // engine asks `SimulationConfig.forageMultiplier(in:)`, not this.
         case .winter: return 0.0
         }
     }
@@ -48,6 +51,8 @@ public enum Season: String, Codable, CaseIterable, Sendable {
         case .spring: return 1.0
         case .summer: return 1.2
         case .autumn: return 0.35
+        // As above: `SimulationConfig.patchRegrowthMultiplier(in:)` is what
+        // the engine asks, and it gives winter its own small value.
         case .winter: return 0.0
         }
     }

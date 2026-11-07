@@ -29,6 +29,7 @@ extension SimulationConfig {
         case "danceFloorPatches": danceFloorPatches = Int(value)
         case "danceDistanceExponent": danceDistanceExponent = value
         case "patchDailyRegrowth": patchDailyRegrowth = value
+        case "winterForageMultiplier": winterForageOverride = value
         case "flightEnergyPerForager": flightEnergyPerForager = value
         case "forageWearPerTick": forageWearPerTick = value
 
@@ -37,7 +38,6 @@ extension SimulationConfig {
         case "sharedPatchYield": sharedPatchYield = value
         case "patchFreshDays": patchFreshDays = Int(value)
         case "patchFadeDays": patchFadeDays = Int(value)
-        case "storesCeilingCells": storesCeilingCells = Int(value)
 
         // The country
         case "wildPatchYield": wildPatchYield = value
@@ -91,7 +91,6 @@ extension SimulationConfig {
         // Brood and queen
         case "maxEggsPerDay": maxEggsPerDay = Int(value)
         case "broodPerNurse": broodPerNurse = value
-        case "nurseReversionShare": nurseReversionShare = value
         case "layingReservePerBee": layingReservePerBee = value
         case "layingEnergyThreshold": layingEnergyThreshold = value
         case "queenFailureVitality": queenFailureVitality = value

@@ -13,6 +13,14 @@
 //  and a mating flight all have durations, and this is what shows them on the
 //  lock screen and in the Dynamic Island while they run.
 //
+//  A card can be up for two hours and more, and the first version of it was
+//  one sentence for all of that time. Now it is a scene — who is at the
+//  door, how many guards are on it, how roused the colony is — with the
+//  answers on it as buttons, a clock and a ring that move by themselves, and
+//  a last word on how it ended. What moves, moves without the app: the timer
+//  text and the timer ring are the two things ActivityKit redraws on its own,
+//  and everything else is what the app last wrote.
+//
 
 import WidgetKit
 import SwiftUI
@@ -159,6 +167,7 @@ struct HiveWidgetView: View {
                         BestAnswerButton(decision: decision)
                             .buttonStyle(.borderedProminent)
                             .tint(WidgetTheme.caution)
+                            .foregroundStyle(WidgetTheme.onCaution)
                             .font(.caption2)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
@@ -194,65 +203,319 @@ struct HiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: HiveActivityAttributes.self) { context in
             // The lock screen.
-            HStack(spacing: 14) {
-                Image(systemName: context.attributes.symbol)
-                    .font(.title2)
-                    .foregroundStyle(context.state.decisionOpen ? WidgetTheme.caution : WidgetTheme.honey)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(context.attributes.title).font(.headline)
-                    Text(context.state.status).font(.subheadline).foregroundStyle(.secondary)
-                    if context.state.posture != "Instinct" {
-                        Text(context.state.posture).font(.caption).foregroundStyle(WidgetTheme.healthy)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-                Spacer()
-                if let progress = context.state.progress {
-                    ProgressView(value: progress)
-                        .progressViewStyle(.circular)
-                        .frame(width: 32, height: 32)
-                        .accessibilityLabel("How far along it is")
-                }
-            }
-            .padding()
+            HiveActivityCard(
+                kind: context.attributes.kind,
+                symbol: context.attributes.symbol,
+                startedOnDay: context.attributes.startedOnDay,
+                state: context.state,
+                isStale: context.isStale
+            )
             .activityBackgroundTint(Color(.systemBackground).opacity(0.85))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Image(systemName: context.attributes.symbol)
                         .font(.title2)
-                        .foregroundStyle(WidgetTheme.honey)
+                        .foregroundStyle(activityTint(context.state))
                         .accessibilityHidden(true)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    // A mating flight has no countdown; "0d" read as overdue.
-                    if context.attributes.kind != .matingFlight {
-                        Text("\(context.state.daysRemaining)d")
+                    if let target = countdownTarget(context.attributes.kind, context.state, isStale: context.isStale) {
+                        // A timer's text takes all the width it is offered
+                        // unless it is given a frame, and in the island that
+                        // would push the headline out.
+                        Text(timerInterval: span(context.state, to: target), countsDown: true)
                             .font(.headline.monospacedDigit())
-                            .accessibilityLabel(daysLabel(context.state.daysRemaining))
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 90)
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.attributes.title).font(.headline)
+                    Text(context.state.title)
+                        .font(.headline)
+                        .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.state.status).font(.caption)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(activityStatus(context.attributes.kind, context.state, isStale: context.isStale))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                        if showsAnswers(context.state, isStale: context.isStale) {
+                            AnswerRow(answers: context.state.answers, beganOnDay: context.attributes.startedOnDay)
+                        }
+                    }
                 }
             } compactLeading: {
                 Image(systemName: context.attributes.symbol)
-                    .accessibilityLabel(context.attributes.title)
+                    .foregroundStyle(activityTint(context.state))
+                    .accessibilityLabel(context.state.title)
             } compactTrailing: {
-                if context.attributes.kind != .matingFlight {
-                    Text("\(context.state.daysRemaining)d")
-                        .monospacedDigit()
-                        .accessibilityLabel(daysLabel(context.state.daysRemaining))
+                if let target = countdownTarget(context.attributes.kind, context.state, isStale: context.isStale) {
+                    // A ring rather than the clock. A deciding card runs up to
+                    // two hours and a swarm much longer, and "1:59:59" does not
+                    // fit the compact island at body size.
+                    ProgressView(timerInterval: span(context.state, to: target), countsDown: true) {
+                        EmptyView()
+                    } currentValueLabel: {
+                        EmptyView()
+                    }
+                    .progressViewStyle(.circular)
+                    .tint(activityTint(context.state))
+                    .frame(width: 20, height: 20)
+                } else if context.state.phase == .resolved {
+                    Image(systemName: context.state.repelled == false ? "xmark" : "checkmark")
+                        .foregroundStyle(activityTint(context.state))
+                        .accessibilityLabel(context.state.status)
                 }
             } minimal: {
                 Image(systemName: context.attributes.symbol)
-                    .accessibilityLabel(context.attributes.title)
+                    .foregroundStyle(activityTint(context.state))
+                    .accessibilityLabel(context.state.title)
             }
         }
+    }
+}
+
+/// The lock-screen card: a headline, a line, the scene, a clock, and the
+/// answers when there is a question. Kept under about 160 points, which is
+/// where iOS starts cutting a Live Activity off.
+struct HiveActivityCard: View {
+
+    let kind: HiveActivityAttributes.Kind
+    let symbol: String
+    let startedOnDay: Int
+    let state: HiveActivityAttributes.ContentState
+    let isStale: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.title2)
+                    .foregroundStyle(activityTint(state))
+                    .frame(width: 30)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(state.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text(activityStatus(kind, state, isStale: isStale))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    // Stale numbers are worse than none: they are what was
+                    // true when the app last ran, on a card that has already
+                    // admitted it does not know what happened next.
+                    if !isStale {
+                        ActivityScene(state: state)
+                            .padding(.top, 2)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+
+                Spacer(minLength: 4)
+
+                if let target = countdownTarget(kind, state, isStale: isStale) {
+                    CountdownRing(
+                        range: span(state, to: target),
+                        caption: countdownCaption(kind, state),
+                        tint: activityTint(state)
+                    )
+                }
+            }
+
+            if showsAnswers(state, isStale: isStale) {
+                AnswerRow(answers: state.answers, beganOnDay: startedOnDay)
+            }
+        }
+        .padding(14)
+    }
+}
+
+/// The numbers that make the card a scene rather than a sentence. Each kind
+/// of event fills in the ones it has, and only those are drawn.
+struct ActivityScene: View {
+
+    let state: HiveActivityAttributes.ContentState
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let guards = state.guards {
+                Label("\(guards)", systemImage: "shield.fill")
+                    .accessibilityLabel(guards == 1 ? "1 guard on the entrance" : "\(guards) guards on the entrance")
+            }
+            if let alarm = state.alarm {
+                HStack(spacing: 3) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    ProgressView(value: min(max(alarm, 0), 1))
+                        .progressViewStyle(.linear)
+                        .tint(alarm > 0.5 ? WidgetTheme.alarm : WidgetTheme.caution)
+                        .frame(width: 40)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Alarm")
+                .accessibilityValue("\(Int((alarm * 100).rounded())) per cent")
+            }
+            if let lost = state.beesLost {
+                Label("\(lost)", systemImage: "hexagon")
+                    .accessibilityLabel(lost == 1 ? "1 bee lost" : "\(lost) bees lost")
+            }
+            if let stores = state.storesLost, stores >= 1 {
+                Label("\(Int(stores.rounded()))", systemImage: "drop.fill")
+                    .accessibilityLabel("\(Int(stores.rounded())) honey taken")
+            }
+            if let departing = state.departing {
+                // An estimate while they gather, a count once they have gone.
+                Label(state.phase == .resolved ? "\(departing)" : "~\(departing)", systemImage: "hexagon.fill")
+                    .accessibilityLabel(state.phase == .resolved
+                        ? "\(departing) bees left"
+                        : "About \(departing) bees ready to leave")
+            }
+            if let cells = state.queenCells, cells > 0 {
+                Label("\(cells)", systemImage: "crown.fill")
+                    .accessibilityLabel(cells == 1 ? "1 queen cell" : "\(cells) queen cells")
+            }
+        }
+        .font(.caption2.monospacedDigit())
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    }
+}
+
+/// A ring that fills and a clock that counts down, both redrawn by the
+/// system with nothing from the app. They are the whole reason the card can
+/// be up for two hours and still be worth looking at.
+struct CountdownRing: View {
+
+    let range: ClosedRange<Date>
+    let caption: String
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: 3) {
+            ProgressView(timerInterval: range, countsDown: false) {
+                EmptyView()
+            } currentValueLabel: {
+                EmptyView()
+            }
+            .progressViewStyle(.circular)
+            .tint(tint)
+            .frame(width: 30, height: 30)
+            .accessibilityHidden(true)
+
+            Text(caption)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text(timerInterval: range, countsDown: true)
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .multilineTextAlignment(.center)
+                .frame(width: 66)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The answers, side by side. At most three — the swarm's — and short enough
+/// in a caption to share a lock screen's width.
+struct AnswerRow: View {
+
+    let answers: [String]
+    var beganOnDay: Int? = nil
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(answers, id: \.self) { identifier in
+                if let action = DecisionAction(identifier: identifier) {
+                    AnswerButton(action: action, beganOnDay: beganOnDay)
+                }
+            }
+        }
+        .buttonStyle(.bordered)
+        .tint(WidgetTheme.caution)
+        .font(.caption.weight(.semibold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+    }
+}
+
+// MARK: - What a card shows, decided once
+
+// Free functions rather than methods, so the Dynamic Island's escaping
+// builders have no `self` in them to argue about, and so the lock screen and
+// the island cannot disagree about any of this.
+
+/// What the card's clock counts to, or nil when it has no clock: a virgin
+/// queen, because nobody can say when she will fly; an ended card; and a
+/// stale one, whose clock would only count to a moment already past.
+private func countdownTarget(
+    _ kind: HiveActivityAttributes.Kind,
+    _ state: HiveActivityAttributes.ContentState,
+    isStale: Bool
+) -> Date? {
+    guard !isStale, kind != .matingFlight else { return nil }
+    switch state.phase {
+    case .deciding: return state.deadline
+    case .holding: return state.resolvesAt
+    case .resolved: return nil
+    }
+}
+
+private func countdownCaption(
+    _ kind: HiveActivityAttributes.Kind,
+    _ state: HiveActivityAttributes.ContentState
+) -> String {
+    switch (state.phase, kind) {
+    case (.deciding, _): return state.decisionOpen ? "Instinct in" : "Over in"
+    case (.holding, .swarm): return "They choose in"
+    case (.holding, _): return "Settled in"
+    case (.resolved, _): return ""
+    }
+}
+
+/// From the start of the event to the moment the clock counts to. A
+/// `ClosedRange` whose ends are the wrong way round is a crash, not an empty
+/// range, and the dates come from a save file, so this never trusts them.
+private func span(_ state: HiveActivityAttributes.ContentState, to target: Date) -> ClosedRange<Date> {
+    state.startedAt...max(state.startedAt, target)
+}
+
+private func showsAnswers(_ state: HiveActivityAttributes.ContentState, isStale: Bool) -> Bool {
+    !isStale && state.phase == .deciding && state.decisionOpen && !state.answers.isEmpty
+}
+
+/// Past its stale date nothing has come back to take the card down — the app
+/// is suspended and the background refresh has not been granted yet. It
+/// should at least stop saying that something is happening, and say where
+/// to find out what did.
+private func activityStatus(
+    _ kind: HiveActivityAttributes.Kind,
+    _ state: HiveActivityAttributes.ContentState,
+    isStale: Bool
+) -> String {
+    guard isStale else { return state.status }
+    switch (state.phase, kind) {
+    case (.resolved, _): return state.status
+    case (_, .matingFlight): return "Open FlowerPower to see how she is getting on."
+    case (.deciding, _): return "Left to instinct. Open FlowerPower to see how it goes."
+    // A swarm can run past the longest a card may stay up, so a stale
+    // holding card is not necessarily a settled one.
+    case (.holding, _) where state.resolvesAt > Date():
+        return "Still going. Open FlowerPower to see where it stands."
+    case (.holding, _): return "Settled by now. Open FlowerPower to see how it went."
+    }
+}
+
+/// Amber while there is a question, honey while it runs, and at the end the
+/// colour of how it went — green driven off, red not, honey for a swarm,
+/// which is neither.
+private func activityTint(_ state: HiveActivityAttributes.ContentState) -> Color {
+    switch state.phase {
+    case .deciding: return state.decisionOpen ? WidgetTheme.caution : WidgetTheme.honey
+    case .holding: return WidgetTheme.honey
+    case .resolved: return state.repelled.map { $0 ? WidgetTheme.healthy : WidgetTheme.alarm } ?? WidgetTheme.honey
     }
 }
 
@@ -279,20 +542,20 @@ struct PhotographFlowerControl: ControlWidget {
     }
 }
 
-/// "3d" is a countdown on a lock screen and an unreadable pair of characters
-/// to a screen reader. A free function rather than a method: the Dynamic
-/// Island builders are escaping closures and this way there is no `self` in
-/// them to argue about.
-private func daysLabel(_ days: Int) -> String {
-    days == 1 ? "1 day left" : "\(days) days left"
-}
-
 // MARK: - Theme, trimmed for the extension
 
 enum WidgetTheme {
     static let honey = Color(red: 0.93, green: 0.68, blue: 0.13)
     static let alarm = Color(red: 0.82, green: 0.25, blue: 0.20)
-    static let caution = Color(red: 0.90, green: 0.55, blue: 0.10)
+    /// Adaptive, as the app's own is: the old fixed orange was about 2.5:1 as
+    /// text on a light lock screen, and the answer buttons are its text.
+    static let caution = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.96, green: 0.66, blue: 0.25, alpha: 1)
+            : UIColor(red: 0.57, green: 0.29, blue: 0.02, alpha: 1)
+    })
+    /// A label on a `caution` fill.
+    static let onCaution = Color(UIColor { $0.userInterfaceStyle == .dark ? .black : .white })
     static let healthy = Color(red: 0.30, green: 0.62, blue: 0.36)
 
     static func colour(for status: ColonyStatus) -> Color {

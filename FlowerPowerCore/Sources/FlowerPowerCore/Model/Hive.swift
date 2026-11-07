@@ -381,7 +381,62 @@ public struct Hive: Codable, Equatable, Sendable {
     /// Effective workforce for a job, weighted by each bee's condition. A
     /// hundred virus-damaged bees do not do the work of a hundred healthy ones.
     public func workforce(for job: WorkerJob) -> Double {
-        bees.reduce(0) { $0 + ($1.performs(job) ? $1.effectiveness : 0) }
+        let direct = bees.reduce(0) { $0 + ($1.performs(job) ? $1.effectiveness : 0) }
+        guard job == .nurseBee, direct == 0 else { return direct }
+        return revertedNurseWorkforce
+    }
+
+    /// Nursing done by older bees when there are no nurses left.
+    ///
+    /// A worker's brood-food glands are not spent when she leaves the brood
+    /// nest; they shrink, and they grow back when the colony has a queen to
+    /// feed and nobody young to do it. Older bees — foragers included —
+    /// reverting to nursing is one of the best-documented pieces of
+    /// flexibility in the division of labour (Robinson and others, 1992, did
+    /// it with colonies made of nothing but foragers).
+    ///
+    /// The engine had no such thing: a summer bee past her nursing days never
+    /// nursed again, whatever the colony needed. It did not matter while a
+    /// swarmed colony's brood nest was backfilled, because its new queen had
+    /// nowhere to lay anyway; once `QueenSystem.broodNestRoom` kept the nest
+    /// open for her, it was what those colonies died of instead. Traced on
+    /// seed 1000 under gentle: a swarm on day 409, a virgin who did not mate
+    /// until day 437, and by then the last of the old queen's brood had
+    /// emerged. There were 21 nurses the day she mated and none three days
+    /// later. She laid nine eggs, got no royal jelly, and the colony was dead
+    /// on day 453 with 1,500 honey and three hundred empty cells kept for her.
+    ///
+    /// House bees alone were tried first and were not enough. Seed 143542:
+    /// swarmed on day 409, its virgins took until day 446 to get one mated,
+    /// and the house bees who fed her aged into foragers eight days later.
+    /// The queen went without jelly, her first brood was cannibalised, and
+    /// the colony was dead by day 504 with 1,466 honey.
+    ///
+    /// And not all of them. Counting every older bee as a nurse was tried
+    /// next and was too generous: seed 666196 under standard mated a queen
+    /// into 128 old bees on day 104, reared 173 brood on them, ran its honey
+    /// from 57 to 9 and was dead by day 149. What reverts is the share of the
+    /// older bees that would have been nursing had the colony's ages been
+    /// ordinary — the nine nursing days of the job table out of its
+    /// forty-two working ones, about a fifth, which is the order of what
+    /// reverts in the experiments. No new number: it is read off the table.
+    ///
+    /// Only when there is not one nurse, so a colony with a nursing cohort of
+    /// any size is exactly as it was. It is counted, not assigned: a job in
+    /// this engine is a question asked of a bee's age, and the same bee
+    /// already answers to several, so a reverting forager is not taken off
+    /// the flowers. Winter bees never need it: they nurse as they are.
+    private var revertedNurseWorkforce: Double {
+        let nursing = WorkerJob.nurseBee.adultAgeRange
+        let share = Double(nursing.count) / Double(WorkerJob.oldestWorkingAge + 1)
+        let older = bees.reduce(0) { total, bee in
+            let reverts = bee.kind == .worker
+                && bee.stage == .adult
+                && bee.physiology == .summer
+                && bee.behaviouralAge >= nursing.upperBound
+            return total + (reverts ? bee.effectiveness : 0)
+        }
+        return older * share
     }
 
     public var broodCount: Int { bees.filter { $0.isBrood }.count }

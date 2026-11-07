@@ -81,16 +81,17 @@ final class ColonyNewsTests: XCTestCase {
         )
     }
 
-    /// The most common decline now that patches fade, and the one the player
-    /// fixes by going outside.
-    func testRunningOutOfFlowersSaysSo() throws {
+    /// Flowers going over is the calendar, not news. A decline that happens
+    /// while the garden is resting is still reported — as a decline.
+    func testFlowersGoingOverIsNotTheNews() throws {
         let news = try XCTUnwrap(ColonyNews.between(
             before: facts(.steady),
             after: facts(.struggling, patches: 9, inBloom: 0)
         ))
 
-        XCTAssertEqual(news.identifier, "no-forage")
-        XCTAssertEqual(news.body, "The flowers you found have gone over. Photograph some more.")
+        XCTAssertEqual(news.identifier, "status-\(ColonyStatus.struggling.rawValue)")
+        XCTAssertFalse(news.body.contains("gone over"))
+        XCTAssertFalse(news.title.contains("Nothing to work"))
     }
 
     func testNeverHavingPhotographedAnythingReadsDifferently() throws {

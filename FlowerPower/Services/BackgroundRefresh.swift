@@ -60,7 +60,14 @@ enum BackgroundRefresh {
 
     static func schedule() {
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: interval)
+
+        // Sooner than usual if there is a card on the lock screen, because a
+        // card has a stale date and something has to come back and take it
+        // down. The system treats this as the earliest it may run, not as an
+        // appointment — which is why the card also draws itself as finished
+        // once it is stale. See `LiveActivities`.
+        let usual = Date(timeIntervalSinceNow: interval)
+        request.earliestBeginDate = min(usual, LiveActivities.soonestExpiry() ?? usual)
 
         // iOS 27 replaced the throwing `submit(_:)` with this, which reports
         // errors it could not before. The handler is called "on an arbitrary
@@ -131,10 +138,16 @@ enum BackgroundRefresh {
         }
 
         watchLink.send(simulation, summary: simulation.watchSummary(now: now))
-        await MainActor.run { LiveActivities.reconcile(with: after) }
-        // Nothing else tells the widget a colony has moved on while the app
-        // is shut, and it could read "Collapsed" over a living one for hours.
-        WidgetCenter.shared.reloadAllTimelines()
+        // A copy, because `simulation` is a `var` and a `var` cannot be
+        // captured by a closure that runs somewhere else.
+        let finished = simulation
+        await MainActor.run {
+            // The Home Screen widget reads the same file, and would otherwise
+            // show what it last worked out for itself until its own schedule
+            // came round. Nothing in the app asked it to reload before this.
+            WidgetCenter.shared.reloadAllTimelines()
+            LiveActivities.reconcile(with: finished, snapshot: after, now: now)
+        }
         await notifyIfNeeded(before: before, after: after)
         await NotificationActions.withdrawClosedDecisions(in: after)
         await digestIfDue(report: report, snapshot: after, now: now)

@@ -86,9 +86,14 @@ public final class GameStore {
     /// decided in there goes with it.
     private var unreadableSave: String?
 
-    /// Set when `load` found a save it could not read and started the
+    /// Set when `load` found a save it could not read *yet* and started the
     /// introduction instead. See `retryUnreadableSave()`.
     @ObservationIgnored private var hasUnreadableSaveAtLaunch = false
+
+    /// Set when `load` could neither read the save nor move it aside, or could
+    /// not read it yet, and then this store writes nothing at all. See
+    /// `setAsideUnreadableSave()`.
+    private var heldSave: String?
 
     /// Drives the live view while the app is in the foreground. The simulation
     /// itself never depends on this — it is purely a refresh trigger.
@@ -113,29 +118,38 @@ public final class GameStore {
     /// the interface can tell a first run from a returning player — which
     /// used to be indistinguishable, and meant a new player landed on a
     /// dashboard full of numbers with no idea what any of it was.
+    ///
+    /// **A save that is there and cannot be read is not the same as no save.**
+    /// It used to be treated as one, and the fresh colony started in its place
+    /// was written over the file the moment the player chose a site — so a
+    /// decode failure silently deleted somebody's bees. Now the unreadable
+    /// file is moved aside first, every byte of it, and the player is told.
+    /// See `setAsideUnreadableSave()`.
     public static func load(
         persistence: GamePersisting = GamePersistence(),
         defaultSite: HiveLocation = HiveLocation(type: .livingTreeCavity),
         clock: @escaping () -> Date = Date.init
     ) -> GameStore {
-        // Not `try?`. That made a save which exists but will not decode look
-        // exactly like no save at all: the player was sent back through the
-        // introduction, and choosing a site there wrote a fresh colony over
-        // the one that would not read — garden and all.
-        var unreadable: String?
+        let saved: Simulation?
+        var unreadable = false
+        var notReadableYet = false
         do {
-            if let saved = try persistence.load() {
-                let store = GameStore(simulation: saved, persistence: persistence, clock: clock)
-                // This colony came out of the save, so the save is this
-                // store's until somebody else writes it.
-                store.storedSaveToken = try? persistence.changeToken()
-                return store
-            }
+            saved = try persistence.load()
         } catch {
-            let kept = try? persistence.preserveUnreadable()
-            unreadable = "Your saved colony could not be read (\(error.localizedDescription))."
-                + (kept == nil ? "" : " A copy has been kept.")
-                + " FlowerPower will try it again when you come back."
+            saved = nil
+            if Self.isNotReadableYet(error) {
+                notReadableYet = true
+            } else {
+                unreadable = true
+            }
+        }
+
+        if let saved {
+            let store = GameStore(simulation: saved, persistence: persistence, clock: clock)
+            // This colony came out of the save, so the save is this store's
+            // until somebody else writes it.
+            store.storedSaveToken = try? persistence.changeToken()
+            return store
         }
 
         let fresh = Simulation.newGame(
@@ -145,23 +159,75 @@ public final class GameStore {
         )
         let store = GameStore(simulation: fresh, persistence: persistence, clock: clock)
         store.needsSetup = true
-        store.lastError = unreadable
-        store.hasUnreadableSaveAtLaunch = unreadable != nil
+        if unreadable { store.setAsideUnreadableSave() }
+        if notReadableYet {
+            store.heldSave = Self.notReadableYetMessage
+            store.lastError = Self.notReadableYetMessage
+            store.hasUnreadableSaveAtLaunch = true
+        }
         return store
     }
 
-    /// Looks again at a save that would not read at launch.
+    /// What the player is told when their save could not be opened and has
+    /// been kept. Written to be acted on: the one thing that loses the old
+    /// colony for good now is deleting the app.
+    static let setAsideMessage = "Your colony's save could not be opened, so it has been "
+        + "kept safe and a new colony started. Keep FlowerPower installed and update it "
+        + "when you can — the old colony has not been deleted."
+
+    /// What the player is told when the save could not be opened *and* could
+    /// not be moved aside, so nothing will be written over it.
+    static let heldMessage = "Your colony's save could not be opened, and this session "
+        + "will not save over it. Close FlowerPower and open it again; if this keeps "
+        + "happening, keep the app installed and update it when you can."
+
+    /// What the player is told when the save is there but could not be read
+    /// at all, which is a good save the phone is not letting anyone open yet.
+    static let notReadableYetMessage = "Your colony's save could not be read just now. "
+        + "FlowerPower will try again when you come back, and will not save over it."
+
+    /// Whether a failed load is the file being locked away rather than wrong.
     ///
-    /// One unreadable moment is not proof of a bad file. A launch before the
-    /// phone's first unlock cannot read a protected file at all, and that used
-    /// to leave the store on the introduction for the rest of the process,
-    /// where choosing a site wrote a new colony over a perfectly good one.
-    /// Called each time the app comes forward until the player settles it by
-    /// choosing a site.
+    /// Before the phone's first unlock a protected file cannot be read at all,
+    /// and the error says so. That is a perfectly good save, and moving it
+    /// aside would start the player again on a colony they still have.
+    static func isNotReadableYet(_ error: Error) -> Bool {
+        guard let error = error as? CocoaError else { return false }
+        return error.code == .fileReadNoPermission || error.code == .fileLocking
+    }
+
+    /// Moves an unreadable save out of the colony's way.
+    ///
+    /// Moved rather than copied or left, because the colony `load` has just
+    /// started must be free to save under the ordinary name — the widget, the
+    /// watch and every other reader look there — and must never be able to
+    /// write over the one it could not read. Where the move itself fails, the
+    /// store holds every write for the rest of its life instead: a session
+    /// that is not saved is a small loss, and a colony written over is not
+    /// recoverable. The next launch tries again.
+    private func setAsideUnreadableSave() {
+        do {
+            // Nil means the file went between the failed read and now, and
+            // there is nothing left to protect.
+            guard try persistence.setAsideUnreadableSave() != nil else { return }
+            lastError = Self.setAsideMessage
+        } catch {
+            heldSave = Self.heldMessage
+            lastError = heldSave
+        }
+    }
+
+    /// Looks again at a save that could not be read at launch.
+    ///
+    /// A launch before the phone's first unlock cannot read a protected file
+    /// at all. Called each time the app comes forward until the save reads or
+    /// the player settles it by choosing a site, which they can do without
+    /// risk: nothing is written while the save is held.
     public func retryUnreadableSave() {
         guard hasUnreadableSaveAtLaunch, needsSetup,
               let saved = try? persistence.load() else { return }
         hasUnreadableSaveAtLaunch = false
+        heldSave = nil
         needsSetup = false
         lastError = nil
         simulation = saved
@@ -524,6 +590,12 @@ public final class GameStore {
         refresh()
     }
 
+    /// The real instant a number of simulated days from now begins, under
+    /// the seasonal clock. What a Live Activity's stale date is made from.
+    public func date(afterSimulatedDays days: Int) -> Date {
+        simulation.date(afterSimulatedDays: days)
+    }
+
     /// Winter clock speed. See `SimClock.winterSpeed`.
     public var winterSpeed: Double {
         get { simulation.winterSpeed }
@@ -821,6 +893,11 @@ public final class GameStore {
         // every player action ends in `refresh()`, which ends here — and a
         // watch tap or a widget button can arrive during the introduction.
         guard !needsSetup else { return }
+        // Over a save this store could not read and could not move, never.
+        if let heldSave {
+            lastError = heldSave
+            return
+        }
         do {
             try persistence.save(simulation)
             storedSaveToken = try? persistence.changeToken()

@@ -183,7 +183,11 @@ struct FieldGuideView: View {
 /// drawn against a honey bee's reach is the same diagram whether the player
 /// arrived from a photograph they took or from the guide. There is no second
 /// telling of it here.
-private struct FieldGuideDetailView: View {
+///
+/// Not private any more: holding a flower in the garden offers its guide
+/// entry, and a plant looked up from a photograph and the same plant looked
+/// up from the book must not be two different pages.
+struct FieldGuideDetailView: View {
 
     let entry: FieldGuideEntry
     let hemisphere: Hemisphere

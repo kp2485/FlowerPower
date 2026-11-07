@@ -481,9 +481,6 @@ final class DefenceTests: XCTestCase {
             // planted, on discovery or at founding, so the two colonies differ
             // in their site and nothing else.
             config.wildPatchDensity = 0
-            // Nor do these 250 guards go back to nursing part way through.
-            // Over 200 colonies with it on, walls repel 56% and a branch 7%.
-            config.nurseReversionShare = 0
 
             var simulation = Fixture.thrivingSimulation(
                 config: config, seed: seed, locationType: location

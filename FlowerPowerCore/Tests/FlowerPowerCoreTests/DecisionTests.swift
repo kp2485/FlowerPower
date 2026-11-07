@@ -718,6 +718,29 @@ struct DecisionTests {
         #expect(simulation.harvestableHoney < 0.001)
     }
 
+    /// Reserving the winter only in autumn let a player who took the surplus
+    /// whenever it was offered lose 200 colonies of 200: the summer crop was
+    /// the winter's stores. The requirement is kept back in every season now.
+    @Test("The winter requirement is kept back in every season", arguments: Season.allCases)
+    func winterIsReservedAllYear(season: Season) {
+        var simulation = thriving()
+        simulation.setDay((Season.allCases.firstIndex(of: season) ?? 0) * Season.daysPerSeason + 20)
+        #expect(simulation.season == season)
+
+        let reserve = simulation.hive.winterStoresRequired
+            * simulation.config.winterProvisioningMargin
+
+        simulation.mutateWorld { world in
+            world.hive.resources = ResourcePool()
+            world.hive.resources.add(reserve - 10, of: .honey)
+        }
+        #expect(simulation.harvestableHoney == 0, "short of the winter, nothing to spare")
+        #expect(simulation.takeHoney(50) == 0)
+
+        simulation.mutateWorld { $0.hive.resources.add(60, of: .honey) }
+        #expect(abs(simulation.harvestableHoney - 50) < 0.001, "only what is over the winter")
+    }
+
     @Test("A colony with nothing to spare gives nothing")
     func takeNothing() {
         var simulation = thriving()

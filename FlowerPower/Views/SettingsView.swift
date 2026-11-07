@@ -133,7 +133,7 @@ struct SettingsView: View {
         } header: {
             Text("Difficulty")
         } footer: {
-            Text("Changes apply from now on. Over 200 simulated colonies in a tree cavity, about 96% see their first spring on Forgiving, 93% on Natural and 56% on Harsh; by the second spring it is 88%, 80% and 13%. A smaller or more exposed site does worse.")
+            Text("Changes apply from now on. Over 200 simulated colonies in a tree cavity, about 98% see their first spring on Forgiving, 92% on Natural and 69% on Harsh; by the second spring it is 90%, 76% and 12%. A smaller or more exposed site does worse.")
         }
     }
 
@@ -409,11 +409,11 @@ enum Difficulty: String, CaseIterable, Identifiable {
     var detail: String {
         switch self {
         case .gentle:
-            return "Richer forage, milder weather, fewer raiders. Foragers leave room for the queen, and older bees go back to nursing when they must. Colonies still swarm often."
+            return "Richer forage, milder weather, fewer raiders. Colonies grow large and swarm often, and most see several springs."
         case .standard:
             return "Tuned against real colony behaviour. Most colonies see two springs; fewer than half see a third."
         case .harsh:
-            return "A third less forage, hard winters, disease and predators pressing. Nearly half of colonies do not see their first spring, and few see a second."
+            return "A third less forage, hard winters, disease and predators pressing. Nearly a third of colonies do not see their first spring, and few see a second."
         }
     }
 

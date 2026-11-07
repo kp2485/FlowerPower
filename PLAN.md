@@ -27,59 +27,51 @@ most of what it does there is still to be walked. See "The first Mac build",
 
 | Layer | State |
 |---|---|
-| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76); 240 XCTest + 282 Swift Testing, 0 failures (2026-09-15, after geography was removed), with `beesim` byte-identical across that change; 572 in total, 0 failures (2026-09-15, after the world's Phase 1 — 522 → 572), with `beesim` byte-identical across that change too when the world is off; 615 in total, 0 failures (2026-09-16, after the world's Phase 2 — 244 XCTest + 371 Swift Testing, with `CountryTests` and `ScoutingTests` new). Phase 2 is *not* byte-identical with the world off: two of its three foraging corrections change the colony, and what they cost is in the ledger below |
+| `FlowerPowerCore` engine | 248 XCTest + 246 Swift Testing, 0 failures (2026-09-12); on macOS, 248 XCTest + 282 Swift Testing, 0 failures (Swift 6.3, 2026-09-14; again under Swift 6.4, 2026-09-15 — which reports the two XCTest bundles separately, 172 + 76); 240 XCTest + 282 Swift Testing, 0 failures (2026-09-15, after geography was removed), with `beesim` byte-identical across that change; 572 in total, 0 failures (2026-09-15, after the world's Phase 1 — 522 → 572), with `beesim` byte-identical across that change too when the world is off; 615 in total, 0 failures (2026-09-16, after the world's Phase 2 — 244 XCTest + 371 Swift Testing, with `CountryTests` and `ScoutingTests` new). Phase 2 is *not* byte-identical with the world off: two of its three foraging corrections change the colony, and what they cost is in the ledger below. 245 XCTest + 489 Swift Testing, 0 failures on Windows (2026-09-24, after the honey-bound corrections, with `HoneyBoundTests` new) |
 | Xcode targets | All four compile, and the test targets (Xcode 26.5, 2026-09-14; Xcode 27 against the iOS 27 SDK, 2026-09-15, one warning left — see "Xcode 27"). 10 unit tests and 5 UI test runs pass on an iOS 27 simulator. Four tabs since 2026-09-15: Colony, Nest, World, Garden |
 | Swift 6 language mode | Builds clean, complete concurrency checking |
 | Determinism | Byte-identical across processes; three runs diffed |
-| Balance, standard preset, world off | 90% first year, **76%** second, 3.36 swarms per colony per two years (200 colonies, deterministic release build, 2026-11-01, with nurse reversion). It was 89% / 62% / 2.50 from 2026-09-16 to 2026-10-31; before that 89% / 66% / 2.49 from 2026-09-06, reproduced byte for byte across the record-keeping systems and across the world's Phase 1. See the ledger below |
-| Balance, the world | The garden and the country together, which is what the app now plays: **93% first year, 80% second, 38% third**, 3.60 swarms, 1,202 autumn stores, 489 winter cluster, 7.7 chunks known. Wild forage with no photographs at all: **48%** first year, 22% second. `--policy scout` against instinct: **74%** at two years, a six-point price (200 colonies, 2026-11-01). Before nurse reversion, from 2026-09-16: 90% / 68% / 25%, 2.68 swarms. See "the country" in section 2 and "Forgiving, and dying on a full larder" below |
-| Balance, other presets | Forgiving **96% / 88%**, 78% at three years, 3.81 swarms; harsh 56% / 13%, 0.23 swarms (200 colonies, the world on, 2026-11-01). Forgiving was 92% / 25% until 2026-10-31: see "Forgiving, and dying on a full larder" below. It is 72–88% at two years on every site, 75% on wild forage alone. |
+| Balance, standard preset, world off | **74%** at two years, 3.11 swarms per colony per two years, 794 autumn stores, 394 winter cluster (200 colonies, deterministic release build, 2026-09-24, run twice and diffed). It was 62% / 2.50 from 2026-09-16, and 89% / 66% / 2.49 before that; the twelve points are the honey-bound corrections, item 7 in section 3 |
+| Balance, the world | The garden and the country together, which is what the app now plays: **92% first year, 76% second**, 3.38 swarms, 981 autumn stores, 426 winter cluster (200 colonies, 2026-09-24, after the honey-bound corrections; 90% / 67% the same morning before them). Wild forage with no photographs at all: **46%** first year and `--policy scout` **64%** at two years were measured on 2026-09-16 and have not been re-taken since. See "the country" in section 2 and item 7 in section 3 |
+| Balance, other presets | With the world on, 2026-09-24: gentle **98% / 90%**, harsh **69% / 11%**. Before the honey-bound corrections the same morning they were 92% / 25% and 57% / 12% — gentle, the easy preset, was the worst of the three at two years, because its colonies filled their comb with honey and could not rear their way out. See item 7 in section 3 |
 | Balance, distance | Every world-off number above was measured at `beesim`'s default 400 m, which was the recorded 89% / 66% baseline until 2026-09-16 and is 89% / 62% now. The app's own flowers sat at the engine's nominal 800 m, which measured 86% / 54%. The garden the world plants them in measured 86% / 64% on 2026-09-15. Phase 2's corrections and its dance-distance exponent moved all of that again, and the garden with the country around it is the row above. See "the ground" and "the country" in section 2 |
 | `beesim` | Sweeps any constant with `--set`, any player policy with `--policy`, reports forage scale with `--scale`; `--world` for the world as the app plays it, `--world --patches 0` for wild forage alone, `--biome <name>` to force the home biome |
 
-#### Forgiving, and dying on a full larder
+#### Two fixes for one collapse, and the merge that kept one
 
-2026-10-31. Forgiving was the deadliest of the two easier settings at two years,
-25% against Natural's 68%, and the report called most of those deaths starvation.
-They were not: the colonies fell with 2,600 honey in store. `beesim` was reading a
-`starving` flag that never cleared, and judging a dead colony by stores that robbers
-had been at for months. It now records the larder at the moment of collapse and has
-a `honey bound` cause. Two faults, both traced one colony at a time:
+2026-11-07. The branch `audit-fixes-and-polish` split from main on 2026-09-16 and
+found the same Forgiving collapse main fixed on 2026-09-24 (facec4a), without
+having seen main's fix: colonies dying in their second summer on a full larder.
+It answered with a stores ceiling for Forgiving (`storesCeilingCells = 350`) and
+older bees reassigned to nursing (`nurseReversionShare`). Main answered with the
+brood nest held for the queen, older bees counted as nurses without leaving the
+flowers, and swarm cells that need brood. On merging, main's was kept and the
+branch's two constants, their tests and their save migration were taken out:
+main's covers a third fault the branch missed, it is the documented baseline, and
+the two gave much the same colony (Forgiving 88% / Natural 80% at two years on
+the branch's, 90% / 76% on main's).
 
-1. **Honey took every cell.** Nothing stopped nectar filling the last empty cell, so
-   on Forgiving's income the comb was full by the second spring and the queen had
-   nowhere to lay. `storesCeilingCells = 350` stops the foragers there, about 1,400
-   honey. It is a count rather than a share of the cavity: half of the 200-cell nest
-   under a branch cannot hold one winter's honey, and a share took that site from
-   70% to 8%.
-2. **Nobody was young enough to feed the new queen.** Nurses are two to ten days old
-   and a swarmed colony lays nothing for a month. She came into lay, was not fed, and
-   starved among hundreds of bees. `nurseReversionShare = 0.1` sends older bees back
-   to nursing when she goes unfed, as real foragers do.
+Re-taken on the merged tree, 200 colonies, the world on, 2026-11-07:
 
-Neither is enough alone: 76% with the ceiling, 20% with the nurses, 88% with both. A
-colony at the ceiling reads as a full larder rather than a dearth, or it evicted its
-drones and told the player little was coming in. Saves on Forgiving from before this
-are given both constants as they load.
+  preset      1 year  2 years  3 years  swarms (2 yr)  autumn stores
+  Forgiving   98%     90%      82%      3.08           1,829
+  Natural     92%     76%      43%      3.38             983
+  Harsh       69%     12%      —        0.48             116
 
-**Natural took the nurses too, the same day; Harsh took neither and diffs clean.**
-The trap was never Forgiving's alone. Reversion moves Natural from 90 / 68 / 25 to
-**93 / 80 / 38** at one, two and three years, with 3.60 swarms against 2.68 and 1,202
-autumn stores against 920. Natural does not get the ceiling: on its income a colony
-rarely fills the comb, and only 2 of 200 die honey bound at two years. Harsh with
-reversion would be 28% at two years rather than 13%, and that has not been taken.
-A colony saved before this takes the value of its own setting as it loads.
+Wild forage alone, Natural, first year: 45%. World off, two years: 73%. Main's
+figures from 2026-09-24 reproduce to the point. The app quotes these.
 
-**It flattened the swarm answers.** Two-year survival on Natural is now 80% for doing
-nothing, 78% for making room, 81% for adding comb, 82% for dividing and 82% for room
-then dividing, which is noise at 200 colonies. Making room stays first because it is
-the cheapest to try, not because it is the best, and Siri no longer says it is.
-`--policy scout` costs six points now, 74% against 80%.
+**The swarm answers no longer rank.** Two-year survival, Natural: doing nothing
+76%, make room 78%, open the nest up 80%, divide 80%, room then divide 79%.
+That is noise at 200 colonies. Make Room stays first because it is the
+cheapest to try, and the comments that ranked it "the best answer there is"
+say so instead. `--policy scout` is 76%, the same as instinct;
+`harvestEagerly` 48%, `harvestEagerlyAndFeed` 80%.
 
-**Sites are the next problem, and reversion barely touches them.** Natural at two
-years: inside walls 75, cave 76, shed 67, burrow 55, termite mound 39, fallen tree 18,
-nest box 18, cliff 0, branch 0. Most of those die of starvation in a small cavity. The
-nest box's copy calls it "Built for bees", and the cliff's does not warn of anything.
+**Small nest sites are the open problem.** Natural at two years: inside walls
+77, cave 70, shed 60, burrow 50, termite mound 29, fallen tree 10, nest box 8,
+cliff 0, branch 0. Most of those starve in a small cavity. The nest box's copy
+calls it "Built for bees".
 
 #### The balance baseline, and why the numbers moved
 
@@ -136,6 +128,14 @@ knowing about how often the colony is honey-bound. And a fourth change,
 whose patches all stand at one distance cancels the factor when the shares are
 normalised, and the 400 m run diffs clean at exponent 1 and at exponent 3. Its
 effect is on the country, and it is in "the country" in section 2.
+
+**Then, on 2026-09-24, the colony changed again: the second kind of move.**
+The gentle preset measured 25% at two years against standard's 67%, and
+tracing it found a colony with no brood nest — every free cell was one pool,
+and foragers filled it before the queen could lay — and, behind that, two
+more gaps the first one had been hiding. The world-off 400 m baseline moved
+from 62% to **74%**, the world from 67% to **76%**. Item 7 in section 3 has
+the traces and the step-by-step ledger.
 
 Every balance number in this document is now from `beesim --trials 200 --days
 730 --patches 9 --restock 45` on a release build, at that command's default
@@ -1230,6 +1230,156 @@ three keystones bloom and the multiplier is still zero; and the predator
 roster's nationality, which the biome tables answer for now by giving the
 American animals British biomes.
 
+### 2026-09-20 — the first week on a phone
+
+Kyle lived with the game for a week and came back with three things. All three
+were right, and two of them were bugs that had been there for some time.
+
+**"The only thing I see is flowers going out of season."** On opening the app,
+and in the hive's notifications. Two causes, neither of them the wording.
+`PatchSystem` emitted `.patchOutOfBloom` for every stand that was out of bloom
+on *every simulated day it stayed that way*, not on the day it happened — so a
+player back after twelve days with nine flowers resting was handed a hundred
+and eight of them, the catch-up report keeps sixty highlights, and the report
+had room for nothing that had actually happened. The country's wild stands made
+it worse the day they arrived. It is emitted once now, on the day the season
+turns, and is no longer a highlight: a flower going over is the calendar, and
+the garden shows it on the flower. Separately, the morning report opens with
+the colony's headline, and the headline of a healthy colony with a resting
+garden *is* "Nothing in bloom nearby". The three forage sentences have names
+now (`ColonySnapshot.ForageHeadline`), the digest leads with the colony's state
+instead, a resting garden is not by itself a reason to send one, and colony
+news reports a decline as a decline. The dashboard still says all of it.
+`beesim --world` over 200 colonies is byte-identical before and after (68%).
+
+**"The home screen window stayed active way too long when a skunk attacked."**
+The rule was that a Live Activity is up for as long as the thing it is about is
+happening — and a skunk works a nest for three simulated days, which is six
+real hours, after which the card was ended under `.default` dismissal, which
+keeps it on the lock screen for up to four more. And nothing ended it at all
+unless the app happened to run. `LiveActivityPlan`, in the package, now
+decides: a card is up only while there is something to decide, comes down the
+moment it is answered, and never outlasts one simulated day (about two real
+hours). Every card carries a stale date and the widget draws a stale card as
+finished; cards end with `.immediate`; a task sleeps to the stale date while
+the process lives, the background refresh asks to run no later than the
+soonest one, and answering from a notification button takes the card down
+there and then. iOS offers no way to book an activity's removal without a push
+server, so the last of those is a request, and the stale drawing is the
+backstop.
+
+**"More tappable, more condensed, tap and hold to see inside a cell."** Three
+agents in parallel, one tab each:
+
+- **The comb can be touched.** `CombLayout` in the package arranges the comb
+  deterministically — brood in the middle, pollen round it, honey outside —
+  and says what is in each cell. Nothing per-cell is invented: a brood bee *is*
+  a cell, so each larva carries its own age and each pupa its own days to
+  emergence, while stores cells give the hive's total and say that the colony
+  keeps a total rather than a ledger. `CombGeometry` is the spiral and its
+  inverse, in plain `Double`s so it is tested off-Mac. Tap and hold sweeps a
+  callout across cells; a tap opens the same thing as a sheet; tapping a
+  legend entry lights every cell of that kind. The old `HexGrid` overflowed
+  the canvas sideways and that is fixed, so the comb draws slightly smaller.
+- **The Colony tab is tiles.** Open decisions are single rows that open the
+  full card in a sheet; below them a grid of tiles — stores, population,
+  queen, nest, health, honey, forage, the record — each one number, one
+  caption and a colour, each opening a detail page that holds what the old
+  full-size section held plus a chart of that quantity from the history.
+  `DashboardSummary` in the package makes every judgement the tiles show
+  (severity bands, the population trend), so the view only draws.
+- **The rest.** History charts scrub, with a readout of the nearest day's
+  sample (`ColonyHistory.sample(nearestTo:)`). Garden thumbnails have a
+  context menu with a preview and the actions the detail page already had.
+  The catch-up report groups its highlights by kind with a count —
+  `ReportDigest`, capped per group, so no one kind of event can crowd out the
+  others again whatever the engine emits. Lineage, almanac and collection rows
+  open.
+
+All of the interface code in this round was written on Windows and has not
+been through Xcode. The constructs most likely to need attention on the Mac,
+by the agents' own ranking: `.chartXSelection` applied inside a generic
+`ChartCard`; the x-only `RuleMark`; the long-press-then-drag gesture on the
+comb and whether it fights the scroll view; `Gauge` with
+`.accessoryLinearCapacity` (the codebase's first — `MeterView` is the
+drop-in); and `ColonyDetailView`'s `switch` over eight fileprivate view types.
+There are also two pressed-state button styles now (`TilePressStyle` on the
+dashboard, `PressableTileStyle` elsewhere) that want to be one.
+
+*Every item in the two paragraphs above was dealt with on 2026-09-24; see
+the next entry.*
+
+### 2026-09-24 — a card worth two hours, and everything that was still open
+
+Kyle's next two sentences: "If it is going to be live for 2 hours, it needs to
+be more engaging. Let's resolve all outstanding issues." Five agents, one
+afternoon.
+
+**The Live Activity does something now.** ActivityKit cannot redraw a card
+while the app is suspended and there is no push server, so what moves on the
+card is what the widget moves by itself: a countdown and a filling ring to
+real dates the plan works out — when instinct will answer, when the siege is
+settled. The answers are on the card as buttons (`LiveActivityIntent`s, which
+run in the app's process and reconcile the card at once), one per option in
+the measured order. A card has three phases: *deciding*, for at most a
+simulated day; *holding*, after the player answers — buttons gone, the posture
+shown, a countdown to the outcome, up until the event resolves but never past
+ActivityKit's eight hours; and *resolved*, which says how it ended (driven off
+or not, what it cost, whether the swarm went) and is dismissed half an hour
+later. The scene carries the guards on duty and the alarm level; defenders
+lost only appear on the resolved card, because the engine settles a siege in
+one stroke and a running total would be the card lying. The widget now also
+reloads whenever the save is written. 26 tests on the plan; the buttons, the
+timer text and the ring have not been through Xcode, and the first thing to
+check on the Mac is whether tapping a card button cold-starts the app far
+enough to run the hook that redraws the card.
+
+**Every open question in section 3 is decided**, four by decision and four by
+measurement; the reasoning is on each bullet there and the tables are under
+"Decided by measurement". In short: the winter requirement is reserved in
+every season, so harvesting whenever the card offers it is a price (32% at
+two years) rather than a death sentence (0%); "open the nest up" is offered
+only on its cue; winter forage exists, at 0.5, and moves the trial colony by
+about 40 units because the trial garden has no winter bloomer; the catch-up
+ceiling is a year, measured at under half a second in release; the calibration
+target is what the app measures and nothing is tuned; the wild-forage floor
+stays at 46% first year; the predator roster stays, since the game no longer
+knows what country it is in; and the per-biome tables and the presets were
+re-taken.
+
+**Re-taking the presets found the next modelling error.** Gentle — the easy
+preset — measured 25% at two years, the worst of the three, because its
+colonies filled their comb with honey and could not rear their way out. That
+is item 7 under "Done since": three errors (no brood nest reserved for the
+queen; no nursing once the last nurse-age bee had aged out; swarm cells
+raised with no brood to raise a queen from), found by tracing single seeds,
+no constant tuned. Gentle is 90% at two years now, standard 76%, and the
+world-off baseline moved twelve points, the same size as the last two
+corrections. Every table taken earlier that day is from before those fixes;
+the ones that decided something were about differences between policies on
+one engine, which they still show.
+
+**Old saves open.** Every save carries the whole `SimulationConfig`, which
+decoded by synthesis, so every key added since a save was written made it
+unreadable — and `GameStore.load` treated an unreadable save as no save and
+wrote a fresh colony over it. Phase 2's keys on 2026-09-16 will have done
+this to any save from before that day. `SimulationConfig`, `FlowerSpecies`
+and `FlowerPatch` decode by hand with defaults now, `SaveCompatibilityTests`
+removes every key of a real save one at a time (177 cases) and decodes a
+checked-in fixture, and an unreadable save is renamed
+`colony.unreadable.json` beside the new one rather than overwritten. Section
+4 has the rule.
+
+**The interface loose ends from the 20th** — one pressed-state style, no
+`Gauge` in the tiles, chart selection at the call sites, the comb out of the
+scroll view so its long-press does not fight it, the type-checker load hoisted
+out of the big builders, the two `Severity` overloads — are done, still
+uncompiled.
+
+Suite on Windows at the end of the day: 245 XCTest + 504 Swift Testing, 0
+failures, 0 warnings; the world baseline (92% / 76%, 3.38 swarms, 981 autumn
+stores, 426 winter cluster) run twice on the final tree and byte-identical.
+
 ---
 
 ### 2026-09-16 — identification: every flower on Earth
@@ -1381,11 +1531,26 @@ started here.
     about 0.11 seconds in release) but is the step after, and the widget and
     the watch would show one colony while the phone carried the rest.
 
-14. **Re-take the per-biome tables at the shipped defaults.** Both of them —
-    wild alone per biome, and survival per biome with the garden on — were
-    measured at exponent 1 and density 0.4, which is a world that no longer
-    exists, and the 22-point spread quoted above is from that world. A `--biome`
-    sweep at the shipped defaults is half an hour of wall time and nothing else.
+14. **~~Re-take the per-biome tables at the shipped defaults.~~ Done on
+    2026-09-24**, under "Decided by measurement" — but taken the morning
+    before the honey-bound corrections landed that afternoon, which moved the
+    standard world nine points at two years. The spread is what the tables
+    were for and a correction to nursing and the brood nest lifts every biome
+    alike, so they still say what they said; re-take them when something
+    else needs the exact rows.
+
+15. **Re-take the presets and the biome tables on the corrected engine**, and
+    the two one-year figures that were never taken with the world on (wild
+    alone, and `--policy scout`). Half an hour of runs. Every number in
+    section 1 that says 2026-09-24 is from the final tree; the tables in
+    section 3 are from the morning's.
+
+16. **The trial's "starvation" label is sticky.** `Trials.swift` sets
+    `starvedRecently` on any `.starving` event and never clears it, so a
+    colony that went hungry once as a larva and dwindled a year later is
+    counted as starved. Item 7 under "Done since" has the case. Making it
+    mean *recent* changes every cause-of-death table ever quoted, so it is a
+    change to make on its own and re-quote after.
 
 
 ### Done since
@@ -1595,7 +1760,132 @@ heather and mahonia — and both are keystones, because that is what being a
 winter flower means. Hiding the prompt removed the one season where knowing
 about them matters most.
 
+**7. The honey-bound colony.** Three more modelling errors, found on
+2026-09-24 by tracing single seeds of the one preset that measured backwards:
+gentle — richer forage, milder weather, fewer raiders — was 92% at one year
+and **25%** at two, against standard's 67%. 95 of its 200 colonies were
+labelled starvation, 82 of them between days 460 and 545, and every one
+traced died with more than 2,300 units of honey in the comb. That is a sharp
+edge, and each
+of the three was found by the trace of the colony the previous one left dying.
+
+**The brood nest was storage.** Every free cell was one pool; foragers filled
+it through the day and the queen, who lays once a day, got what they left.
+Seed 8919, with `beesim --preset gentle --world --seed 8919 --days 560 --every
+4 --patches 9 --restock 45` (the trace now shows free cells and the day's
+eggs):
+
+```
+day  season    pop adult brood  honey pollen cells free eggs ...
+360  spring    575   560    15   1702     16   700  251   15
+364  spring    635   560    75   1996     49   700  106   15
+368  spring    670   560   110   2274     45   700    2    1
+388  spring    701   627    74   2418     45   700    2    2
+410  spring    273   214    59   2453     49   700    3    1  SWARM (-302)
+420  spring    263   223    40   2558     54   700    0    2  mated x7
+435  spring    102    75    27   2602     53   700    4    0  SWARM (-89)
+450  summer     93    84     9   2581     53   691    0    7  mated x8
+518  summer      1     1     0   2598     54   149    0    0  COLLAPSED
+```
+
+The 251 cells the winter cluster had eaten clear were full of nectar in eight
+days while the queen laid fifteen a day into them. For forty days a colony of
+560 to 700 adults then laid none to eight eggs a day into two free cells. It
+swarmed; the brood it left emerged while its new queen was a virgin and every
+vacated cell was backfilled; she mated into a nest with no room, and the
+colony dwindled with 2,598 honey. Consumption *did* free cells — honey is
+counted into cells, so eating it empties them — but the foragers took each
+one back the same day.
+
+`QueenSystem.broodNestRoom` now holds empty comb for the queen that incoming
+nectar may not be stored in: the rest of a brood cycle at her own rate, less
+the brood already there, for a laying queen or a virgin (the colony keeps the
+nest for the queen it expects), never for a queenless colony (which backfills,
+as real ones do), and never at the cost of the larder — the colony first
+keeps room to bank its winter requirement. Syrup from the player goes where
+nectar goes. Pollen is not held out, because it is packed in a band around
+the brood; holding it out starved the brood the nest was kept for (8919 lost
+417 bees to starvation that way before that was changed). No new constant
+and no new random draw.
+
+**A summer bee past her nursing days never nursed again.** With the nest
+kept, seed 1000 swarmed on day 409, its virgin mated on day 437, and by then
+the last of the old brood had emerged: 21 nurses the day she mated, none three
+days later. She laid nine eggs, got no royal jelly, and the colony died on day
+453 with 1,500 honey and 300 cells held for her. Real workers revert to
+nursing when there are no young bees — foragers included — so when not one bee
+is of nursing age, `Hive.workforce(for: .nurseBee)` now counts the share of
+the older bees that would have been nursing in an ordinary colony, which is
+the job table's nine nursing days out of forty-two. It is counted, not
+assigned, so no forager leaves the flowers. Two other versions were measured
+and rejected (the table below): house bees only, which left seed 143542 dead
+when its house bees aged into foragers eight days after its queen mated; and
+every older bee, which let seed 666196 rear 173 brood on 128 old bees and
+starve.
+
+**A broodless colony could cast a swarm.** Swarm cells had no brood
+requirement, and `crowded` reads comb occupancy, which honey alone can fill.
+Seed 365274 mated a queen into 433 bees and no brood, and eight days later
+189 of them left. A swarm cell is an egg laid in a queen cup, so the swarm
+branch now asks `canStillRearAQueen`, as the emergency branch always has.
+
+Measured over 200 colonies, two years, release build, each row adding to the
+one above:
+
+| | gentle, world | standard, world | standard, world off |
+|---|---|---|---|
+| before | 25% | 67% | 62% |
+| brood nest held for the queen | 68% | 68% | 68% |
+| and swarm cells need brood | 72% | 70% | 68% |
+| and house bees nurse when nobody can *(rejected)* | 86% | 74% | 72% |
+| or every older bee does *(rejected)* | 90% | 66% | 69% |
+| or a fifth of the older bees do | 91% | 76% | 82% |
+| and pollen may go in the nest *(shipped)* | **90%** | **76%** | **74%** |
+
+And the whole change, before and after, with the world on:
+
+| | first year | second year | swarms | autumn stores | winter cluster |
+|---|---|---|---|---|---|
+| gentle | 92% → 98% | 25% → **90%** | 2.79 → 3.08 | 1082 → 1813 | 1 → 547 |
+| standard | 90% → 92% | 67% → **76%** | 2.66 → 3.38 | 917 → 981 | 372 → 426 |
+| harsh | 57% → 69% | 12% → 11% | 0.24 → 0.48 | 135 → 108 | 62 → 53 |
+| standard, world off | — | 62% → **74%** | 2.50 → 3.11 | 678 → 794 | 283 → 394 |
+
+Gentle's causes of death went from 95 starvation, 21 queen unmated, 14 laying
+workers, 12 predation, 7 queenless and 1 disease to 6 laying workers, 6
+starvation, 3 each of predation, queen unmated and queenless: the second-year
+cliff is gone from the table, and gentle is no longer worse than standard.
+Harsh gained twelve points in the first year and nothing at two: its colonies
+die queenless (91 of 200 before), which none of this touches.
+
+The standard baseline moved twelve points, like the last two corrections
+(thirteen and twelve), and for the same reason: the model was wrong. Most of
+it is the reversion — founding swarms and swarmed colonies both used to sit
+through a gap with no nurses at all — and more swarms is what more colonies
+living long enough to swarm again looks like.
+
+`--policy harvestEagerlyAndFeed` against instinct, standard with the world
+on, went from 74% against 67% (seven points) to 80% against 76% (four).
+The honey the player takes was working as comb space the colony could not
+otherwise get back, which is the same fault from the other side; most of that
+advantage went with it, and what is left is the player feeding back in a
+dearth.
+
+**The trial's "starvation" is sticky, and that is still so.** `Trials.swift`
+sets `starvedRecently` on any `.starving` event and never clears it, so a
+colony that starved a larva on day 12 is labelled starvation if it dies of
+anything else on day 518 with a full larder — which is what 8919 was. The
+game's own epitaph said "dwindled". With the honey-bound deaths gone there is
+nothing for a `honeyBound` cause to name, so none was added; the label should
+be made to mean recent, and that will move every cause-of-death table, so it
+is left for its own change.
+
 ### Not decided
+
+**On 2026-09-24 Kyle asked for every outstanding question to be resolved**, so
+each bullet below now carries a decision. Four were decisions and are settled
+here; the ones that needed a number were measured the same day and their
+results are under "Decided by measurement" at the end of this section.
 
 - **What `takeHoney` may offer outside autumn.** A player who takes the
   surplus whenever the card offers it loses every colony (0% of 200), and the
@@ -1606,6 +1896,12 @@ about them matters most.
   which are there for exactly this. Whether being able to ruin a colony on
   purpose is part of the game is Kyle's call, as it is for "add comb" above.
 
+  **Decided 2026-09-24: the winter requirement is reserved in every season.**
+  Autumn's rule is now the rule all year; the card's gating is unchanged.
+  Measured under "Decided by measurement" below: eager harvesting went from
+  0% to 32% at two years, a price rather than a death sentence, and the
+  autumn crop is untouched.
+
 - **Whether "add comb" should be reachable at all except on its cue.** Taken
   when the notification fires it is worth two points; taken whenever the colony
   looks crowded it costs four. The button on the nest card is only shown once
@@ -1613,6 +1909,14 @@ about them matters most.
   offers it for the whole swarm window regardless. Narrowing that is a one-line
   change and a real design decision: being able to make a wrong call may well be
   the point.
+
+  **Decided 2026-09-24: on its cue only.** `ColonySnapshot.addCombIsOnCue` is
+  the nest-full judgement written once, and the swarm card, the swarm
+  notification (a second category, `swarm.preparing.full`), the watch's swarm
+  decision and the spoken status all offer comb only on it. The nest card is
+  unchanged. `GameStore.apply(.addComb)` stays permissive, so a player who
+  reaches it another way can still make the call. The wrong call that costs
+  four points is no longer the one the interface suggests.
 
 - **The colony is now healthier than the realism target, and that is a
   calibration call rather than a bug.** Fixing the two modelling errors above
@@ -1624,10 +1928,30 @@ about them matters most.
   far *worse* than 75%, and an established colony's is about 80%, and this game
   models the first thing while quoting the second. `predatorStrength`,
   `pathogenArrivalMultiplier` and forage density are the levers.
+
+  **Decided 2026-09-24: the game is aiming at what it measures, and nothing is
+  tuned.** The target this document quoted was never a decision, it was a
+  sentence from the research notes, and it conflated two populations. The
+  colony the app plays — a garden and the country around it — measures 90%
+  first year and 68% second, which is between a wild swarm's real odds and an
+  established colony's and is a perfectly good place for an idle game to sit:
+  most colonies see their first spring, a third do not see their second, and
+  every one of those deaths has a cause in the almanac. The three levers stay
+  where they are. What the document quotes from now on is what the app plays.
 - Whether the two-year cliff, now that it is 66% rather than 15%, is where it
-  should sit for an idle game.
+  should sit for an idle game. **Decided 2026-09-24: yes.** At 68% with the
+  world on, a third of colonies end in their second year, mostly by starving
+  in spring or losing a queen — which is the arc of the thing and the reason
+  the lineage, the almanac and the milestones exist. A cliff a player can see
+  coming and sometimes prevent is the game; a cliff nobody can prevent was
+  the bug, and that was fixed on 2026-09-06.
 - Whether the catch-up ceiling of 180 simulated days — a fortnight of real
   absence — is generous enough. Beyond it, time is skipped rather than lived.
+  **Decided 2026-09-24: a year.** Measured first: a founding colony's year
+  catches up in 0.28 s in release and a 250–700-bee world colony's in under
+  half a second, process start included (debug 3.4 s). Saves carry their
+  ceiling, so `GamePersistence` lifts an older build's default of 30 or 180
+  to 365 on load and leaves any other value alone.
 - **~~Whether a patch's distance should ever vary again.~~ Decided the same
   day: it varies now.** A photographed flower is planted in a cell of the
   garden, and the cell's hex distance from the nest times 200 m is its
@@ -1668,6 +1992,13 @@ about them matters most.
   `--set` key and re-measuring is one run, so this is cheap to change and should
   be changed on a decision rather than drifted into.
 
+  **Decided 2026-09-24: 0.15 stays, and it is a decision now rather than a
+  default.** A player who photographs nothing has a colony that mostly dies in
+  its first year and always dies in its second, which is what the design asked
+  for: the country keeps the bees alive long enough for the first photograph
+  to matter, and no longer. The number is re-taken per biome under "Decided by
+  measurement" below, since Phase 2's corrections moved everything.
+
 - **Whether winter forage should exist.** Three keystones bloom in winter —
   crocus, winter heather and mahonia — and the village biome's whole character
   is that it is the only place with something out all year; and winter's forage
@@ -1676,6 +2007,113 @@ about them matters most.
   on would make the village materially better than the other six in exactly the
   season that kills colonies, which is either the point or a problem.
   `docs/WORLD.md` carries it open in section 4 and again in section 9.
+
+  **Decided 2026-09-24: it exists.** Three keystones bloom in winter and a
+  keystone that does nothing is a lie in the field guide; and the village's
+  whole character is that something is out all year. The multiplier was swept
+  and set by measurement — see "Decided by measurement" — at the largest value
+  that keeps the village within ten points of the next-best biome, which is
+  the same rule Phase 2 used for the spread.
+
+- **The predator roster's nationality.** The catalogue is British bee forage
+  and the predators include a skunk, a raccoon, an opossum and a bear, which
+  the biome tables answer for now by giving the American animals British
+  biomes. **Decided 2026-09-24: the roster stays.** Location was removed from
+  the app on 2026-09-15, so the game no longer knows what country the player
+  is in, and a roster that spans the North Atlantic lets the biomes do the
+  choosing — a moor has badgers and a suburb has raccoons, and neither is
+  wrong somewhere. Renaming cases would also break every save, since a
+  predator is stored by its raw value. If the game is ever given a country
+  again, this is the first thing to revisit.
+
+### Decided by measurement, 2026-09-24
+
+Every number: 200 colonies, release build, `--world`, from
+`beesim --trials 200 --days 730 --patches 9 --restock 45 --world`, with
+`--days 365` for first-year figures. The baseline was run twice and diffed
+byte for byte before anything was trusted and again at the end.
+
+**Honey reserved in every season.** First year / two years, then honey taken
+per colony over two years:
+
+| policy | before | after |
+|---|---|---|
+| instinct | 90 / 68 | 90 / 68 |
+| harvest each autumn | 90 / 68, 61 taken | 90 / 68, 61 taken |
+| harvest each autumn, feed when short | 90 / 68, 65 taken, 47 fed | same |
+| harvest whenever offered | 3 / 0, 221 taken | 60 / 32, 651 taken |
+| harvest whenever offered, feed when short | 85 / 52, 1372 taken, 723 fed | 92 / 74, 1593 taken, 1081 fed |
+
+The instinct baseline and the two autumn-only policies are byte-identical,
+because they never harvested outside autumn. Eager harvesting costs 36 points
+at two years for 651 units, which is a price. The autumn crop is small but
+real — 11 units a colony in the first year, 61 over two, against autumn
+stores of about 926 — because the reserve is sized to the cluster. The last
+row is the odd one: taking eagerly *and feeding back* beats instinct by six
+points with fewer swarms, which says honey out of the hive is working as comb
+space the colony did not have to draw. That is the honey-bound mechanism
+seen from the other side, and it is under investigation below.
+
+**Winter forage.** One value, `winterForageMultiplier`, stands in for
+winter's zero in both the forage and the regrowth multipliers, for a stand in
+bloom in winter on a flying day. Two-year survival by biome:
+
+| winter multiplier | 0 | 0.15 | 0.3 | 0.5 |
+|---|---|---|---|---|
+| standard world | 68 | 67 | 68 | 67 |
+| meadow, hedgerow, riverbank | 68 | 68 | 68 | 68 |
+| woodland | 64 | 64 | 64 | 64 |
+| farmland | 62 | 62 | 62 | 62 |
+| village | 68 | 68 | 69 | 68 |
+| heath | 56 | 56 | 56 | 56 |
+
+The rule was the largest value at which the village is not more than ten
+points above the next-best biome, and none came near it, so it ships at 0.5.
+Winter forage hardly moves a trial colony: it needs a warm day after the
+cluster has loosened, and the trial garden has no winter bloomer, so only the
+sparse wild stands feed it — the village took in about 40 more units over two
+years. The player who photographs a mahonia is who it is for. The catalogue's
+winter bloomers are rosemary, winter heather and mahonia; crocus turns out to
+be spring only, which corrects an earlier bullet.
+
+**The per-biome tables at the shipped defaults** (first year / two years),
+which item 14 asked for:
+
+| biome | garden on | wild alone |
+|---|---|---|
+| meadow | 88 / 68 | 58 / 29 |
+| hedgerow | 88 / 68 | 48 / 16 |
+| woodland | 86 / 64 | 11 / 3 |
+| riverbank | 92 / 68 | 63 / 28 |
+| farmland | 86 / 62 | 50 / 20 |
+| village | 90 / 68 | 36 / 12 |
+| heath | 82 / 56 | 46 / 8 |
+| generated world | 90 / 67 | 46 / 18 |
+
+The spread with the garden on is 10 points in the first year and 12 at two;
+on wild forage alone it is 52 and 26. Woodland is almost uninhabitable
+without photographs, which is right for a wood. The village — the biome whose
+identity is year-round bloom — is below average on wild forage alone, and why
+has not been traced. The generated world's 46% first year on wild forage
+alone is the floor the design asked for, which settles that bullet.
+
+**The presets with the world on**, as first re-taken that morning: standard
+90 / 67, harsh 57 / 12, and **gentle 92 / 25**. Gentle was the finding: it had
+been 92 / 60 with the world off before Phase 2, and now 95 of its 200 colonies
+died in their second summer, recorded as starvation. Seed 8919 swarmed twice
+down to a hundred bees with 2,600 units of honey in a 700-cell nest; the new
+queen mated and had nowhere to lay, and the colony dwindled to nothing still
+holding 2,598 honey. A colony with that much honey does not starve. That is a
+sharp edge, so it was a modelling error, and it was traced rather than tuned
+the same afternoon: three of them, written up under "Done since" as item 7
+(the brood nest kept for the queen; older bees nursing when no nurse is left;
+swarm cells needing brood). After them gentle is 98 / 90, standard 92 / 76,
+harsh 69 / 11, and the world-off baseline moved twelve points, from 62% to
+74% at two years — the same size as the two corrections before it. Every
+figure above this paragraph in this section was taken before those fixes;
+the tables were not re-taken afterwards, and the ones that matter to a
+decision (the honey policies, the winter sweep) were about *differences*
+between policies on one engine, which is what they still show.
 
 ---
 
@@ -1724,6 +2162,16 @@ about them matters most.
   why it is a rule and not an anecdote.
 - **If it can live in the package, put it there.** That is the part that can be
   compiled and tested without a Mac.
+- **Every save ever written must open.** A property added to any type in the
+  save is decoded with `decodeIfPresent` and a default — a synthesised decoder
+  throws on a missing key even when the property has a default. On 2026-09-24
+  `SimulationConfig`, saved whole in every file, was still synthesised, so every
+  balance number added since the world arrived made older saves unreadable.
+  `SaveCompatibilityTests` now removes every key in a real save one at a time
+  and fails on any the save cannot do without that is not on its allow-list;
+  `Fixtures/` holds old saves that must keep decoding (add one when the format
+  changes on purpose; never replace one). And a save that still will not open
+  is set aside as `colony.unreadable.json`, never written over.
 - **Relative values come from the science; the absolute scale is calibrated.**
   Floral traits are measurements. The unit they are expressed in is normalised
   to the catalogue mean, because every consumption constant in the engine

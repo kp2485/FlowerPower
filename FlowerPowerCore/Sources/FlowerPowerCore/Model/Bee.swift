@@ -356,13 +356,6 @@ public struct Bee: Identifiable, Codable, Equatable, Sendable {
         return isCapable(of: job)
     }
 
-    /// Takes an older worker back to the start of nursing, as a colony with
-    /// no young bees has to. Her body stays the age it is; only the work
-    /// she does goes back.
-    public mutating func revertToNursing() {
-        behaviouralAge = WorkerJob.nurseBee.adultAgeRange.lowerBound
-    }
-
     /// Whether her age, physiology and condition allow this work at all.
     public func isCapable(of job: WorkerJob) -> Bool {
         guard kind == .worker, stage == .adult else { return false }

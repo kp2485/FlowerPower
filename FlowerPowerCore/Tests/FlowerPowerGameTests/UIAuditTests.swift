@@ -130,6 +130,8 @@ struct UIAuditTests {
 
         store.retryUnreadableSave()
         #expect(store.needsSetup, "still unreadable, so nothing changes")
+        store.catchUp()
+        #expect(persistence.savesWhileLocked == 0, "and nothing is written over it")
 
         persistence.failsToLoad = false
         store.retryUnreadableSave()
@@ -365,17 +367,20 @@ struct UIAuditTests {
     }
 }
 
-/// Reads again as soon as it is told to stop failing.
+/// Locked, as a protected file is before the phone's first unlock, until it
+/// is told otherwise. Counts writes, because nothing may go over it meanwhile.
 private final class FlakyPersistence: GamePersisting, @unchecked Sendable {
-
-    struct Failure: Error {}
 
     let backing = InMemoryPersistence()
     var failsToLoad = false
+    var savesWhileLocked = 0
 
-    func save(_ simulation: Simulation) throws { try backing.save(simulation) }
+    func save(_ simulation: Simulation) throws {
+        if failsToLoad { savesWhileLocked += 1 }
+        try backing.save(simulation)
+    }
     func load() throws -> Simulation? {
-        if failsToLoad { throw Failure() }
+        if failsToLoad { throw CocoaError(.fileReadNoPermission) }
         return try backing.load()
     }
     func clear() throws { try backing.clear() }

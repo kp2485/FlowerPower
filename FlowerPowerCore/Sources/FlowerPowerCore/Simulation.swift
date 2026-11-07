@@ -1013,22 +1013,28 @@ public struct Simulation: Codable, Equatable, Sendable {
         )
     }
 
-    /// Honey the player could take without touching what the colony needs.
+    /// Honey the player could take without touching what the colony needs:
+    /// whatever exceeds the winter requirement, in every season. Never
+    /// negative.
     ///
-    /// In autumn that is what exceeds the winter requirement; the rest of the
-    /// year it is what exceeds the working reserve. Never negative.
+    /// **It used to reserve the winter only in autumn and winter.** In spring
+    /// and summer the cap kept back twice the laying threshold and nothing
+    /// else, so a player who took what the card offered whenever it offered
+    /// it — `beesim --policy harvestEagerly` — lost 200 colonies of 200: the
+    /// summer crop was the winter's stores, taken before the colony had the
+    /// chance to put them by. Autumn's rule, which reserves the requirement,
+    /// was always fine, and on 2026-09-24 it became the rule all year. Taking
+    /// honey eagerly is now a price rather than a death sentence; the numbers
+    /// are in PLAN.md.
+    ///
+    /// The requirement scales with the adults, so in summer, with the colony
+    /// at its peak, it asks for a reserve sized for a cluster three or four
+    /// times the one that will actually winter. That is deliberate: the
+    /// alternative is guessing now at a cluster that does not exist yet, and a
+    /// guess that is low costs the colony its winter.
     public var harvestableHoney: Double {
         let honey = world.hive.resources[.honey]
-        let keep: Double
-        switch season {
-        case .autumn, .winter:
-            keep = world.hive.winterStoresRequired * config.winterProvisioningMargin
-        case .spring, .summer:
-            keep = max(
-                config.layingEnergyThreshold,
-                Double(world.hive.adultCount) * config.layingReservePerBee
-            ) * 2
-        }
+        let keep = world.hive.winterStoresRequired * config.winterProvisioningMargin
         return max(0, honey - keep)
     }
 
@@ -1068,7 +1074,10 @@ public struct Simulation: Codable, Equatable, Sendable {
     /// nowhere to put honey cannot be given any, which is as true of a jar
     /// held over the feeder hole as it is of a nectar flow.
     private var honeyStorageSpace: Double {
-        max(0, Double(world.hive.freeCells) * ResourceKind.honey.unitsPerCell)
+        // Less the brood nest, exactly as foraging is: syrup goes where
+        // nectar goes. See `QueenSystem.broodNestRoom`.
+        let broodNest = QueenSystem.broodNestRoom(in: world.hive, config: config, day: day)
+        return max(0, Double(world.hive.freeCells - broodNest) * ResourceKind.honey.unitsPerCell)
     }
 
     /// How much of the banked honey would actually go in if the colony were
@@ -1461,23 +1470,3 @@ public struct Simulation: Codable, Equatable, Sendable {
     }
 }
 
-// MARK: - Decoding
-
-// Written out only so the config can be read leniently. See
-// `LenientConfig.swift` for why that matters: it is the difference between an
-// update that adds a constant and an update that loses every colony.
-extension Simulation {
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        world = try container.decode(World.self, forKey: .world)
-        clock = try container.decode(SimClock.self, forKey: .clock)
-        rng = try container.decode(SeededRandom.self, forKey: .rng)
-        ids = try container.decode(IDGenerator.self, forKey: .ids)
-        if let config = try? container.decode(SimulationConfig.self, forKey: .config) {
-            self.config = config
-        } else {
-            self.config = .lenient(try container.decode(JSONValue.self, forKey: .config))
-        }
-    }
-}

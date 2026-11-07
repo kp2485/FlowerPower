@@ -42,17 +42,22 @@ public struct PatchSystem: DailySystem {
 
     public func updateDaily(_ world: inout World, _ context: inout TickContext) {
         let season = context.season
-        let seasonalRegrowth = season.patchRegrowthMultiplier
+        // Winter's comes from the config: small, and only for the handful of
+        // stands that bloom then. See `SimulationConfig.winterForageMultiplier`.
+        let seasonalRegrowth = context.config.patchRegrowthMultiplier(in: season)
 
         for index in world.patches.indices {
             let wasInBloom = world.patches[index].isInBloom(during: season)
 
             guard wasInBloom, seasonalRegrowth > 0 else {
-                // On the day it goes over, and for the player's own flowers.
-                // This fired every day for every patch out of bloom, wild
-                // stands included, and in an absence of a few weeks those
-                // lines took 56 of the report's 60 highlights — crowding out
-                // a lost queen or a collapse that came later.
+                // Said once, on the day the season turns and takes the flower
+                // with it, and only for the player's own flowers. This used to
+                // be emitted every day for every patch that was out of bloom,
+                // wild stands included — so a player back after twelve days
+                // with nine flowers resting was handed a hundred and eight
+                // copies of "a flower went out of season", which filled the
+                // catch-up report's sixty places and left room for nothing
+                // that had actually happened.
                 let patch = world.patches[index]
                 if !wasInBloom, !patch.isDepleted, !patch.isWild, context.day > 0,
                    patch.isInBloom(during: Season(day: context.day - 1)) {

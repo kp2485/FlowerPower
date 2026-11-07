@@ -274,10 +274,14 @@ swift run --package-path FlowerPowerCore -c release beesim \
 ```
 
 Traces one colony day by day. This is how nearly every balance bug in the
-engine has been found — five of them now, including all three queen bugs behind
-the second-year collapse, comb being drawn out of the winter larder, and a
-second swarm cast on the day a new queen mated. None was visible in an
-aggregate and every one was obvious within a few lines of a trace.
+engine has been found — eight of them now, including all three queen bugs
+behind the second-year collapse, comb being drawn out of the winter larder, a
+second swarm cast on the day a new queen mated, and the three behind the
+honey-bound colony (PLAN.md, section 3, item 7). None was visible in an
+aggregate and every one was obvious within a few lines of a trace. The `free`,
+`eggs` and `nurse` columns are free comb cells, the day's eggs and the bees of
+nursing age; a laying queen with a flow on and nothing in the first two is a
+honey-bound colony.
 
 ```bash
 ... beesim --set swarmSeasonStart=0.3 --set pheromoneDilutionScale=70
@@ -293,7 +297,9 @@ there are — density is the lever, yield mostly is not), `danceFloorPatches`
 `biomeThreatScale` (1.0 as shipped; 0 switches the biome multipliers on
 predators and pathogens off entirely, which is what a test measuring sites
 rather than geography wants), `scoutShare` and `scoutDays`, and
-`explorationShare` and `explorationChance`.
+`explorationShare` and `explorationChance`. And `winterForageMultiplier`, what a
+stand that blooms in winter gives on a day warm enough to fly (0 until
+2026-09-24, 0.5 as shipped).
 
 ```bash
 ... beesim --trials 200 --days 730 --patches 9 --restock 45 --world

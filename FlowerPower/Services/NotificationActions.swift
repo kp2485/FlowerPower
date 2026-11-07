@@ -45,6 +45,11 @@ enum NotificationActions {
         case threatField = "threat.field"
         case threatComb = "threat.comb"
         case swarmPreparing = "swarm.preparing"
+        /// The same swarm, arriving on a full nest: the one moment its
+        /// answers include opening the nest up. Categories are registered
+        /// once, so an answer that comes and goes needs a second category
+        /// rather than a condition.
+        case swarmPreparingNestFull = "swarm.preparing.full"
         case nestFull = "nest.full"
         case swarmDeparted = "swarm.departed"
         case entrance = "entrance.autumn"
@@ -102,23 +107,26 @@ enum NotificationActions {
         }
 
         // Lightest first. Survival no longer ranks these: over 200 colonies
-        // across two years every answer lands between 78% and 82%, with doing
-        // nothing at 80%. Making room costs some foraging while it holds and
-        // commits the colony to nothing, so it goes first.
+        // across two years, doing nothing is 76% and every answer lands
+        // between 78% and 80% (2026-11-07). Making room costs some foraging
+        // while it holds and commits the colony to nothing, so it goes first.
         //
         // Adding comb was briefly the only thing offered here, and dropping
         // "Make Room" from the list quietly removed the player's cheapest
-        // option.
-        categories.insert(UNNotificationCategory(
-            identifier: Category.swarmPreparing.rawValue,
-            actions: [
-                button(.discourageSwarm),
-                button(.addComb),
-                button(.split),
-                button(.letSwarmGo)
-            ],
-            intentIdentifiers: [], options: []
-        ))
+        // option. Comb is now offered only on its cue, a full nest:
+        // there it is worth two points, and offered for the whole swarm
+        // window it cost four. `DecisionAction.swarmAnswers` is the list.
+        let swarmCategories: [(Category, Bool)] = [
+            (.swarmPreparing, false), (.swarmPreparingNestFull, true)
+        ]
+        for (category, offeringComb) in swarmCategories {
+            categories.insert(UNNotificationCategory(
+                identifier: category.rawValue,
+                actions: DecisionAction.swarmAnswers(offeringComb: offeringComb)
+                    .map { button($0) },
+                intentIdentifiers: [], options: []
+            ))
+        }
 
         // The week before the cells, when space is still cheap.
         categories.insert(UNNotificationCategory(
@@ -176,7 +184,9 @@ enum NotificationActions {
         if news.identifier.hasPrefix("threat-"), let threat = snapshot.activeThreat {
             return Category.forThreat(threat.style)
         }
-        if news.identifier.hasPrefix("swarm-") { return .swarmPreparing }
+        if news.identifier.hasPrefix("swarm-") {
+            return snapshot.swarmOffersComb ? .swarmPreparingNestFull : .swarmPreparing
+        }
         if news.identifier.hasPrefix("nest-full-") {
             // Nothing to offer where the site has no more room to give, and an
             // action button that does nothing is worse than no button.
@@ -251,6 +261,17 @@ enum NotificationActions {
         }
 
         let applied = store.apply(action)
+
+        // The card on the lock screen was asking this question. It has been
+        // answered, from right beside it, so it stops asking now — it turns
+        // into the countdown to the end of the siege — rather than whenever
+        // the app is next opened.
+        LiveActivities.reconcile(
+            with: store.simulationForTransfer,
+            snapshot: store.snapshot,
+            now: now
+        )
+
         if let error = store.lastError {
             logger.error("could not save a decision: \(error)")
             return false

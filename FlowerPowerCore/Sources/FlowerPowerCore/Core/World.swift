@@ -112,8 +112,16 @@ public struct World: Codable, Equatable, Sendable {
     /// Decoded by hand for one reason: Swift's synthesised decoder ignores
     /// property defaults and throws on a missing key, so adding
     /// `importedShares` would have made every save written before sharing
-    /// existed undecodable. `GameStore.load` treats an unreadable save as no
-    /// save, so that would have silently deleted people's colonies.
+    /// existed undecodable. `GameStore.load` then treated an unreadable save as
+    /// no save, so that would have silently deleted people's colonies; it
+    /// keeps the file aside now, but a colony the player cannot open is still
+    /// lost to them.
+    ///
+    /// **The rule, for every type in the save:** a key added after the first
+    /// save is decoded with `decodeIfPresent` and a default. A synthesised
+    /// decoder is safe only while every one of its keys has been in every save
+    /// ever written, and `SaveCompatibilityTests` fails the day one is added
+    /// that has not.
     ///
     /// Only `init(from:)` is written out; the encoder is still synthesised.
     public init(from decoder: Decoder) throws {
@@ -184,21 +192,8 @@ public struct World: Codable, Equatable, Sendable {
     }
 
     /// A dearth. Colonies stop rearing brood, evict drones and start robbing.
-    ///
-    /// Not a colony that has stopped bringing nectar in because it is full.
-    /// Income falls to nothing at the ceiling either way, and that one is the
-    /// opposite of short.
     public func isInDearth(_ config: SimulationConfig) -> Bool {
-        guard !hasFullLarder(config) else { return false }
-        return averageNectarIntake < Double(hive.adultCount) * config.dearthThresholdPerBee
-    }
-
-    /// Stores are at `storesCeilingCells`, near enough. The margin is there
-    /// because a colony at the ceiling eats a little and tops it up, and an
-    /// exact comparison would call that a dearth every other day.
-    public func hasFullLarder(_ config: SimulationConfig) -> Bool {
-        config.storesCeilingCells > 0
-            && Double(hive.cellsOccupiedByStores) >= 0.95 * Double(config.storesCeilingCells)
+        averageNectarIntake < Double(hive.adultCount) * config.dearthThresholdPerBee
     }
 
     /// Patches actually worth flying to right now.

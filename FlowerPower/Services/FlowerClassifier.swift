@@ -113,7 +113,10 @@ public enum FlowerClassifierError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .couldNotReadImage: return "That image could not be read."
-        case .visionFailed(let error): return "Identification failed: \(error.localizedDescription)"
+        // Not the underlying error's own words. Those are written for a
+        // developer — "Failed to create espresso context" was shown to a
+        // player as the reason their flower was gone.
+        case .visionFailed: return "The photograph could not be looked at just now. Try again in a moment."
         }
     }
 }
@@ -164,8 +167,22 @@ public struct FlowerClassifier: FlowerIdentifying {
 
         // Stage one: is this plant material? Vision is asked once; the
         // answer is kept, because its labels are also the second rung.
-        let labels = try await FeaturePrints.labels(for: image, orientation: orientation)
-        guard FeaturePrints.looksLikePlantMaterial(labels) else { return .notAFlower }
+        //
+        // A Vision that cannot run at all is not a verdict on the photograph.
+        // It threw "Failed to create espresso context" on the iOS 27
+        // simulator and the whole capture was lost behind that sentence,
+        // when the promise of this ladder is that nothing short of plainly
+        // not a flower stops the game. So a gate that cannot be asked is
+        // passed: the player pointed a camera at something and said it was a
+        // flower, and the rungs below still get their chance to name it.
+        let labels: [(label: String, confidence: Float)]
+        do {
+            labels = try await FeaturePrints.labels(for: image, orientation: orientation)
+            guard FeaturePrints.looksLikePlantMaterial(labels) else { return .notAFlower }
+        } catch {
+            logger.error("plant gate unavailable: \(error.localizedDescription)")
+            labels = []
+        }
 
         // Stage two, best available answer first.
 
@@ -204,10 +221,13 @@ public struct FlowerClassifier: FlowerIdentifying {
         }
 
         // Reference photographs the player has labelled.
-        if let library, !library.isEmpty {
-            let matches = try await matchAgainstReferences(
-                image, orientation: orientation, library: library
-            )
+        // Like the gate, a rung that cannot run is skipped rather than thrown:
+        // a failure this far down used to cost the player the flower that
+        // every rung above had already let through.
+        if let library, !library.isEmpty,
+           let matches = try? await matchAgainstReferences(
+               image, orientation: orientation, library: library
+           ) {
             if let best = matches.first, best.confidence >= Self.placementThreshold {
                 return FlowerIdentification(
                     taxon: best.species.taxon,

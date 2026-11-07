@@ -251,8 +251,8 @@ public struct Milestones: Codable, Equatable, Sendable {
     ///
     /// `Milestone` is a string-backed enum in a save file, which means a case
     /// renamed or retired in a later version is an unreadable colony —
-    /// `GameStore.load` treats an unreadable save as no save, so that would
-    /// silently delete somebody's bees. Losing one badge is the right price.
+    /// a save that will not open is somebody's bees gone. Losing one badge is
+    /// the right price.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let stored = try container.decodeIfPresent(
@@ -261,14 +261,21 @@ public struct Milestones: Codable, Equatable, Sendable {
         achieved = stored.compactMap(\.record)
     }
 
-    /// Decodes a record without insisting the milestone still exists.
+    /// Decodes a record without insisting the milestone still exists — or
+    /// that the record is whole. One missing either field is a badge that
+    /// cannot be shown, and goes the same way as one this build has not heard
+    /// of.
     private struct LenientRecord: Decodable {
         let record: MilestoneRecord?
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            let raw = try container.decode(String.self, forKey: .milestone)
-            let day = try container.decode(Int.self, forKey: .day)
+            guard let raw = try container.decodeIfPresent(String.self, forKey: .milestone),
+                  let day = try container.decodeIfPresent(Int.self, forKey: .day)
+            else {
+                record = nil
+                return
+            }
             record = Milestone(rawValue: raw).map {
                 MilestoneRecord(milestone: $0, day: day)
             }

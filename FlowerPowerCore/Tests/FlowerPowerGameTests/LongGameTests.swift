@@ -150,7 +150,13 @@ struct LongGameTests {
     /// a day when nothing went wrong.
     @Test("A first earned while away reaches the digest")
     func digestMentionsMilestones() {
-        let (snapshot, report) = snapshot(days: 30)
+        // The milestones are the only thing this is about, so the colony's
+        // own catch-up is emptied of them first: since 2026-09-24 this one
+        // drives off its first raid inside the twelve days, and a digest
+        // reporting that first instead is right, not a failure.
+        let (snapshot, caughtUp) = snapshot(days: 30)
+        var report = caughtUp
+        report.milestones.removeAll()
 
         var one = report
         one.record(.milestone(.firstWinterSurvived))

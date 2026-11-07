@@ -36,11 +36,18 @@ struct JobAssignmentView: View {
 
     private var population: PopulationSummary { store.snapshot.population }
 
+    /// The order the rows were in when the sheet opened, biggest first.
+    /// Fixed for as long as the sheet is up: re-sorted live, pinning a job
+    /// moved bees into it and the row jumped out from under the finger that
+    /// had just tapped it, so the pin landed somewhere the player was no
+    /// longer looking.
+    @State private var order: [WorkerJob] = []
+
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Text("Bees take on work as they age. You can lean the colony toward a job, but only bees old enough — and well enough — will take it up.")
+                    Text("Bees take on work as they age. Tap a job to lean the colony toward it — only bees old enough, and well enough, will take it up. Tap it again to let them go.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -105,6 +112,7 @@ struct JobAssignmentView: View {
                     Text("Winter bees are the exception: they never wore themselves out, so they can turn a hand to anything the colony needs in spring.")
                 }
             }
+            .onAppear { if order.isEmpty { order = Self.biggestFirst(population) } }
             .navigationTitle("Jobs")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -116,9 +124,12 @@ struct JobAssignmentView: View {
     }
 
     private var orderedJobs: [(job: WorkerJob, count: Int)] {
-        WorkerJob.allCases
-            .map { (job: $0, count: population.jobs[$0] ?? 0) }
-            .sorted { $0.count > $1.count }
+        let jobs = order.isEmpty ? Self.biggestFirst(population) : order
+        return jobs.map { (job: $0, count: population.jobs[$0] ?? 0) }
+    }
+
+    private static func biggestFirst(_ population: PopulationSummary) -> [WorkerJob] {
+        WorkerJob.allCases.sorted { (population.jobs[$0] ?? 0) > (population.jobs[$1] ?? 0) }
     }
 
     private var maximumCount: Int {
@@ -184,6 +195,10 @@ private struct JobRow: View {
             }
         }
         .buttonStyle(.plain)
+        // The whole row, not just the words and the bar. A plain button is
+        // only as big as what it draws, and the gap the Spacer leaves between
+        // the name and the count did nothing when tapped.
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(job.displayName), \(count.counted("bee"))")
         .accessibilityHint(isEmphasised ? "Tap to release" : "Tap to prioritise this job")

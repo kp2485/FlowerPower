@@ -436,7 +436,10 @@ starts creating patches in bulk:
   was never costing much, but the run is *not* byte-identical, which is the
   useful part: the colony is honey-bound often enough for the order to decide
   something.
-- The winter bloom question above. **Still open.**
+- The winter bloom question above. **Decided 2026-09-24: winter forage
+  exists**, at a multiplier set by measurement — the largest value that keeps
+  the village within ten points of the next-best biome. PLAN.md section 3,
+  "Decided by measurement", has the sweep.
 
 ## 10. What to measure, and the order to measure it in
 
@@ -679,8 +682,10 @@ shows nothing of it; the widget, at most, a direction the foragers are flying.
 - Whether colonies the player leaves persist as wild colonies on the map, or
   simply end as they do now. The design wants them to persist; it is the
   bigger build.
-- The predator roster's nationality: assign the American animals to biomes
-  and let the game be nowhere in particular, or replace them with British
-  ones and make it somewhere.
-- Whether winter forage should exist. Three keystone species and a whole
-  biome say yes; the balance was measured with no.
+- ~~The predator roster's nationality.~~ Decided 2026-09-24: assigned to
+  biomes, and the game is nowhere in particular — it no longer knows where
+  the player is, since location was removed. PLAN.md section 3 has the
+  reasoning.
+- ~~Whether winter forage should exist.~~ Decided 2026-09-24: it does. Three
+  keystone species and a whole biome said yes, and the balance has now been
+  measured with it on; see PLAN.md.

@@ -32,8 +32,14 @@ public struct DailyDigest: Equatable, Sendable {
 
         var lines: [String] = []
 
-        // The headline is the colony's own sentence about itself.
-        lines.append(snapshot.headline)
+        // The headline is the colony's own sentence about itself — unless
+        // the only thing it has to say is that the flowers have gone over or
+        // are out of season, which is the calendar and not news. A report
+        // that opened with that every morning was the first thing the first
+        // player asked to have taken out.
+        lines.append(snapshot.headlineIsAboutForage
+                     ? "The colony is \(snapshot.status.displayName.lowercased())."
+                     : snapshot.headline)
 
         if report.swarmed {
             lines.append("A swarm left.")
@@ -77,7 +83,10 @@ public struct DailyDigest: Equatable, Sendable {
 
         // Only the headline, and a headline that says everything is fine, is
         // not worth a notification.
-        if lines.count == 1, snapshot.status >= .steady, snapshot.alerts.isEmpty {
+        // "Nothing to forage" is the same non-news as an alert, so it does
+        // not count as a reason either.
+        let alertsWorthSaying = snapshot.alerts.filter { $0.kind != .noForage }
+        if lines.count == 1, snapshot.status >= .steady, alertsWorthSaying.isEmpty {
             return nil
         }
 

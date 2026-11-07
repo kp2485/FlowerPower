@@ -50,6 +50,15 @@ struct FlowerPowerApp: App {
         NotificationActions.register()
         UNUserNotificationCenter.current().delegate = notifications
 
+        // So do a Live Activity's buttons, which run here rather than in the
+        // widget extension, and the card whose button it was should stop
+        // asking at once. Set here rather than on a view because a button
+        // tapped on the lock screen launches the app in the background, with
+        // no window, and this is the only code that runs regardless.
+        ColonyIntents.onDecided = { simulation in
+            LiveActivities.reconcile(with: simulation)
+        }
+
         // Contextual tips. Must be configured before any `TipView` is drawn.
         AppTips.configure()
     }
@@ -63,7 +72,15 @@ struct FlowerPowerApp: App {
                         store.simulationForTransfer,
                         summary: store.watchSummary()
                     )
-                    LiveActivities.reconcile(with: snapshot)
+                    LiveActivities.reconcile(
+                        with: store.simulationForTransfer,
+                        snapshot: snapshot
+                    )
+                    // The store has just written the save the Home Screen
+                    // widget reads. Reloads made while the app is in the
+                    // foreground do not count against the widget's budget,
+                    // which is why this can run on every change.
+                    WidgetCenter.shared.reloadAllTimelines()
                     HiveHum.shared.update(for: snapshot)
                 }
                 // The home-screen widget offers the open decision as a button.

@@ -13,7 +13,13 @@
 //
 //  Everything selected, banded or derived here is computed in
 //  `FlowerPowerCore`'s `History.swift` — the ranges, the season runs, the
-//  readiness — so this file only draws.
+//  readiness, and which recorded day a finger between two of them means — so
+//  this file only draws.
+//
+//  All four charts scrub. A chart you cannot touch is a picture, and the
+//  question a keeper has about a line is almost always "what was that day":
+//  the dip in the stores, the week the intake stopped. So a drag puts a rule
+//  on the day and the caption above the chart turns into that day's reading.
 //
 
 import SwiftUI
@@ -52,11 +58,19 @@ struct HistoryView: View {
                         RangePicker(range: $range, history: history, today: today)
 
                         if hasEnoughToChart {
-                            PopulationChart(samples: samples)
-                            StoresChart(samples: samples)
-                            TemperatureChart(samples: samples)
-                            IntakeChart(samples: samples)
-                            RecordFootnote(history: history)
+                            // Identified by the range, so that changing it
+                            // builds fresh charts and drops whatever day was
+                            // under a finger. A selection carried over into a
+                            // different span of days is a readout nobody
+                            // asked for.
+                            VStack(spacing: 16) {
+                                PopulationChart(samples: samples)
+                                StoresChart(samples: samples)
+                                TemperatureChart(samples: samples)
+                                IntakeChart(samples: samples)
+                                RecordFootnote(history: history)
+                            }
+                            .id(range)
                         } else {
                             Text("Not enough of this range has been lived through yet. Try a longer one.")
                                 .font(.footnote)
@@ -99,6 +113,9 @@ private struct RangePicker: View {
 private struct PopulationChart: View {
 
     let samples: [DailySample]
+    @State private var selectedDay: Double?
+
+    private var selected: DailySample? { samples.sample(nearestTo: selectedDay) }
 
     private var spans: [SeasonSpan] { SeasonSpan.spans(covering: samples) }
 
@@ -128,10 +145,18 @@ private struct PopulationChart: View {
             title: "Population",
             symbolName: "person.3.fill",
             caption: samples.last.map { "\($0.adults) adults, \($0.brood) brood" },
-            summary: summary
+            summary: summary,
+            selected: selected,
+            readout: { "\($0.adults) adults, \($0.brood) brood, \($0.winterBees) winter bees" }
         ) {
             Chart {
                 SeasonBands(spans: spans, ceiling: ceiling)
+
+                if let day = selected?.day {
+                    RuleMark(x: .value("Day", Double(day)))
+                        .foregroundStyle(SelectionRule.colour)
+                        .lineStyle(SelectionRule.stroke)
+                }
 
                 ForEach(samples) { sample in
                     LineMark(
@@ -140,6 +165,7 @@ private struct PopulationChart: View {
                         series: .value("Series", "Adults")
                     )
                     .foregroundStyle(by: .value("Series", "Adults"))
+                    .lineStyle(by: .value("Series", "Adults"))
 
                     LineMark(
                         x: .value("Day", Double(sample.day)),
@@ -147,6 +173,7 @@ private struct PopulationChart: View {
                         series: .value("Series", "Brood")
                     )
                     .foregroundStyle(by: .value("Series", "Brood"))
+                    .lineStyle(by: .value("Series", "Brood"))
 
                     LineMark(
                         x: .value("Day", Double(sample.day)),
@@ -154,9 +181,16 @@ private struct PopulationChart: View {
                         series: .value("Series", "Winter bees")
                     )
                     .foregroundStyle(by: .value("Series", "Winter bees"))
+                    .lineStyle(by: .value("Series", "Winter bees"))
                 }
                 .interpolationMethod(.monotone)
             }
+            // On the `Chart` itself, where the x values are known to be
+            // `Double`s — the day number — rather than on a generic card
+            // that only knows it holds some view. This hands back a
+            // fractional day, and the record turns it into one it holds.
+            .chartXSelection(value: $selectedDay)
+            .chartXScale(domain: samples.dayDomain)
             .chartYScale(domain: 0...ceiling)
             .chartForegroundStyleScale([
                 "Adults": Theme.honey,
@@ -199,11 +233,42 @@ private struct SeasonBands: ChartContent {
     }
 }
 
+/// How the day under the finger is drawn, on every chart the same way.
+///
+/// The four charts share an x axis — the day — and a mark that looked
+/// different on one of them would read as meaning something different. The
+/// mark itself is written out in each chart as `if let day { RuleMark(…) }`,
+/// the plain idiom, rather than as a `ChartContent` of its own wrapping a
+/// `ForEach` over nothing or one thing; what is shared is only its look.
+///
+/// Computed rather than stored: a stored `static let` has to be `Sendable`
+/// under Swift 6, and whether `StrokeStyle` is is a question for the SDK
+/// rather than one worth asking here.
+private enum SelectionRule {
+    static var colour: Color { Color.secondary.opacity(0.55) }
+    static var stroke: StrokeStyle { StrokeStyle(lineWidth: 1) }
+}
+
+private extension Array where Element == DailySample {
+
+    /// The recorded day a finger at some fractional x means.
+    ///
+    /// The search is `ColonyHistory`'s, in the package, where it is tested.
+    /// This is only the unwrapping and the rounding.
+    func sample(nearestTo day: Double?) -> DailySample? {
+        guard let day, day.isFinite else { return nil }
+        return ColonyHistory.sample(nearestTo: Int(day.rounded()), in: self)
+    }
+}
+
 // MARK: - Stores
 
 private struct StoresChart: View {
 
     let samples: [DailySample]
+    @State private var selectedDay: Double?
+
+    private var selected: DailySample? { samples.sample(nearestTo: selectedDay) }
 
     /// The gap between the two lines is the story, so the summary is about
     /// the gap rather than about either line.
@@ -227,9 +292,20 @@ private struct StoresChart: View {
             caption: samples.last.map {
                 "\(Int($0.edibleEnergy.rounded())) of \(Int($0.winterRequirement.rounded())) units needed"
             },
-            summary: summary
+            summary: summary,
+            selected: selected,
+            readout: {
+                "\(Int($0.edibleEnergy.rounded())) units stored, "
+                    + "\(Int($0.winterRequirement.rounded())) needed for the winter"
+            }
         ) {
             Chart {
+                if let day = selected?.day {
+                    RuleMark(x: .value("Day", Double(day)))
+                        .foregroundStyle(SelectionRule.colour)
+                        .lineStyle(SelectionRule.stroke)
+                }
+
                 ForEach(samples) { sample in
                     // The stores are the area; the requirement is the line to
                     // stay above. The gap between them is the whole story of
@@ -257,6 +333,8 @@ private struct StoresChart: View {
                 }
                 .interpolationMethod(.monotone)
             }
+            .chartXSelection(value: $selectedDay)
+            .chartXScale(domain: samples.dayDomain)
             .chartForegroundStyleScale([
                 "Stores": Theme.honey,
                 "Winter needs": Theme.alarm
@@ -270,6 +348,9 @@ private struct StoresChart: View {
 private struct TemperatureChart: View {
 
     let samples: [DailySample]
+    @State private var selectedDay: Double?
+
+    private var selected: DailySample? { samples.sample(nearestTo: selectedDay) }
 
     /// How steady the nest line is against how far the outside one moves is
     /// the colony's thermoregulation, and it is the one thing here that
@@ -293,9 +374,20 @@ private struct TemperatureChart: View {
                 "\(Int($0.nestTemperature.rounded()))°C in the nest, "
                     + "\(Int($0.outsideTemperature.rounded()))°C outside"
             },
-            summary: summary
+            summary: summary,
+            selected: selected,
+            readout: {
+                "\(Int($0.nestTemperature.rounded()))°C in the nest, "
+                    + "\(Int($0.outsideTemperature.rounded()))°C outside"
+            }
         ) {
             Chart {
+                if let day = selected?.day {
+                    RuleMark(x: .value("Day", Double(day)))
+                        .foregroundStyle(SelectionRule.colour)
+                        .lineStyle(SelectionRule.stroke)
+                }
+
                 ForEach(samples) { sample in
                     LineMark(
                         x: .value("Day", Double(sample.day)),
@@ -321,6 +413,8 @@ private struct TemperatureChart: View {
                     .foregroundStyle(Color.secondary.opacity(0.4))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
             }
+            .chartXSelection(value: $selectedDay)
+            .chartXScale(domain: samples.dayDomain)
             .chartForegroundStyleScale([
                 "Nest": Theme.broodNest,
                 "Outside": Color(red: 0.36, green: 0.65, blue: 0.85)
@@ -334,6 +428,9 @@ private struct TemperatureChart: View {
 private struct IntakeChart: View {
 
     let samples: [DailySample]
+    @State private var selectedDay: Double?
+
+    private var selected: DailySample? { samples.sample(nearestTo: selectedDay) }
 
     /// The total and the empty days. A flow is a handful of very good days
     /// among ordinary ones, and the count of days with nothing is the
@@ -353,25 +450,62 @@ private struct IntakeChart: View {
             title: "Nectar brought in",
             symbolName: "arrow.down.to.line",
             caption: samples.last.map { "\(Int($0.nectarIntake.rounded())) units on the last full day" },
-            summary: summary
+            summary: summary,
+            selected: selected,
+            readout: { "\(Int($0.nectarIntake.rounded())) units brought in" }
         ) {
-            Chart(samples) { sample in
+            Chart {
+                if let day = selected?.day {
+                    RuleMark(x: .value("Day", Double(day)))
+                        .foregroundStyle(SelectionRule.colour)
+                        .lineStyle(SelectionRule.stroke)
+                }
+
                 // A bar a day reads well for a month and turns into a smear
-                // for a year, so a long range is filled instead.
+                // for a year, so a long range is filled instead. Decided once
+                // for the chart rather than once per day inside the `ForEach`,
+                // and each shape is its own `ChartContent`, so this builder
+                // holds two plain branches and no marks.
                 if samples.count > 90 {
-                    AreaMark(
-                        x: .value("Day", Double(sample.day)),
-                        y: .value("Units", sample.nectarIntake)
-                    )
-                    .foregroundStyle(Theme.nectar.gradient)
+                    IntakeArea(samples: samples)
                 } else {
-                    BarMark(
-                        x: .value("Day", Double(sample.day)),
-                        y: .value("Units", sample.nectarIntake)
-                    )
-                    .foregroundStyle(Theme.nectar)
+                    IntakeBars(samples: samples)
                 }
             }
+            .chartXSelection(value: $selectedDay)
+            .chartXScale(domain: samples.dayDomain)
+        }
+    }
+}
+
+/// A long range's intake, filled.
+private struct IntakeArea: ChartContent {
+
+    let samples: [DailySample]
+
+    var body: some ChartContent {
+        ForEach(samples) { sample in
+            AreaMark(
+                x: .value("Day", Double(sample.day)),
+                y: .value("Units", sample.nectarIntake)
+            )
+            .foregroundStyle(Theme.nectar.gradient)
+        }
+    }
+}
+
+/// A short range's intake, a bar a day.
+private struct IntakeBars: ChartContent {
+
+    let samples: [DailySample]
+
+    var body: some ChartContent {
+        ForEach(samples) { sample in
+            BarMark(
+                x: .value("Day", Double(sample.day)),
+                y: .value("Units", sample.nectarIntake)
+            )
+            .foregroundStyle(Theme.nectar)
         }
     }
 }
@@ -389,6 +523,13 @@ private struct ChartCard<Content: View>: View {
     /// each say a number and none of which says what the chart shows. The
     /// chart is collapsed to one element and this is read for it.
     let summary: String
+    /// The day under the finger, found in the package, or nil. Where the
+    /// finger is belongs to the chart above — each of the four is scrubbed
+    /// on its own, and `.chartXSelection` goes on its `Chart` — so the card
+    /// is only told the answer, and draws the readout and the tick from it.
+    let selected: DailySample?
+    /// That day's numbers, in the chart's own units.
+    let readout: (DailySample) -> String
     let content: Content
 
     /// Grows with the text, or at the larger sizes the legend and axes took
@@ -400,12 +541,16 @@ private struct ChartCard<Content: View>: View {
         symbolName: String,
         caption: String? = nil,
         summary: String,
+        selected: DailySample?,
+        readout: @escaping (DailySample) -> String,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.symbolName = symbolName
         self.caption = caption
         self.summary = summary
+        self.selected = selected
+        self.readout = readout
         self.content = content()
     }
 
@@ -414,10 +559,17 @@ private struct ChartCard<Content: View>: View {
             Label(title, systemImage: symbolName)
                 .font(.subheadline.weight(.semibold))
 
-            if let caption {
-                Text(caption)
+            // Either the last day's figures or — while a finger is down — the
+            // day under it, in two lines' room whether it needs them or not.
+            // A caption that grew a line as the drag began would move the
+            // whole chart out from under the finger reading it.
+            if let line = captionLine {
+                Text(line)
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(selected == nil ? Color.secondary : Color.primary)
+                    .lineLimit(2, reservesSpace: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel(spokenCaptionLine ?? line)
             }
 
             content
@@ -443,12 +595,33 @@ private struct ChartCard<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+        // A day at a time as the finger crosses the record. `Int?` is
+        // `Equatable`, so letting go — which clears the selection — is a
+        // change too, and lands as one tick.
+        .sensoryFeedback(.selection, trigger: selected?.day)
+    }
+
+    /// The line above the chart: the day under the finger while there is one,
+    /// and the last recorded day otherwise.
+    private var captionLine: String? {
+        guard let selected else { return caption }
+        return "Day \(Self.label(forDay: selected.day)) · \(readout(selected))"
+    }
+
+    /// The same, said aloud. The middle dot is a typographic join rather than
+    /// a word, and "12/y2" is a way of writing a date rather than of saying
+    /// one.
+    private var spokenCaptionLine: String? {
+        guard let selected else { return nil }
+        let year = selected.day / Season.daysPerYear + 1
+        let dayOfYear = selected.day % Season.daysPerYear + 1
+        return "Day \(dayOfYear) of year \(year). \(readout(selected))"
     }
 
     /// Days are counted from the colony's founding, which past the first year
     /// makes for a number nobody can place. The axis shows the day of the
     /// year, with the year alongside once there is more than one.
-    private static func label(forDay day: Int) -> String {
+    static func label(forDay day: Int) -> String {
         let dayOfYear = day % Season.daysPerYear + 1
         let year = day / Season.daysPerYear + 1
         return year > 1 ? "\(dayOfYear)/y\(year)" : "\(dayOfYear)"
@@ -469,5 +642,18 @@ private struct RecordFootnote: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+extension Array where Element == DailySample {
+
+    /// The days these samples cover, half a day either side so the season
+    /// bands — drawn that way — meet the edges. Left to itself a chart's axis
+    /// ran from day zero, and thirty days of a two-year-old colony came out
+    /// as a sliver at the right-hand edge.
+    var dayDomain: ClosedRange<Double> {
+        let first = Double(first?.day ?? 0) - 0.5
+        let last = Double(last?.day ?? 1) + 0.5
+        return first...Swift.max(first + 1, last)
     }
 }

@@ -160,6 +160,61 @@ struct HistoryTests {
         #expect(history.recent(0).isEmpty)
     }
 
+    // MARK: - The day under a finger
+
+    /// What a scrubbed chart asks for. A finger lands between days, and the
+    /// readout has to resolve to a day the record actually holds — the same
+    /// way every time, and without going blank at the edges.
+    @Test("A day between samples resolves to the nearest one that was recorded")
+    func nearestSampleIsFound() {
+        var history = ColonyHistory()
+        for day in [10, 11, 12, 20, 30] { history.append(sample(onDay: day)) }
+
+        #expect(history.sample(nearestTo: 11)?.day == 11)
+        #expect(history.sample(nearestTo: 19)?.day == 20)
+        #expect(history.sample(nearestTo: 21)?.day == 20)
+        #expect(history.sample(nearestTo: 24)?.day == 20)
+        #expect(history.sample(nearestTo: 27)?.day == 30)
+
+        // Halfway between two recorded days goes to the earlier one, so a
+        // drag back and forth over a gap does not flicker.
+        #expect(history.sample(nearestTo: 25)?.day == 20)
+    }
+
+    @Test("Dragging off the end of a chart holds the last reading")
+    func nearestSampleClampsAtTheEnds() {
+        var history = ColonyHistory()
+        for day in 40..<50 { history.append(sample(onDay: day)) }
+
+        #expect(history.sample(nearestTo: -400)?.day == 40)
+        #expect(history.sample(nearestTo: 39)?.day == 40)
+        #expect(history.sample(nearestTo: 900)?.day == 49)
+
+        #expect(ColonyHistory().sample(nearestTo: 3) == nil)
+        #expect(ColonyHistory.sample(nearestTo: 3, in: []) == nil)
+    }
+
+    /// Every chart draws a slice rather than the whole record, so the slice is
+    /// what the scrub actually searches.
+    @Test("The same search works over a range taken out of the record")
+    func nearestSampleWorksOverASlice() {
+        var history = ColonyHistory()
+        for day in 0..<120 { history.append(sample(onDay: day)) }
+        let month = history.samples(in: .month, endingOn: 119)
+
+        #expect(ColonyHistory.sample(nearestTo: 0, in: month)?.day == 90)
+        #expect(ColonyHistory.sample(nearestTo: 104, in: month)?.day == 104)
+        #expect(ColonyHistory.sample(nearestTo: 500, in: month)?.day == 119)
+
+        // Whatever day is asked for, the answer is one the slice holds and is
+        // no further off than any other day in it.
+        for day in 80...130 {
+            let found = ColonyHistory.sample(nearestTo: day, in: month)
+            let closest = month.map { abs($0.day - day) }.min()
+            #expect(found.map { abs($0.day - day) } == closest)
+        }
+    }
+
     @Test("Seasons come back as bands, one per run of days")
     func seasonsBecomeBands() {
         var history = ColonyHistory()

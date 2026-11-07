@@ -8,6 +8,7 @@
 
 import SwiftUI
 import FlowerPowerCore
+import FlowerPowerGame
 
 enum Theme {
 
@@ -39,6 +40,13 @@ enum Theme {
     static let honey = ink(light: (0.50, 0.32, 0.02), dark: (0.93, 0.68, 0.13))
     /// A label on a prominent button, which is `honey`-filled.
     static let onHoney = Color(UIColor { $0.userInterfaceStyle == .dark ? .black : .white })
+    /// The same, for a prominent button that can be disabled. A disabled
+    /// prominent button loses its honey fill for a dark grey one, and a black
+    /// label on that grey is no label at all: the surplus card's "Take" sat
+    /// on the dashboard as a blank black pill until the slider moved.
+    static func onHoney(enabled: Bool) -> AnyShapeStyle {
+        enabled ? AnyShapeStyle(onHoney) : AnyShapeStyle(Color.secondary)
+    }
     /// Honey as a thing: comb, the nest on the map, anything drawn rather
     /// than read. The same bright gold in both appearances.
     static let honeyFill = Color(red: 0.93, green: 0.68, blue: 0.13)
@@ -158,6 +166,29 @@ enum Theme {
     /// that hides something. Nothing is drawn on it, so it is the one colour
     /// here that is allowed to be plain.
     static let fog = Color(red: 0.94, green: 0.91, blue: 0.83)
+
+    /// How worried a dashboard tile looks.
+    ///
+    /// A ramp rather than four unrelated colours, because the tiles are read as
+    /// a group: a glance across the grid should sort itself into what is fine,
+    /// what is worth a look and what is on fire without anything being read at
+    /// all. Green, the app's own gold, amber, red — and the judgement behind
+    /// which band a tile is in belongs to `DashboardSummary`, where it can be
+    /// tested, rather than to whatever view happens to be drawing it.
+    ///
+    /// Its own label rather than one more `colour(for:)`, because the engine
+    /// has a `Severity` too (`SimEvent.Severity`, below) and the two share a
+    /// case name: `Theme.colour(for: .notable)` would have been ambiguous,
+    /// and a leading-dot call that is fine today would become ambiguous the
+    /// day either enum gained a case the other already has.
+    static func colour(forDashboard severity: DashboardSummary.Severity) -> Color {
+        switch severity {
+        case .calm: return healthy
+        case .notable: return honey
+        case .caution: return caution
+        case .alarm: return alarm
+        }
+    }
 
     static func colour(for severity: SimEvent.Severity) -> Color {
         switch severity {

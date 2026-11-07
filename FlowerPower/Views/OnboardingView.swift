@@ -288,7 +288,7 @@ struct OnboardingView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(Theme.honey)
-                        .foregroundStyle(Theme.onHoney)
+                        .foregroundStyle(Theme.onHoney(enabled: !isAsking))
                         .controlSize(.large)
                         .disabled(isAsking)
 

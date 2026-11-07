@@ -324,6 +324,7 @@ FlowerPower colony trajectory
 
 let header = pad("day", 5) + pad("season", 8) + padLeft("pop", 5) + padLeft("adult", 6)
     + padLeft("brood", 6) + padLeft("honey", 7) + padLeft("pollen", 7) + padLeft("cells", 6)
+    + padLeft("free", 5) + padLeft("eggs", 5) + padLeft("nurse", 6)
     + padLeft("temp", 6) + padLeft("mites", 7) + padLeft("vit", 6) + padLeft("Q", 4) + padLeft("qvit", 6) + padLeft("rjel", 6) + "  notes"
 print(header)
 print(String(repeating: "-", count: header.count + 10))
@@ -338,9 +339,12 @@ for day in 0..<options.days {
     let events = simulation.stepDay()
 
     var notes: [String] = []
+    var eggsToday = 0
     for event in events {
         totals.record(event)
         switch event {
+        case .eggsLaid(let count, _):
+            eggsToday += count
         case .swarmed(let lost):
             swarms += 1
             notes.append("SWARM (-\(lost))")
@@ -386,6 +390,12 @@ for day in 0..<options.days {
             + padLeft(number(hive.resources[.honey]), 7)
             + padLeft(number(hive.resources[.pollen]), 7)
             + padLeft("\(hive.comb.builtCells)", 6)
+            // Free cells and the day's eggs, which is how a honey-bound
+            // colony shows itself: a laying queen, a flow on, and nothing to
+            // lay into. Seed 8919 under gentle, 2026-09-24.
+            + padLeft("\(hive.freeCells)", 5)
+            + padLeft("\(eggsToday)", 5)
+            + padLeft("\(hive.bees.filter { $0.performs(.nurseBee) }.count)", 6)
             + padLeft(number(hive.temperatureCelsius, 1), 6)
             + padLeft(number(hive.pathogens[.varroa] * 100), 6) + "%"
             + padLeft(number(hive.averageVitality, 2), 6)

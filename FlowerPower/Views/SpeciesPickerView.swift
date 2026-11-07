@@ -150,8 +150,7 @@ struct SpeciesPickerView: View {
                             .font(.caption.italic())
                             .foregroundStyle(.secondary)
                     }
-                    Text(species.bloomSeasons
-                        .sorted { $0.rawValue < $1.rawValue }
+                    Text(Season.allCases.filter(species.bloomSeasons.contains)
                         .map { $0.rawValue.capitalized }
                         .joined(separator: ", "))
                         .font(.caption2)
