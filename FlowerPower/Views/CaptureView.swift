@@ -190,6 +190,14 @@ struct CaptureView: View {
             return
         }
 
+        // Asked now, straight after the pick it is for, rather than at the
+        // end of identifying — which on the simulator put the prompt over a
+        // spinner half a minute after the photograph was chosen, as if out of
+        // nowhere. `libraryPhoto` still asks if this was somehow skipped.
+        if PhotoLibrary.authorisationStatus == .notDetermined {
+            await PhotoLibrary.requestAccess()
+        }
+
         stage = .loading
         do {
             // Decoded at working size, upright, and off the main actor. A
@@ -442,6 +450,10 @@ private struct IdentifyingView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var sweeping = false
+    /// Set once the wait has run long. Placing a plant among 57,000 names
+    /// took about thirty seconds on the simulator, where the model runs on
+    /// the processor, and a spinner alone for that long reads as a hang.
+    @State private var isSlow = false
 
     var body: some View {
         VStack(spacing: 20) {
@@ -470,8 +482,20 @@ private struct IdentifyingView: View {
 
             ProgressView("Looking at it…")
                 .tint(Theme.honey)
+
+            if isSlow {
+                Text("Every flowering plant there is gets a look, so this can take a little while.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .transition(.opacity)
+            }
         }
         .padding()
+        .task {
+            try? await Task.sleep(for: .seconds(6))
+            withAnimation { isSlow = true }
+        }
         .onAppear {
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {

@@ -368,13 +368,24 @@ extension DashboardSummary {
             ? queen.geneticDiversity
             : nil
 
+        // A laying queen with nothing in the comb in winter is not laying:
+        // she has stopped, as she should, until the days lengthen. "Laying"
+        // over "0 brood" in the next tile read as a contradiction, or as a
+        // queen failing. The state is unchanged; only the word for it.
+        let resting = queen.state == .laying
+            && snapshot.season == .winter
+            && snapshot.population.brood == 0
+        let headline = resting ? "Resting" : queen.state.displayName
+
         return Tile(
             kind: .queen,
-            headline: queen.state.displayName,
-            caption: caption,
+            headline: headline,
+            caption: resting ? "\(caption), laying again before spring" : caption,
             severity: queenSeverity(queen.state),
             gauge: gauge,
-            spoken: "\(queen.state.displayName), \(caption)"
+            spoken: resting
+                ? "Resting for the winter, \(caption)"
+                : "\(queen.state.displayName), \(caption)"
         )
     }
 

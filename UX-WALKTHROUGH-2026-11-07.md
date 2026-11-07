@@ -23,7 +23,6 @@ re-checked here, and only those that still held are listed.
 | Tag | Meaning |
 |---|---|
 | **FIXED** | Changed, rebuilt and seen working on the simulator |
-| **OPEN** | Still as found, for a decision or a later pass |
 
 ## Already fixed by the merge
 
@@ -127,36 +126,57 @@ swept into the merge. Capture was seen working end to end today.
 24. **FIXED. An uncatalogued species was called "A family the catalogue has no
     notes on".** The note now says the catalogue has no notes on *this family*.
 
-## Open
+## Fixed in a second pass
 
-25. **OPEN. One garden-cell tap planted the flower in a different cell.**
+The eleven items left open after the first pass, fixed on the same day. The `w`
+prefix marks their screenshots.
+
+25. **FIXED (not reproduced). One garden-cell tap planted the flower in a
+    different cell.**
     - Seen once: tapped west, planted east. A repeat went where it was tapped.
-    - Suspect: `ContentView.show()` re-presents the root sheet when it has not
-      appeared within 1.5 s. The dismissal runs `sheetClosed`, which clears
-      `plantingCell`, so a slow first presentation would lose the cell.
-    - Not reproduced, so nothing was changed.
-26. **OPEN. The species search shows an empty sheet for about 3 s before results
-    appear.** It needs a "Searching…" state.
-27. **OPEN. Identification takes about 30 s on the simulator.** BioCLIP runs on the
-    CPU there. It needs measuring on a phone; if it is still slow, the "Looking at
-    it…" screen should say it can take a moment.
-28. **OPEN. The read-access prompt arrives mid-identification, after a photo was
-    already picked.** It is the moment the access is needed. Asking before the
-    picker would at least be expected.
-29. **OPEN. The Queen tile says "Laying" in winter with no brood.** Either the state
-    name or the winter wording should change.
-30. **OPEN. Field Guide says "Photographed 0 of 30" when the garden holds two
-    flowers outside the catalogue.**
-31. **OPEN. Collection's "Not yet found" rows carry grey counts with no label.**
-32. **OPEN. Flower detail shows "100% forage left" in a tile and again in "Right
-    now".** The share and Done buttons also float over the scrolled title.
-33. **OPEN. Settings repeats the garden counts from elsewhere and has long
-    footers.** One footer covers three different settings.
-34. **OPEN. The Stores detail does not show the "% of what winter needs" that its
-    tile leads with.** On day 1 its trace has no history yet, so "60 honey" sits
-    beside "0 to spare" with nothing explaining the gap.
-35. **OPEN. The day-1 bloom card has no button to photograph a flower.** The
-    camera is in the toolbar.
+    - Likely cause: `ContentView.show()` puts down and re-presents a root sheet
+      that has not appeared within 1.5 s. That runs `sheetClosed`, which cleared
+      the separately held `plantingCell`.
+    - The cell now travels inside `RootSheet.capture(plantingAt:)`, so a
+      re-presented camera still has it. The map's bloom is set when the camera
+      disappears.
+    - Seen planting where tapped afterwards (north-west, `w10`). The race itself
+      has still never been made to happen on demand.
+26. **FIXED. The species search was an empty sheet for about 3 s.**
+    - It now shows "Searching every flowering plant…" until the wider search
+      answers the current query (`w11`).
+    - A query with no matches says so (`w12`).
+27. **FIXED. Identification sat on a spinner for about 30 s on the simulator.**
+    - After six seconds a line explains that every flowering plant gets a look
+      (`w09`).
+    - Still to measure on a phone, where the model has the Neural Engine.
+28. **FIXED. The read-access prompt arrived mid-identification.** It is now asked
+    straight after the pick it is for (`w08`).
+29. **FIXED. The Queen tile said "Laying" in winter with no brood.**
+    - A laying queen with no brood in winter now reads "Resting" (`w01`).
+    - Her caption adds "laying again before spring".
+    - Her state is unchanged.
+30. **FIXED. Field Guide said "Photographed 0 of 30" for a garden of uncatalogued
+    plants.** The footer now counts the garden's plants the guide does not cover
+    (`w07`).
+31. **FIXED. Collection's "Not yet found" rows carried bare grey counts.** They now
+    say "2 in the guide", or "none in the guide".
+32. **FIXED. Flower detail said "100% forage left" twice.**
+    - "Right now" opens with the distance now.
+    - It adds "going over" only past half vigour, "gone over" once spent, and
+      "not in bloom" when that is true (`w06`).
+    - Buttons floating over the scrolled title are iOS 27's Liquid Glass
+      toolbar, left alone.
+33. **FIXED. Settings repeated the garden counts and had long footers.**
+    - The Garden section is now the "Ask a Friend for Forage" button, which used
+      to sit under Rhythm.
+    - The difficulty, rhythm, notification and backup footers are shorter
+      (`w03`, `w04`).
+34. **FIXED. The Stores page did not show the "% of what winter needs" its tile
+    leads with.** The winter meter now shows in every season, captioned "150 of
+    828 needed" (`w02`).
+35. **FIXED. The dashboard bloom card had no way to the camera.** It now ends with
+    "Photograph a Flower" (`w05`). The Collection's copy of the card does not.
 
 ## Not localised yet
 

@@ -735,15 +735,25 @@ private struct PatchStateCard: View {
         }
     }
 
-    /// The closed row's line: where it stands and how far off it is.
+    /// The closed row's line: how far off it is, and anything wrong with it.
+    ///
+    /// Not how much is left. The glance row directly above already says
+    /// "100% Forage left", and this line used to open by saying it again.
     private var summary: String {
-        var parts: [String] = ["\(Int(patch.remainingFraction * 100))% of the stand left"]
+        var parts: [String] = []
         if let cell = patch.cell {
             let metres = Int(Double(HexCoordinate.origin.distance(to: cell)) * HexCoordinate.cellMetres)
             parts.append("\(metres) m from the nest")
         }
+        if patch.hasFaded {
+            parts.append("gone over")
+        } else if patch.vigour < 0.5 {
+            // Past its best by half. `isFading` is true from the first day
+            // after its peak, which is every flower but a new one.
+            parts.append("going over")
+        }
         if !patch.isInBloom { parts.append("not in bloom") }
-        return parts.joined(separator: ", ")
+        return parts.isEmpty ? "Distance, foragers and how long it will last" : parts.joined(separator: ", ").capitalisingFirst
     }
 
     private var details: some View {

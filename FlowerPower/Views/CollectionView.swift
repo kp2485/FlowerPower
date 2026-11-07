@@ -320,13 +320,18 @@ private struct MissingFamilyRow: View {
             HStack {
                 Text(family.commonName).font(.subheadline)
                 Spacer()
-                Text("\(members.count)")
+                // Said, not just a number. A bare grey "2" beside each
+                // family did not say it counted the plants the guide
+                // describes, and a family with none read "0".
+                Text(members.isEmpty ? "none in the guide" : "\(members.count) in the guide")
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(family.commonName)
-            .accessibilityValue("\(members.count) plants the game knows, none found")
+            .accessibilityValue(members.isEmpty
+                                ? "none found, and none in the guide"
+                                : "\(members.count) plants the game knows, none found")
             .accessibilityHint(isExpanded ? "Collapses the family" : "Expands the family")
         }
         .tint(Theme.honey)
@@ -338,6 +343,11 @@ private struct MissingFamilyRow: View {
 struct BloomPromptCard: View {
 
     let prompt: BloomPrompt
+    /// Where the card can open the camera. The card names flowers worth
+    /// finding and then left the player to find the camera in the toolbar;
+    /// on the dashboard it now ends with the button. Nil where the screen has
+    /// no camera of its own to offer, as in the collection.
+    var onPhotograph: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -393,6 +403,18 @@ struct BloomPromptCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let onPhotograph {
+                Button(action: onPhotograph) {
+                    Label("Photograph a Flower", systemImage: "camera.fill")
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.honey)
+                .foregroundStyle(Theme.onHoney)
+                .padding(.top, 4)
             }
         }
         .card()

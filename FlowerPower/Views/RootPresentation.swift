@@ -19,7 +19,17 @@ import FlowerPowerCore
 import FlowerPowerGame
 
 enum RootSheet: Identifiable {
-    case capture
+    /// The camera, and the garden cell tapped on the map to open it, if it
+    /// was opened that way.
+    ///
+    /// The cell travels with the sheet. It used to be separate state on
+    /// `ContentView`, which `sheetClosed` cleared — and a presentation that
+    /// had not arrived within a second and a half is put down and put up
+    /// again (`ContentView.show`), which runs `sheetClosed` in between. A
+    /// slow camera then came back with no cell, and the flower went wherever
+    /// the engine chose rather than where the player tapped. Seen once on the
+    /// simulator, 2026-11-07: tapped west of the nest, planted east of it.
+    case capture(plantingAt: HexCoordinate? = nil)
     case settings
     case report
     case flower(FlowerShare)

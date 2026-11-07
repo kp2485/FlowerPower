@@ -122,7 +122,7 @@ struct ColonyDashboardView: View {
                         patches: snapshot.patches,
                         terrain: snapshot.terrain,
                         wildPatches: snapshot.wildPatches
-                    ))
+                    ), onPhotograph: onPhotograph)
                 }
                 .padding()
             }
@@ -952,16 +952,17 @@ struct StoresSection: View {
             SectionTitle("Stores", systemImage: "archivebox.fill")
 
             // Winter readiness is the number that decides whether the colony
-            // sees spring, so it leads from midsummer onward.
-            if season == .summer || season == .autumn || season == .winter {
-                MeterView(
-                    label: "Winter Stores",
-                    value: stores.winterReadiness,
-                    caption: "\(Int(stores.edibleEnergy.rounded())) / \(Int(stores.winterRequirement.rounded()))",
-                    tint: stores.isWinterReady ? Theme.healthy : Theme.caution,
-                    symbolName: "snowflake"
-                )
-            }
+            // sees spring. In every season now: the tile that opens this page
+            // leads with "36% of what winter needs" all year, and in spring
+            // and summer this page then never said what that was a percentage
+            // of, so "60 honey" sat over "0 to spare" unexplained.
+            MeterView(
+                label: "Winter Stores",
+                value: stores.winterReadiness,
+                caption: "\(Int(stores.edibleEnergy.rounded())) of \(Int(stores.winterRequirement.rounded())) needed",
+                tint: stores.isWinterReady ? Theme.healthy : Theme.caution,
+                symbolName: "snowflake"
+            )
 
             if banked >= 1 {
                 Label(
