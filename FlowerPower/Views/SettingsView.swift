@@ -133,7 +133,7 @@ struct SettingsView: View {
         } header: {
             Text("Difficulty")
         } footer: {
-            Text("Changes apply from now on. Over 200 simulated colonies in a tree cavity, about 98% see their first spring on Forgiving, 92% on Natural and 69% on Harsh; by the second spring it is 90%, 76% and 12%. A smaller or more exposed site does worse.")
+            Text("Changes apply from now on. Of 200 simulated colonies in a tree cavity, about 98%, 92% and 69% saw their first spring on Forgiving, Natural and Harsh, and 90%, 76% and 12% their second. A smaller or more exposed site does worse.")
         }
     }
 
@@ -159,13 +159,15 @@ struct SettingsView: View {
 
     private var gardenSection: some View {
         Section {
-            LabeledContent("Flowers photographed", value: "\(store.snapshot.patches.count)")
-            LabeledContent("In bloom", value: "\(store.snapshot.patches.filter { $0.isInBloom && !$0.hasFaded }.count)")
-            LabeledContent("Gone over", value: "\(store.snapshot.patches.filter(\.hasFaded).count)")
+            // The one garden thing that is a setting rather than a reading.
+            // This section was three counts the Garden tab and the dashboard
+            // already show, and the button sat under "Rhythm", where nobody
+            // would look for it.
+            Button("Ask a Friend for Forage") { isAskingForForage = true }
         } header: {
             Text("Garden")
         } footer: {
-            Text("Flowers do not last. A patch you photograph is at its best for about two months and is gone a few months after that, so keep finding new ones.")
+            Text("A friend can send you a flower they photographed, and your bees will work it like one of yours.")
         }
     }
 
@@ -190,12 +192,10 @@ struct SettingsView: View {
                 Text("Northern").tag(Hemisphere.northern.rawValue)
                 Text("Southern").tag(Hemisphere.southern.rawValue)
             }
-
-            Button("Ask a Friend for Forage") { isAskingForForage = true }
         } header: {
             Text("Rhythm")
         } footer: {
-            Text("One report a day, on the first chance the game gets after the hour you choose. At double speed a winter lasts about four real days instead of seven. The hemisphere sets which flowers are in season for your walks.")
+            Text("The morning report comes at the first chance after this hour. At double speed, winter takes about four real days instead of seven. The hemisphere picks which flowers are suggested for your walks.")
         }
     }
 
@@ -247,7 +247,7 @@ struct SettingsView: View {
         } header: {
             Text("Notifications")
         } footer: {
-            Text("Decisions are a siege, swarm cells, a full nest, a swarm that has left, the autumn entrance — each with a window, each answerable from the notification itself. Colony news is everything else the colony does badly, including the day it ends. The morning report is one summary a day. iOS decides when the game may wake, so any of these can arrive hours late, and a short siege can open and close between wakes. The dashboard always has the whole of it.")
+            Text("Decisions can be answered from the notification itself. Colony news is anything else that goes badly; the morning report is one summary a day. iOS decides when the game may wake, so any of these can arrive hours late. The dashboard always has the whole of it.")
         }
         .task { @MainActor in await readNotificationStatus() }
         .onChange(of: scenePhase) { _, phase in
@@ -298,7 +298,7 @@ struct SettingsView: View {
         } header: {
             Text("Backup")
         } footer: {
-            Text("The file is the whole colony and its garden — every bee, the comb, the queens and the flowers you have photographed. Not the pictures of them: those stay on this phone, so on another phone the flowers arrive and work as before, with blank thumbnails. Keep it somewhere you keep things. Opening one on another phone replaces that phone's colony, so it is a way to move a colony rather than to share one.")
+            Text("The whole colony and its garden, but not the photographs: those stay on this phone, so elsewhere the flowers work as before with blank thumbnails. Opening the file on another phone replaces that phone's colony — it moves a colony rather than sharing one.")
         }
         // Keyed on the day, so a colony that has moved on gets a fresh file
         // and one that has not is not re-encoded on every redraw.

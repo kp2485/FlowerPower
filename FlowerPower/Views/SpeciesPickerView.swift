@@ -66,6 +66,12 @@ struct SpeciesPickerView: View {
     /// is worked out once a pause in typing, off the main actor.
     @State private var worldResults: [TaxonEmbeddingIndex.Entry] = []
 
+    /// The query `worldResults` answers. Until it matches what is typed, the
+    /// wider search is still going, and the list says so: it used to show an
+    /// empty sheet for three seconds, which reads as "nothing matches".
+    @State private var searchedFor = ""
+    private var isSearching: Bool { !search.isEmpty && searchedFor != search }
+
     @concurrent
     nonisolated private static func search(
         _ index: TaxonEmbeddingIndex,
@@ -98,7 +104,20 @@ struct SpeciesPickerView: View {
                     }
                 }
 
-                if !worldResults.isEmpty {
+                if isSearching {
+                    Section {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Searching every flowering plant…")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else if !search.isEmpty, results.isEmpty, worldResults.isEmpty {
+                    ContentUnavailableView.search(text: search)
+                        .listRowBackground(Color.clear)
+                }
+
+                if !worldResults.isEmpty, !isSearching {
                     Section {
                         ForEach(worldResults, id: \.self) { entry in
                             worldRow(entry)
@@ -115,16 +134,22 @@ struct SpeciesPickerView: View {
                 index = await TaxonIndexStore.shared.index
             }
             .task(id: SearchKey(query: search, hasIndex: index != nil)) {
-                guard let index, !search.isEmpty else {
+                guard !search.isEmpty else {
                     worldResults = []
+                    searchedFor = ""
                     return
                 }
+                // Still loading: `isSearching` holds, and this runs again
+                // when the index arrives, because it is part of the key.
+                guard let index else { return }
                 // A pause in typing; a new keystroke cancels this one.
                 try? await Task.sleep(for: .milliseconds(180))
                 guard !Task.isCancelled else { return }
-                let found = await Self.search(index, for: search, excluding: Set(results.map(\.taxon)))
+                let query = search
+                let found = await Self.search(index, for: query, excluding: Set(results.map(\.taxon)))
                 guard !Task.isCancelled else { return }
                 worldResults = found
+                searchedFor = query
             }
             .navigationTitle("What Is It?")
             .navigationBarTitleDisplayMode(.inline)
@@ -176,7 +201,7 @@ struct SpeciesPickerView: View {
             dismiss()
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.commonName.isEmpty ? entry.scientificName : entry.commonName)
+                Text(entry.commonName.isEmpty ? entry.scientificName : entry.commonName.capitalisingFirst)
                     .foregroundStyle(.primary)
                 Text(entry.commonName.isEmpty
                      ? "\(entry.rank.displayName) · \(BotanicalFamily(entry.family).commonName)"

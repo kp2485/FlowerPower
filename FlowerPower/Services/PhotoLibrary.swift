@@ -165,6 +165,24 @@ enum PhotoLibrary {
         // No permission must leave the game playable, so the photograph is
         // kept in the app the way a flower from a friend is, and the garden
         // reads it from there by the same prefix.
+        return try keepInApp(image, encoded: data, takenAt: takenAt)
+    }
+
+    /// Keeps a photograph in the app's own container rather than the library.
+    ///
+    /// For a photo picked from the library that the app cannot read back:
+    /// it is already in the player's library, so writing it there again asked
+    /// for a second permission (to add photos) straight after the first, and
+    /// on a yes left a duplicate in the camera roll. Kept here, it needs
+    /// neither, and the garden shows it the same way.
+    static func keepInApp(_ image: UIImage) throws -> PhotoMetadata {
+        guard let data = image.jpegData(compressionQuality: 0.85) else {
+            throw PhotoLibraryError.couldNotSave
+        }
+        return try keepInApp(image, encoded: data, takenAt: Date())
+    }
+
+    private static func keepInApp(_ image: UIImage, encoded data: Data, takenAt: Date) throws -> PhotoMetadata {
         let id = "capture-" + UUID().uuidString
         guard SharedImageStore.store(image.jpegData(compressionQuality: 0.85) ?? data, forShare: id) else {
             throw PhotoLibraryError.couldNotSave

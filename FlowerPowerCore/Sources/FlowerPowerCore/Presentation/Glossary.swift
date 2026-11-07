@@ -687,7 +687,7 @@ public enum Glossary {
         case .cave:
             return GlossaryTerm(
                 site.displayName,
-                "The most room there is, and safe with it. Cold, though, so the cluster spends more honey holding its heat than it would in a tree.",
+                "The most room there is, and rock holds an even warmth, so a winter here costs less honey than in a tree. The mouth is wide, though, and harder to hold against raiders than a knothole.",
                 related: ["Winter Cluster", "Honey"]
             )
         case .insideWalls:

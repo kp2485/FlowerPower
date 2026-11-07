@@ -102,7 +102,7 @@ extension SimEvent {
         case .infectionDetected(let pathogen):
             return "\(pathogen.displayName) appeared in the colony."
         case .infectionCleared(let pathogen):
-            return "The colony cleared \(pathogen.displayName.lowercased())."
+            return "The colony cleared \(pathogen.nameInSentence)."
         case .infectionCritical(let pathogen):
             return "\(pathogen.displayName) has reached a critical level."
 

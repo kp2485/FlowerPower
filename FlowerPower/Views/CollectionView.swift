@@ -49,11 +49,16 @@ struct CollectionView: View {
             } header: {
                 Text("Out now, \(prompt.season.rawValue)")
             } footer: {
-                Picker("Hemisphere", selection: $hemisphereRaw) {
-                    Text("Northern").tag(Hemisphere.northern.rawValue)
-                    Text("Southern").tag(Hemisphere.southern.rawValue)
+                // Labelled, because a bare "Northern | Southern" under a list
+                // of flowers did not say what it switched.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Your hemisphere")
+                    Picker("Hemisphere", selection: $hemisphereRaw) {
+                        Text("Northern").tag(Hemisphere.northern.rawValue)
+                        Text("Southern").tag(Hemisphere.southern.rawValue)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
                 .padding(.top, 8)
             }
 
@@ -137,8 +142,13 @@ struct CollectionView: View {
                     let covered = collection.seasonsCovered.contains(season)
                     Label(season.rawValue.capitalized, systemImage: Theme.symbol(for: season))
                         .font(.caption)
+                        // One line, shrinking to fit: without the limit the
+                        // scale factor never applied and a quarter-width pill
+                        // broke "Summer" and "Autumn" across two lines mid-word.
+                        .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .padding(.vertical, 6)
+                        .padding(.horizontal, 2)
                         .frame(maxWidth: .infinity)
                         .background(covered ? Theme.honey.opacity(0.25) : Color.clear,
                                     in: RoundedRectangle(cornerRadius: 8))
@@ -310,13 +320,18 @@ private struct MissingFamilyRow: View {
             HStack {
                 Text(family.commonName).font(.subheadline)
                 Spacer()
-                Text("\(members.count)")
+                // Said, not just a number. A bare grey "2" beside each
+                // family did not say it counted the plants the guide
+                // describes, and a family with none read "0".
+                Text(members.isEmpty ? "none in the guide" : "\(members.count) in the guide")
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(family.commonName)
-            .accessibilityValue("\(members.count) plants the game knows, none found")
+            .accessibilityValue(members.isEmpty
+                                ? "none found, and none in the guide"
+                                : "\(members.count) plants the game knows, none found")
             .accessibilityHint(isExpanded ? "Collapses the family" : "Expands the family")
         }
         .tint(Theme.honey)
@@ -328,6 +343,11 @@ private struct MissingFamilyRow: View {
 struct BloomPromptCard: View {
 
     let prompt: BloomPrompt
+    /// Where the card can open the camera. The card names flowers worth
+    /// finding and then left the player to find the camera in the toolbar;
+    /// on the dashboard it now ends with the button. Nil where the screen has
+    /// no camera of its own to offer, as in the collection.
+    var onPhotograph: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -366,6 +386,16 @@ struct BloomPromptCard: View {
                     }
                     .accessibilityElement(children: .combine)
                 }
+
+                // The star explained where it is used. The garden's own card
+                // said what it meant; this one, on the dashboard and in the
+                // collection, left it to be guessed.
+                if prompt.notYetPhotographed.prefix(5).contains(where: \.isKeystone) {
+                    Label("Keystones: they flower when little else does.", systemImage: "star.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             if !prompt.missingFamilies.isEmpty {
@@ -373,6 +403,18 @@ struct BloomPromptCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let onPhotograph {
+                Button(action: onPhotograph) {
+                    Label("Photograph a Flower", systemImage: "camera.fill")
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.honey)
+                .foregroundStyle(Theme.onHoney)
+                .padding(.top, 4)
             }
         }
         .card()

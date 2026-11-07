@@ -199,11 +199,17 @@ private struct CombPanel: View {
             }
         }
         .aspectRatio(1.15, contentMode: .fit)
-        // A ceiling that no phone reaches. The comb is no longer in a scroll
-        // view, so a comb as tall as a wide screen is wide would have
-        // nowhere to go; this keeps it on the screen if the app is ever run
-        // somewhere wider than a phone held upright.
-        .frame(maxWidth: 520)
+        // A ceiling on the height too, now that the comb is pinned. At its
+        // full width it stood about 320 pt tall on an iPhone 17, and with
+        // the title and the tab bar that left the legend and the jobs a
+        // strip under it whose first rows were always cut off. The cells come
+        // out a little smaller; the page underneath gets to be read. Capped
+        // through the width, which the aspect ratio turns into about 250 pt
+        // of height: the panel is laid out with no height proposed at all
+        // (see `NestView.body`), and a height ceiling there is never asked.
+        // It used to be 520, a ceiling no phone reached, kept for a screen
+        // wider than a phone; this one is lower and does the same job there.
+        .frame(maxWidth: 290)
         .frame(maxWidth: .infinity)
         // Only when the cell under the finger changes, not on every pixel of
         // the sweep: a haptic per pixel is a buzz, not a texture.

@@ -89,6 +89,7 @@ extension ColonyStatus {
         if hive.pathogens.totalPressure > 0.5 { return .struggling }
         if hive.averageVitality < 0.6 { return .struggling }
         if season == .autumn && !hive.isWinterReady { return .struggling }
+        if season == .winter && hive.isShortForWinter { return .struggling }
 
         if hive.broodCount > 0, hive.isWinterReady || season != .autumn,
            hive.averageVitality > 0.85 {
@@ -1037,7 +1038,7 @@ extension Simulation {
         let untilSpring = Season.daysUntilSpring(from: clock.day)
 
         // Being short is the only thing worth saying, if it is true.
-        if !hive.isWinterReady, hive.resources.edibleEnergy < hive.winterStoresRequired * 0.6 {
+        if hive.isShortForWinter {
             return "Clustered, and short of stores with \(untilSpring.counted("day")) to spring."
         }
 

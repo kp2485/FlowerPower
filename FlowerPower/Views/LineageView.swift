@@ -158,7 +158,11 @@ private struct QueenRow: View {
     private var record: some View {
         VStack(alignment: .leading, spacing: 6) {
             LabeledContent("Reign", value: queen.reignDays(on: today).counted("day"))
-            LabeledContent("Emerged", value: dayLabel(queen.emergedOnDay))
+            // A founding queen was already a mated queen when her swarm
+            // settled, so "Emerged year 1, day 1" sat under a Queen tile
+            // giving her age as ten days. Her record starts with the colony;
+            // her life did not.
+            LabeledContent("Emerged", value: isFounder ? "Before the swarm settled" : dayLabel(queen.emergedOnDay))
             LabeledContent("Mating", value: mating)
             LabeledContent("Quality at emergence", value: "\(Int((queen.quality * 100).rounded()))%")
 
@@ -195,9 +199,11 @@ private struct QueenRow: View {
 
     private var mating: String {
         guard let patrilines = queen.patrilines else { return "Never mated" }
-        guard let day = queen.matedOnDay else { return patrilines.counted("drone") }
+        guard let day = queen.matedOnDay, !isFounder else { return patrilines.counted("drone") }
         return "\(patrilines.counted("drone")), \(dayLabel(day))"
     }
+
+    private var isFounder: Bool { queen.motherNumber == nil }
 
     /// Days are counted from the colony's founding, which past the first year
     /// is a number nobody can place.

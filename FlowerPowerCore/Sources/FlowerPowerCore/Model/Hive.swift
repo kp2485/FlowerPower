@@ -81,7 +81,10 @@ public enum HiveLocationType: String, Codable, CaseIterable, Sendable {
         case .cliff:
             return "Exposed rock. Cramped and draughty, though hard for anything heavy to reach."
         case .cave:
-            return "The most room there is, and safe. Cold, though: it will cost honey to keep warm."
+            // Written to the numbers: insulation 0.90, the joint highest, and
+            // defensibility 0.60, below a tree. It used to say "safe" and
+            // "cold", the reverse of both bars drawn beside it.
+            return "The most room there is, and rock holds an even warmth. A wide mouth is harder to guard than a knothole, though."
         case .insideWalls:
             return "Roomy, very warm and easily held. The best site in the game, if you do not mind the neighbours."
         case .humanStructure:
@@ -586,5 +589,14 @@ public struct Hive: Codable, Equatable, Sendable {
 
     public var isWinterReady: Bool {
         resources.edibleEnergy >= winterStoresRequired
+    }
+
+    /// Well short of what the winter needs — under sixty per cent of it.
+    ///
+    /// One test for the two places that say so in winter: the headline,
+    /// which said "short of stores", and the status, which did not look at
+    /// stores after autumn and said "Steady" beside it.
+    public var isShortForWinter: Bool {
+        !isWinterReady && resources.edibleEnergy < winterStoresRequired * 0.6
     }
 }

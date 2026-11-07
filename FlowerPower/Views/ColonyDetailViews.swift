@@ -202,9 +202,10 @@ private struct HoneyDetailView: View {
         DetailPage("Honey") {
             HoneyDecisionCard(snapshot: store.snapshot)
 
+            // The card above already says what a surplus is; this says how
+            // it moves through the year, which it did not.
             Explainer(
-                "The surplus is what they have put away beyond what the coming "
-                + "winter needs, in every season. The winter is reckoned for the "
+                "The winter is reckoned for the "
                 + "colony as it stands, so at midsummer, with the nest at its "
                 + "fullest, the reserve is at its largest; it shrinks as the "
                 + "summer bees die off, and the crop is usually taken in autumn. "
@@ -228,9 +229,24 @@ private struct ForageDetailView: View {
 
     /// Everything the bees can actually work today, the player's flowers first
     /// — that is the half of it they can do something about.
+    ///
+    /// Wild stands of one plant are folded into a single line. The country
+    /// plants the same willow in several places, and the list read "Pussy
+    /// Willow, Pussy Willow, Pussy Willow" with two of the three lines
+    /// identical. The player's own flowers stay one to a line: each is a
+    /// photograph they took.
     private var working: [ForageLine] {
-        snapshot.patches.filter { $0.isInBloom && !$0.hasFaded }.map { ForageLine(patch: $0, isWild: false) }
-            + snapshot.wildPatches.filter { $0.isInBloom && !$0.hasFaded }.map { ForageLine(patch: $0, isWild: true) }
+        let garden = snapshot.patches
+            .filter { $0.isInBloom && !$0.hasFaded }
+            .map { ForageLine(patches: [$0], isWild: false) }
+        let wild = Dictionary(
+            grouping: snapshot.wildPatches.filter { $0.isInBloom && !$0.hasFaded },
+            by: \.speciesName
+        )
+        .values
+        .map { ForageLine(patches: $0.sorted { $0.distanceMetres < $1.distanceMetres }, isWild: true) }
+        .sorted { $0.patch.distanceMetres < $1.patch.distanceMetres }
+        return garden + wild
     }
 
     var body: some View {
@@ -260,7 +276,7 @@ private struct ForageDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionTitle("In bloom", systemImage: "leaf.fill")
                     ForEach(working) { entry in
-                        PatchLine(patch: entry.patch, isWild: entry.isWild)
+                        PatchLine(line: entry)
                         if entry.id != working.last?.id {
                             Divider()
                         }
@@ -286,19 +302,25 @@ private struct ForageDetailView: View {
 
 /// A stand the bees can work, and whether it is one the player went out and
 /// found or one that was simply there.
+///
+/// One stand, or several wild stands of the same plant: `patches` is never
+/// empty and is nearest first.
 private struct ForageLine: Identifiable {
-    let patch: PatchSummary
+    let patches: [PatchSummary]
     let isWild: Bool
-    /// The patch's own identity. A garden patch and a wild one can never share
-    /// one — `EntityID`s are unique across the world.
+    /// The nearest stand, which speaks for the line.
+    var patch: PatchSummary { patches[0] }
+    /// The nearest patch's own identity. A garden patch and a wild one can
+    /// never share one — `EntityID`s are unique across the world.
     var id: EntityID { patch.id }
 }
 
 /// One stand of flowers, in a line.
 private struct PatchLine: View {
 
-    let patch: PatchSummary
-    let isWild: Bool
+    let line: ForageLine
+    private var patch: PatchSummary { line.patch }
+    private var isWild: Bool { line.isWild }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -307,7 +329,9 @@ private struct PatchLine: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(patch.speciesName)
+                Text(line.patches.count > 1
+                     ? "\(patch.speciesName) ×\(line.patches.count)"
+                     : patch.speciesName)
                     .font(.subheadline.weight(.medium))
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -336,11 +360,14 @@ private struct PatchLine: View {
     /// ternaries passed to `Text`, which is the shape of expression the type
     /// checker gives up on.
     private var facts: String {
-        var parts: [String] = ["\(Int(patch.distanceMetres.rounded())) m"]
-        if patch.foragersWorkingIt > 0 {
-            parts.append("\(patch.foragersWorkingIt) working it")
+        let near = Int(patch.distanceMetres.rounded())
+        let far = Int((line.patches.last?.distanceMetres ?? patch.distanceMetres).rounded())
+        var parts: [String] = [near == far ? "\(near) m" : "\(near)–\(far) m"]
+        let foragers = line.patches.reduce(0) { $0 + $1.foragersWorkingIt }
+        if foragers > 0 {
+            parts.append("\(foragers) working \(line.patches.count > 1 ? "them" : "it")")
         } else {
-            parts.append("nobody on it")
+            parts.append("nobody on \(line.patches.count > 1 ? "them" : "it")")
         }
         if isWild { parts.append("wild") }
         return parts.joined(separator: " · ")
@@ -366,13 +393,11 @@ private struct RecordDetailView: View {
 
             RecordLinks()
 
+            // What each account is now sits on its own row, so all that is
+            // left to say is the one fact that is about all of them.
             Explainer(
-                "Five different accounts of the same colony. The lineage is its "
-                + "queens; the almanac is what happened and when; the collection "
-                + "is every flower you have photographed; the milestones are the "
-                + "firsts; and the history is the numbers, charted. The record "
-                + "keeps the last two years of days — longer than most colonies "
-                + "live."
+                "Five accounts of the same colony. The record keeps the last two "
+                + "years of days — longer than most colonies live."
             )
         }
     }

@@ -34,10 +34,8 @@ struct ContentView: View {
     @State private var sheetLastClosed = Date.distantPast
     @State private var children = ChildSheets()
 
-    /// The garden cell tapped on the map to start a capture, so the flower is
-    /// planted there; and, once the capture is over, the cell the map should
-    /// show blooming.
-    @State private var plantingCell: HexCoordinate?
+    /// The cell the map should show blooming, once a capture opened from it
+    /// is over. Where to plant travels in `RootSheet.capture` itself.
     @State private var bloomingCell: HexCoordinate?
 
     /// The colony as the player last left it, for the dashboard's "since you
@@ -121,8 +119,8 @@ struct ContentView: View {
             guard collapsed else { return }
             // A colony that dies under the camera. Waiting to bring it back
             // would open it over the choice of a new site.
-            waiting.removeAll { $0.id == RootSheet.capture.id }
-            if sheet?.id == RootSheet.capture.id { sheet = nil }
+            waiting.removeAll { $0.id == RootSheet.capture().id }
+            if sheet?.id == RootSheet.capture().id { sheet = nil }
         }
         .onChange(of: store.colonyChanges) { _, _ in
             lastLook = nil
@@ -147,8 +145,7 @@ struct ContentView: View {
             // open out of nowhere.
             if action.hasPrefix(PhotographFlowerIntent.actionPrefix),
                !store.needsSetup, !store.isCollapsed {
-                plantingCell = nil
-                request(.capture)
+                request(.capture())
             }
         }
         .onChange(of: humEnabled, initial: true) { _, enabled in
@@ -215,7 +212,7 @@ struct ContentView: View {
 
     private var tabs: some View {
         TabView(selection: $selection) {
-            ColonyDashboardView(onPhotograph: { plantingCell = nil; request(.capture) })
+            ColonyDashboardView(onPhotograph: { request(.capture()) })
                 .id(dashboardResets)
                 .tabItem { Label("Colony", systemImage: "chart.bar.doc.horizontal") }
                 .tag(Tab.colony)
@@ -232,15 +229,14 @@ struct ContentView: View {
             // great deal more of it.
             WorldView(
                 onPhotograph: { cell in
-                    plantingCell = cell
-                    request(.capture)
+                    request(.capture(plantingAt: cell))
                 },
                 bloomingCell: $bloomingCell
             )
                 .tabItem { Label("World", systemImage: "circle.hexagongrid.fill") }
                 .tag(Tab.world)
 
-            GardenView(onPhotograph: { plantingCell = nil; request(.capture) })
+            GardenView(onPhotograph: { request(.capture()) })
                 .tabItem { Label("Garden", systemImage: "photo.on.rectangle.angled") }
                 .tag(Tab.garden)
         }
@@ -259,8 +255,12 @@ struct ContentView: View {
     @ViewBuilder
     private func content(for sheet: RootSheet) -> some View {
         switch sheet {
-        case .capture:
-            CaptureView(plantingAt: plantingCell)
+        case .capture(let cell):
+            CaptureView(plantingAt: cell)
+                // The map checks the cell really was planted before it plays
+                // anything, so a capture abandoned half way, or put down to
+                // be put up again, shows nothing.
+                .onDisappear { if let cell { bloomingCell = cell } }
         case .settings:
             SettingsView()
         case .report:
@@ -335,10 +335,6 @@ struct ContentView: View {
     private func sheetClosed() {
         appearedSheet = nil
         sheetLastClosed = Date()
-        // The map checks the cell really was planted before it plays
-        // anything, so a capture abandoned half way shows nothing.
-        if let cell = plantingCell { bloomingCell = cell }
-        plantingCell = nil
         presentNext()
     }
 

@@ -119,6 +119,10 @@ public struct CatchUpReport: Equatable, Sendable {
     public var depletedPatches: [EntityID] = []
     public var newInfections: [Pathogen] = []
     public var criticalInfections: [Pathogen] = []
+    /// Infections the colony threw off. Without these the report's health
+    /// card said "American Foulbrood appeared" and nothing else, for a
+    /// colony that had cleared it twice in the same absence.
+    public var clearedInfections: [Pathogen] = []
     public var attacks: [Predator] = []
     public var storesRaided: Double = 0
 
@@ -166,6 +170,7 @@ public struct CatchUpReport: Equatable, Sendable {
         merged.depletedPatches += later.depletedPatches
         merged.newInfections += later.newInfections
         merged.criticalInfections += later.criticalInfections
+        merged.clearedInfections += later.clearedInfections
         merged.attacks += later.attacks
         merged.storesRaided += later.storesRaided
         merged.swarmed = swarmed || later.swarmed
@@ -201,6 +206,8 @@ public struct CatchUpReport: Equatable, Sendable {
             newInfections.append(pathogen)
         case .infectionCritical(let pathogen):
             criticalInfections.append(pathogen)
+        case .infectionCleared(let pathogen):
+            clearedInfections.append(pathogen)
         case .attacked(let predator):
             attacks.append(predator)
         case .raidSucceeded(_, let lost):

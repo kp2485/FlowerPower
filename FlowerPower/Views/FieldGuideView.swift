@@ -62,8 +62,29 @@ struct FieldGuideView: View {
                 value: "\(guide.photographedCount) of \(guide.speciesTotal)"
             )
         } footer: {
-            Text("Every plant the game knows. A tick is one you have found; the rest are out there.")
+            if beyondCatalogue > 0 {
+                // Without this, a garden of flowers the catalogue does not
+                // describe read "Photographed 0 of 30", as if nothing had
+                // been found at all.
+                Text("Every plant the game describes. A tick is one you have found; the rest are out there. "
+                     + "Your garden also has \(beyondCatalogue.counted("plant")) the guide does not cover.")
+            } else {
+                Text("Every plant the game knows. A tick is one you have found; the rest are out there.")
+            }
         }
+    }
+
+    /// Plants in the garden, named or placed to a group, that are not one of
+    /// the catalogue's species. Counted by name, so three photographs of one
+    /// plant are one plant.
+    private var beyondCatalogue: Int {
+        let catalogued = Set(FlowerCatalogue.all.map(\.taxon))
+        return Set(
+            store.snapshot.patches
+                .filter { $0.isIdentified && $0.origin != .wild }
+                .filter { patch in patch.taxon.map { !catalogued.contains($0) } ?? false }
+                .map(\.speciesName)
+        ).count
     }
 
     @ViewBuilder

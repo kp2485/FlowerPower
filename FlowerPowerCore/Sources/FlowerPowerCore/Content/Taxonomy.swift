@@ -397,7 +397,7 @@ public struct BotanicalFamily: Codable, Hashable, Sendable {
     /// One line on what the family means to a colony.
     public var forageNote: String {
         known?.forageNote ?? WorldFamilies.entry(for: self)?.forageNote
-            ?? "A family the catalogue has no notes on. Your bees will work it as an ordinary flower."
+            ?? "The catalogue has no notes on this family. Your bees will work it as an ordinary flower."
     }
 
     /// Traits shared across the family, used when that is all that is known.

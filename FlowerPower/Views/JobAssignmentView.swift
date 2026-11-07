@@ -193,12 +193,15 @@ private struct JobRow: View {
                 }
                 .frame(height: 4)
             }
+            // The whole row, not just the words and the bar. A plain button is
+            // only as big as what it draws, and the gap the Spacer leaves
+            // between the name and the count did nothing when tapped. On the
+            // label, not the button: given to the button from outside, the
+            // shape never reached the gesture inside it, and the gap stayed
+            // dead (checked on the simulator).
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        // The whole row, not just the words and the bar. A plain button is
-        // only as big as what it draws, and the gap the Spacer leaves between
-        // the name and the count did nothing when tapped.
-        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(job.displayName), \(count.counted("bee"))")
         .accessibilityHint(isEmphasised ? "Tap to release" : "Tap to prioritise this job")
