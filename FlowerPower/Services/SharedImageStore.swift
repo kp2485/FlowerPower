@@ -76,7 +76,9 @@ enum SharedImageStore {
 
     static func image(forShare id: String) -> UIImage? {
         guard let data = try? Data(contentsOf: url(forShare: id)) else { return nil }
-        return UIImage(data: data)
+        // Through the guarded decoder. Files from before `ReceiveFlowerView`
+        // re-encoded what it kept are still somebody else's bytes.
+        return PhotoLibrary.workingImage(from: data)
     }
 
     /// Takes the `shared:` identifier a patch carries rather than a bare id,

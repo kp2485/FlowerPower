@@ -69,6 +69,9 @@ public protocol GamePersisting: Sendable {
 
 extension GamePersisting {
 
+    /// Nothing on disk to keep, by default.
+    public func preserveUnreadable() throws -> URL? { nil }
+
     /// A persistence that cannot tell says so, and a store over it simply
     /// never reloads — which is the behaviour every one of them had before
     /// this existed.

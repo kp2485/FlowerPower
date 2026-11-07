@@ -175,9 +175,13 @@ extension Simulation {
     /// chosen, which needs the phone, and offering only "Stay" would be
     /// pushing the player at the answer that happens to fit on a watch.
     private func decision(_ snapshot: ColonySnapshot) -> WatchDecision? {
+        // The world goes on turning after a colony dies, and autumn asked a
+        // dead hive about its entrance on the wrist.
+        guard snapshot.status.isAlive else { return nil }
+
         let posturePrefix = "posture."
 
-        if let threat = world.activeThreat, threat.style.hasAnswer, world.posture == .instinct {
+        if let threat = world.activeThreat, threat.style.hasAnswer, !threat.isAnswered(by: world.posture) {
             return WatchDecision(
                 kind: .siege,
                 title: "\(threat.predator.displayName) at the nest",
@@ -192,12 +196,12 @@ extension Simulation {
             )
         }
 
-        if let swarm = world.pendingSwarm, !swarm.discouraged {
-            // Ordered by what the measurement says rather than by what was
-            // built last. Over 200 colonies across two years, two-year
-            // survival is 76% for making room, 66% for doing nothing at all,
-            // 62% for adding comb and 56% for dividing — so talking them out
-            // of it goes first and the newest mechanics do not.
+        if let swarm = world.pendingSwarm, !swarm.isAnswered {
+            // Lightest first rather than by survival, which no longer ranks
+            // them: over 200 colonies across two years every answer lands
+            // between 78% and 80%, doing nothing at 76%. Making room costs
+            // the least to try, so it goes first and the newest mechanics
+            // do not.
             var options = [WatchDecision.Option(
                 identifier: "swarm.discourage", title: "Make Room"
             )]
@@ -299,6 +303,12 @@ extension Simulation {
     private func gauge(_ snapshot: ColonySnapshot) -> WatchSummary.Gauge {
         let hive = world.hive
 
+        // Whatever is left in the comb of a dead colony can read as a full,
+        // green winter gauge.
+        guard snapshot.status.isAlive else {
+            return WatchSummary.Gauge(meaning: .health, value: 0, caption: "The colony is gone")
+        }
+
         if snapshot.status == .critical || hive.pathogens.totalPressure > 0.4 {
             let health = 1 - hive.pathogens.totalPressure
             return WatchSummary.Gauge(
@@ -324,7 +334,7 @@ extension Simulation {
             return WatchSummary.Gauge(
                 meaning: .combSpace,
                 value: max(0, 1 - hive.combOccupancy),
-                caption: "\(hive.freeCells) cells free"
+                caption: "\(hive.freeCells.counted("cell")) free"
             )
         }
 
@@ -333,12 +343,13 @@ extension Simulation {
         return WatchSummary.Gauge(
             meaning: .population,
             value: min(1, Double(hive.population) / Double(capacity)),
-            caption: "\(hive.population) bees"
+            caption: "\(hive.population.counted("bee"))"
         )
     }
 
     /// Two or three words for a complication.
     private func shortHeadline(_ snapshot: ColonySnapshot) -> String {
+        guard snapshot.status.isAlive else { return snapshot.status.displayName }
         if let alert = snapshot.alerts.first, alert.severity >= .warning {
             return alert.title
         }
@@ -348,5 +359,33 @@ extension Simulation {
         if world.isInDearth(config) { return "Dearth" }
         if snapshot.isForaging { return "Foraging" }
         return snapshot.status.displayName
+    }
+}
+
+// MARK: - Across versions
+
+extension WatchSummary {
+
+    /// The phone and the watch update separately, so a summary can come from
+    /// a build that knows a kind of decision or alert this one does not — the
+    /// scouts were added that way. The compiler's decoder threw the whole
+    /// summary away over one unknown case, and the watch said nothing about
+    /// why. The parts that can be absent now are absent instead.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        status = try container.decode(ColonyStatus.self, forKey: .status)
+        shortHeadline = try container.decode(String.self, forKey: .shortHeadline)
+        headline = try container.decode(String.self, forKey: .headline)
+        population = try container.decode(Int.self, forKey: .population)
+        broodCount = try container.decode(Int.self, forKey: .broodCount)
+        season = try container.decode(Season.self, forKey: .season)
+        day = try container.decode(Int.self, forKey: .day)
+        gauge = try container.decode(Gauge.self, forKey: .gauge)
+        topAlert = try? container.decodeIfPresent(ColonyAlert.self, forKey: .topAlert)
+        decision = try? container.decodeIfPresent(WatchDecision.self, forKey: .decision)
+        isForaging = try container.decode(Bool.self, forKey: .isForaging)
+        temperatureCelsius = try container.decode(Double.self, forKey: .temperatureCelsius)
+        honey = try container.decode(Double.self, forKey: .honey)
+        generatedAt = try container.decode(Date.self, forKey: .generatedAt)
     }
 }

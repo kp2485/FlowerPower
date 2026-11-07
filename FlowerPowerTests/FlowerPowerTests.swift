@@ -18,36 +18,30 @@ import FlowerPowerCore
 @Suite("On-device placement")
 struct TaxonomicClassifierTests {
 
-    /// The on-device model picks a family from a closed list, and that list is
-    /// a hand-written mirror of `PlantFamily` — the engine also builds on
-    /// Windows and cannot import FoundationModels, so the vocabulary exists
-    /// twice.
-    ///
-    /// Drift is the obvious failure and a quiet one: a family added to the
-    /// engine but not the mirror simply never gets chosen, and a family in the
-    /// mirror the engine does not have comes back as an unplaceable answer.
-    @Test("Every family the game models can be chosen by the model")
-    func familyListsAgree() {
-        let engine = Set(PlantFamily.allCases.map(\.rawValue))
-        let generable = Set(GenerableFamily.allCases.map(\.rawValue))
+    /// Any family may be named now — the closed list of eighteen is what
+    /// made a tulip unnameable — but it must be a family: a genus or a common
+    /// name in the family's place is refused rather than stored as one.
+    @Test("A family beyond the catalogue is a real answer")
+    func familyBeyondCatalogue() throws {
+        let classifier = TaxonomicClassifier()
+        let placed = try #require(classifier.taxon(from: assessment(family: "Liliaceae", genus: "Tulipa")))
 
-        #expect(engine == generable, """
-            the model's family list has drifted from the engine's. \
-            Only in the engine: \(engine.subtracting(generable).sorted()). \
-            Only in the model's list: \(generable.subtracting(engine).sorted()).
-            """)
+        #expect(placed.taxon.family.known == nil)
+        #expect(placed.taxon.family.scientificName == "Liliaceae")
+        #expect(placed.taxon.scientificName == "Tulipa sp.")
     }
 
-    @Test("Every choice maps to a real family", arguments: GenerableFamily.allCases)
-    func everyChoiceResolves(choice: GenerableFamily) {
-        #expect(choice.family != nil)
+    @Test("Something that is not a family name is refused", arguments: ["Tulipa", "tulip", "lily family", ""])
+    func notAFamily(name: String) {
+        let classifier = TaxonomicClassifier()
+        #expect(classifier.taxon(from: assessment(family: name)) == nil)
     }
 
     // MARK: - Reading an answer
 
     private func assessment(
         plant: Bool = true,
-        family: GenerableFamily? = .fabaceae,
+        family: String? = "Fabaceae",
         genus: String? = nil,
         epithet: String? = nil,
         confidence: Double = 0.8
@@ -111,7 +105,7 @@ struct TaxonomicClassifierTests {
     func contradictoryFamily() throws {
         let classifier = TaxonomicClassifier()
         let placed = try #require(classifier.taxon(from: assessment(
-            family: .boraginaceae, genus: "Trifolium", epithet: "repens"
+            family: "Boraginaceae", genus: "Trifolium", epithet: "repens"
         )))
 
         #expect(placed.taxon.family == .fabaceae)

@@ -32,12 +32,14 @@ final class GameStoreTests: XCTestCase {
     private func makeStore(
         persistence: GamePersisting = InMemoryPersistence(),
         site: HiveLocationType = .livingTreeCavity,
+        config: SimulationConfig = .standard,
         seed: UInt64 = 99
     ) -> (GameStore, TestClock) {
         let clock = TestClock(now: epoch)
         let simulation = Simulation.newGame(
             at: HiveLocation(type: site),
             startingAt: epoch,
+            config: config,
             seed: seed
         )
         let store = GameStore(
@@ -275,10 +277,16 @@ final class GameStoreTests: XCTestCase {
     /// A founding colony with nothing to eat dies. It is the simplest way to
     /// reach the collapsed state, and it is also what happens to a real player
     /// who never photographs anything.
+    ///
+    /// No wild stands either. A colony on those alone is rare after three
+    /// years and gone by six, but this one was among the rare, and a test of
+    /// the collapsed state should not hang on which colonies make it.
     private func collapsedStore(
         persistence: GamePersisting = InMemoryPersistence()
     ) -> (GameStore, TestClock) {
-        let (store, clock) = makeStore(persistence: persistence)
+        var config = SimulationConfig.standard
+        config.wildPatchDensity = 0
+        let (store, clock) = makeStore(persistence: persistence, config: config)
 
         // Advanced in bites rather than one jump, because a single catch-up is
         // capped at the ceiling — and the bites are small, because under the

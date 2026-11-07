@@ -14,22 +14,58 @@ enum Theme {
 
     // MARK: - Palette
 
-    /// Honey golds, wax creams and the deep brown of a tree cavity.
-    static let honey = Color(red: 0.93, green: 0.68, blue: 0.13)
+    /// A colour for text and controls, which has to read on a card in both
+    /// appearances.
+    ///
+    /// This palette was tuned on a dark card. Honey on a light one is 1.9:1,
+    /// so every decision button in light mode was close to unreadable. Each
+    /// colour that carries meaning as ink now has a darker light-mode form, at
+    /// 4.5:1 or better on a card, and a lighter dark-mode one where it needed
+    /// it. Increase Contrast pushes both a step further.
+    private static func ink(
+        light: (Double, Double, Double),
+        dark: (Double, Double, Double)
+    ) -> Color {
+        Color(UIColor { traits in
+            let isDark = traits.userInterfaceStyle == .dark
+            let base = isDark ? dark : light
+            let target = isDark ? 1.0 : 0.0
+            let push = traits.accessibilityContrast == .high ? 0.3 : 0
+            func stepped(_ value: Double) -> CGFloat { CGFloat(value + (target - value) * push) }
+            return UIColor(red: stepped(base.0), green: stepped(base.1), blue: stepped(base.2), alpha: 1)
+        })
+    }
+
+    /// Honey as ink: text, tints, and the fill of a prominent button.
+    static let honey = ink(light: (0.50, 0.32, 0.02), dark: (0.93, 0.68, 0.13))
+    /// A label on a prominent button, which is `honey`-filled.
+    static let onHoney = Color(UIColor { $0.userInterfaceStyle == .dark ? .black : .white })
+    /// The same, for a prominent button that can be disabled. A disabled
+    /// prominent button loses its honey fill for a dark grey one, and a black
+    /// label on that grey is no label at all: the surplus card's "Take" sat
+    /// on the dashboard as a blank black pill until the slider moved.
+    static func onHoney(enabled: Bool) -> AnyShapeStyle {
+        enabled ? AnyShapeStyle(onHoney) : AnyShapeStyle(Color.secondary)
+    }
+    /// Honey as a thing: comb, the nest on the map, anything drawn rather
+    /// than read. The same bright gold in both appearances.
+    static let honeyFill = Color(red: 0.93, green: 0.68, blue: 0.13)
     static let wax = Color(red: 0.96, green: 0.90, blue: 0.74)
     static let nectar = Color(red: 0.98, green: 0.82, blue: 0.35)
-    static let pollen = Color(red: 0.94, green: 0.63, blue: 0.20)
-    static let propolis = Color(red: 0.45, green: 0.28, blue: 0.12)
+    /// Kept well apart from `honeyFill`. They were 1.08:1, the same gold twice
+    /// over, in bands of comb that the legend claimed could be told apart.
+    static let pollen = Color(red: 0.82, green: 0.38, blue: 0.12)
+    static let propolis = ink(light: (0.45, 0.28, 0.12), dark: (0.74, 0.54, 0.34))
     static let comb = Color(red: 0.85, green: 0.72, blue: 0.42)
     static let broodNest = Color(red: 0.72, green: 0.50, blue: 0.24)
 
-    static let queen = Color(red: 0.58, green: 0.34, blue: 0.71)
+    static let queen = ink(light: (0.50, 0.28, 0.63), dark: (0.78, 0.60, 0.90))
     static let worker = Color(red: 0.85, green: 0.65, blue: 0.16)
     static let drone = Color(red: 0.42, green: 0.42, blue: 0.46)
 
-    static let alarm = Color(red: 0.82, green: 0.25, blue: 0.20)
-    static let caution = Color(red: 0.90, green: 0.55, blue: 0.10)
-    static let healthy = Color(red: 0.30, green: 0.62, blue: 0.36)
+    static let alarm = ink(light: (0.72, 0.16, 0.13), dark: (0.98, 0.50, 0.45))
+    static let caution = ink(light: (0.57, 0.29, 0.02), dark: (0.96, 0.66, 0.25))
+    static let healthy = ink(light: (0.14, 0.44, 0.21), dark: (0.47, 0.80, 0.52))
 
     // MARK: - Mappings
 
@@ -43,14 +79,24 @@ enum Theme {
 
     static func colour(for resource: ResourceKind) -> Color {
         switch resource {
-        case .honey: return honey
+        case .honey: return honeyFill
         case .nectar: return nectar
         case .pollen: return pollen
-        case .beeBread: return Color(red: 0.80, green: 0.55, blue: 0.25)
+        case .beeBread: return Color(red: 0.55, green: 0.33, blue: 0.14)
         case .royalJelly: return Color(red: 0.97, green: 0.95, blue: 0.88)
         case .wax: return wax
         case .propolis: return propolis
         case .water: return Color(red: 0.36, green: 0.65, blue: 0.85)
+        }
+    }
+
+    /// A resource as a symbol beside its name, on a card. Wax and royal jelly
+    /// are pale enough as things to vanish on a light one.
+    static func symbolColour(for resource: ResourceKind) -> Color {
+        switch resource {
+        case .honey: return honey
+        case .wax, .royalJelly: return comb
+        default: return colour(for: resource)
         }
     }
 
@@ -111,6 +157,8 @@ enum Theme {
     /// than `healthy`, because there are far more of these than there are
     /// garden cells and a bright one repeated two hundred times is a rash.
     static let wild = Color(red: 0.24, green: 0.45, blue: 0.29)
+    /// The same, for words about a wild stand rather than a mark on the map.
+    static let wildInk = ink(light: (0.20, 0.40, 0.25), dark: (0.56, 0.78, 0.60))
 
     /// Ground no bee has been over, and everything past the edge of the world.
     ///
@@ -171,7 +219,7 @@ enum Theme {
 
     /// The glyph on it.
     static func badgeGlyph(earned: Bool) -> AnyShapeStyle {
-        earned ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.secondary)
+        earned ? AnyShapeStyle(onHoney) : AnyShapeStyle(Color.secondary)
     }
 
     // MARK: Symbols
@@ -212,6 +260,20 @@ struct CardBackground: ViewModifier {
 
 extension View {
     func card() -> some View { modifier(CardBackground()) }
+}
+
+/// Buttons side by side while they fit on one line each, and stacked when they
+/// do not, rather than squeezed into lumps at the larger text sizes.
+struct ButtonRow<Content: View>: View {
+
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack { content }
+            VStack(alignment: .leading) { content }
+        }
+    }
 }
 
 /// A labelled horizontal bar, used for stores, readiness and health.
@@ -260,6 +322,6 @@ struct MeterView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(label)
-        .accessibilityValue(caption ?? "\(Int(value * 100)) percent")
+        .accessibilityValue(caption ?? "\(Int((value * 100).rounded())) percent")
     }
 }

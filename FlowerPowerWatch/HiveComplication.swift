@@ -191,7 +191,14 @@ private struct InlineView: View {
         if let decision = summary?.decision {
             Label(decision.title, systemImage: decision.kind.symbolName)
         } else if let summary {
-            Label("\(summary.shortHeadline) · \(summary.population) bees", systemImage: "hexagon.fill")
+            // A long alert title fills an inline slot by itself on a 41 mm
+            // watch, and the bees then cut it off.
+            Label(
+                summary.shortHeadline.count > 12
+                    ? summary.shortHeadline
+                    : "\(summary.shortHeadline) · \(summary.population) bees",
+                systemImage: "hexagon.fill"
+            )
         } else {
             Label("No colony", systemImage: "hexagon")
         }

@@ -190,7 +190,8 @@ struct SaveArchiveTests {
         #expect(store.snapshot.day != before)
         #expect(store.snapshot.day == incoming.snapshot().day)
         #expect(persistence.saveCount > saved)
-        #expect(try persistence.load() == incoming)
+        // The same colony, on a clock moved to pick up from now.
+        #expect(try persistence.load()?.world == incoming.world)
 
         store.stopLiveUpdates()
     }

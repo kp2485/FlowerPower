@@ -195,6 +195,14 @@ public struct LiveActivityPlan: Equatable, Sendable {
         swarmDepartureShare: Double = SimulationConfig().swarmDepartureShare,
         dateOfDay: (Int) -> Date
     ) {
+        // A dead colony asks nothing and is not waiting on anything. A virgin
+        // queen can outlive the rest of it, and a siege can stay on the record;
+        // neither is worth a place on the lock screen.
+        guard snapshot.status.isAlive else {
+            self.items = []
+            return
+        }
+
         var items: [Item] = []
         let day = snapshot.day
         // The engine settles sieges and swarms at the turn of a day, so an
@@ -272,19 +280,21 @@ public struct LiveActivityPlan: Equatable, Sendable {
             )
             let title = "Preparing to swarm"
 
-            if swarm.discouraged {
-                // Made room for, one way or the other. Drawing comb sets the
-                // same flag as making room but without the posture, so the
-                // sentence says which.
+            if swarm.isAnswered {
+                // Made room for, one way or the other, or let go. Drawing comb
+                // sets the same flag as making room but without the posture,
+                // so the sentence says which.
                 let until = min(resolvesAt, startedAt.addingTimeInterval(Self.longestActivity))
                 if now < until {
                     items.append(Item(
                         event: event,
                         phase: .holding,
                         title: title,
-                        status: snapshot.posture == .makeRoom
-                            ? "Builders drawing comb, foragers held back. They may still go."
-                            : "New comb drawn. They may still go.",
+                        status: swarm.accepted == true
+                            ? "You are letting them go."
+                            : snapshot.posture == .makeRoom
+                                ? "Builders drawing comb, foragers held back. They may still go."
+                                : "New comb drawn. They may still go.",
                         posture: snapshot.posture.displayName,
                         answers: [],
                         scene: scene,
@@ -497,7 +507,7 @@ public struct LiveActivityPlan: Equatable, Sendable {
         var losses: [String] = []
         if record.beesLost > 0 { losses.append("\(plural(record.beesLost, "bee")) lost") }
         let stores = Int(record.storesLost.rounded())
-        if stores > 0 { losses.append("\(stores) honey taken") }
+        if stores > 0 { losses.append("\(plural(stores, "unit")) of honey taken") }
         if record.combLost > 0 { losses.append("\(plural(record.combLost, "cell")) of comb spoiled") }
 
         switch losses.count {

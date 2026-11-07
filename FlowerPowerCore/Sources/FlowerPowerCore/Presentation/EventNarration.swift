@@ -56,7 +56,7 @@ extension SimEvent {
                 ? "A new queen emerged, and a good one."
                 : "A new queen emerged, though not a strong one."
         case .queenMated(let patrilines):
-            return "The queen returned from her mating flight, mated with \(patrilines) drones."
+            return "The queen returned from her mating flight, mated with \(patrilines.counted("drone"))."
         case .matingFlightFailed:
             return "The mating flight failed. The colony is in serious trouble."
         case .queenLost:
@@ -64,9 +64,9 @@ extension SimEvent {
         case .queenFailing:
             return "The queen is failing."
         case .swarmed(let lost):
-            return "The colony swarmed. \(lost) bees left with the old queen."
+            return "The colony swarmed. \(lost.counted("bee")) left with the old queen."
         case .absconded(let lost):
-            return "The colony absconded — all \(lost) bees abandoned the nest."
+            return "The colony absconded — all \(lost.counted("bee")) abandoned the nest."
         case .supersededQueen:
             return "The old queen was replaced."
         case .layingWorkersAppeared:
@@ -78,7 +78,7 @@ extension SimEvent {
         case .cellsBuilt(let count, let type):
             return "\(count) \(type.displayName.lowercased())s were drawn."
         case .combLost(let count):
-            return "\(count) cells of comb were lost."
+            return "\(count.counted("cell")) of comb were lost."
         case .patchDepleted:
             return "A flower patch was worked out."
         case .patchOutOfBloom:
@@ -90,7 +90,7 @@ extension SimEvent {
 
         // Environment
         case .weatherChanged(let sky):
-            return "The weather turned \(sky.displayName.lowercased())."
+            return "The weather turned \(sky.adjective)."
         case .groundedByWeather:
             return "The bees were grounded by the weather."
         case .overheating:
@@ -108,21 +108,21 @@ extension SimEvent {
 
         // Defence
         case .attacked(let predator):
-            return "\(predator.displayName) attacked the hive."
+            return "\(predator.withArticle.capitalisingFirst) attacked the hive."
         case .attackRepelled(let predator):
-            return "The guards drove off \(predator.displayName.lowercased())."
+            return "The guards drove off \(predator.withArticle)."
         case .raidSucceeded(let predator, let lost):
-            return "\(predator.displayName) got in and took \(Int(lost)) of stores."
+            return "\(predator.withArticle.capitalisingFirst) got in and took \(Int(lost.rounded()).counted("unit")) of stores."
 
         // Decisions, and what the colony did about them
         case .threatBegan(let predator, let resolvesOnDay):
-            return "\(predator.displayName) settled in to press the nest until "
-                + "day \(resolvesOnDay)."
+            return "\(predator.withArticle.capitalisingFirst) settled in to press the nest until "
+                + "day \(resolvesOnDay + 1)."
         case .threatEnded(let predator):
-            return "\(predator.displayName) gave up on the nest."
+            return "\(predator.withArticle.capitalisingFirst) gave up on the nest."
         case .swarmPreparing(let departsOnDay):
             return "The colony began preparing to swarm, and will go about "
-                + "day \(departsOnDay)."
+                + "day \(departsOnDay + 1)."
         case .swarmAbandoned:
             return "The colony thought better of swarming and tore the cells down."
         case .postureAdopted(let posture):
@@ -141,7 +141,7 @@ extension SimEvent {
         case .combAdded(let cells):
             return "The nest was opened up by \(cells) cells' worth of room."
         case .colonyDivided(let left):
-            return "The colony was divided on purpose. \(left) bees went with "
+            return "The colony was divided on purpose. \(left.counted("bee")) went with "
                 + "the old queen; the foragers stayed."
 
         // The record
@@ -156,7 +156,7 @@ extension SimEvent {
         case .starving:
             return "The colony went hungry."
         case .winterStoresLow(let have, let need):
-            return "Winter stores are short: \(Int(have)) of the \(Int(need)) needed."
+            return "Winter stores are short: \(Int(have.rounded())) of the \(Int(need.rounded())) needed."
         }
     }
 }

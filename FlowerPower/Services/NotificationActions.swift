@@ -106,15 +106,14 @@ enum NotificationActions {
             ))
         }
 
-        // Ordered by what the measurement actually says, which is not the
-        // order they were built in. Over 200 colonies across two years,
-        // two-year survival is 76% for making room, 66% for doing nothing at
-        // all, 62% for adding comb and 56% for dividing. Talking them out of
-        // it is the best answer there is, so it goes first.
+        // Lightest first. Survival no longer ranks these: over 200 colonies
+        // across two years, doing nothing is 76% and every answer lands
+        // between 78% and 80% (2026-11-07). Making room costs some foraging
+        // while it holds and commits the colony to nothing, so it goes first.
         //
         // Adding comb was briefly the only thing offered here, and dropping
-        // "Make Room" from the list quietly removed the most valuable option
-        // the player had. It is now offered only on its cue, a full nest:
+        // "Make Room" from the list quietly removed the player's cheapest
+        // option. Comb is now offered only on its cue, a full nest:
         // there it is worth two points, and offered for the whole swarm
         // window it cost four. `DecisionAction.swarmAnswers` is the list.
         let swarmCategories: [(Category, Bool)] = [
@@ -231,9 +230,16 @@ enum NotificationActions {
     /// through the running store when there is one. It is the unusual case
     /// here — a button tapped from the notification centre with the app
     /// already open — and it is not handled, as it was not before.
+    ///
+    /// - Parameter notificationIdentifier: the identifier of the notification
+    ///   the button was on, which is the identifier of the news it carried.
+    ///   A siege's names the siege. Without checking it, a posture tapped on
+    ///   a notification left over from yesterday's wasps was applied to
+    ///   today's hornets, because the button itself only says "guards".
     @MainActor
     static func handle(
         actionIdentifier: String,
+        notificationIdentifier: String? = nil,
         persistence: GamePersisting = GamePersistence(),
         now: Date = Date()
     ) -> Bool {
@@ -247,6 +253,12 @@ enum NotificationActions {
         // the colony as it is now rather than as it was when the notification
         // was written.
         store.catchUp()
+
+        if let notificationIdentifier,
+           !isStillOpen(notificationIdentifier, for: action, in: store.snapshot) {
+            logger.debug("a tap on a closed decision: \(notificationIdentifier, privacy: .public)")
+            return false
+        }
 
         let applied = store.apply(action)
 
@@ -268,6 +280,76 @@ enum NotificationActions {
     }
 }
 
+extension NotificationActions {
+
+    /// Whether the decision a notification was about is the one open now.
+    ///
+    /// Only sieges and swarms can be replaced by another of their kind while
+    /// a notification sits on the lock screen; the rest are once a year and
+    /// `GameStore.apply` already refuses them once closed.
+    static func isStillOpen(
+        _ identifier: String,
+        for action: DecisionAction,
+        in snapshot: ColonySnapshot
+    ) -> Bool {
+        if identifier.hasPrefix("threat-") {
+            return snapshot.activeThreat.map(ColonyNews.identifier(for:)) == identifier
+        }
+        if identifier.hasPrefix("swarm-") {
+            // Opening the nest up is worth having whether or not this swarm
+            // is still coming; see `GameStore.apply`.
+            if case .addComb = action { return true }
+            return snapshot.pendingSwarm.map(ColonyNews.identifier(for:)) == identifier
+        }
+        return true
+    }
+
+    /// Takes notifications off the lock screen once what they asked has been
+    /// answered or has closed by itself.
+    ///
+    /// They used to stay, buttons and all, for as long as the player left
+    /// them — offering to hold the entrance against a siege that ended days
+    /// ago, and doing nothing when tapped.
+    static func withdrawClosedDecisions(in snapshot: ColonySnapshot) async {
+        let center = UNUserNotificationCenter.current()
+        let delivered = await center.deliveredNotifications().map(\.request.identifier)
+        let closed = delivered.filter { !isStillAsked($0, in: snapshot) }
+        guard !closed.isEmpty else { return }
+        center.removeDeliveredNotifications(withIdentifiers: closed)
+    }
+
+    /// Changes whenever any decision opens, closes or is answered; cheap to
+    /// compare on every snapshot.
+    static func decisionKey(_ snapshot: ColonySnapshot) -> String {
+        [
+            snapshot.activeThreat.map(ColonyNews.identifier(for:)) ?? "",
+            snapshot.posture.rawValue,
+            snapshot.pendingSwarm.map { ColonyNews.identifier(for: $0) + "\($0.isAnswered)" } ?? "",
+            snapshot.departedSwarm.map { "\($0.day)" } ?? "",
+            "\(snapshot.feedDecisionOpen)\(snapshot.scoutDecisionOpen)\(snapshot.entranceDecisionOpen)",
+            "\(snapshot.canAddComb)"
+        ].joined(separator: "|")
+    }
+
+    private static func isStillAsked(_ identifier: String, in snapshot: ColonySnapshot) -> Bool {
+        if identifier.hasPrefix("threat-") {
+            guard let threat = snapshot.activeThreat, !threat.isAnswered(by: snapshot.posture) else { return false }
+            return ColonyNews.identifier(for: threat) == identifier
+        }
+        if identifier.hasPrefix("swarm-") {
+            guard let swarm = snapshot.pendingSwarm, !swarm.isAnswered else { return false }
+            return ColonyNews.identifier(for: swarm) == identifier
+        }
+        if identifier.hasPrefix("departed-") { return snapshot.departedSwarm != nil }
+        if identifier.hasPrefix("feed-") { return snapshot.feedDecisionOpen }
+        if identifier.hasPrefix("scout-") { return snapshot.scoutDecisionOpen }
+        if identifier.hasPrefix("entrance-") { return snapshot.entranceDecisionOpen }
+        if identifier.hasPrefix("nest-full-") { return snapshot.canAddComb && snapshot.pendingSwarm == nil }
+        // News rather than a decision: the player can clear it themselves.
+        return true
+    }
+}
+
 // MARK: - Delegate
 
 /// Receives tapped actions. Held by the app for its lifetime.
@@ -282,34 +364,63 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
 
     /// Called when an action needs the interface — following a swarm needs a
     /// site chosen.
-    @MainActor var onOpenApp: (@MainActor @Sendable (String) -> Void)?
+    ///
+    /// A tap that launches the app cold arrives before the root view has
+    /// appeared and set this, so it is held until then rather than dropped.
+    @MainActor var onOpenApp: (@MainActor @Sendable (String) -> Void)? {
+        didSet {
+            if let onOpenApp, let pending = pendingOpenApp {
+                pendingOpenApp = nil
+                onOpenApp(pending)
+            }
+        }
+    }
+
+    @MainActor private var pendingOpenApp: String?
+
+    @MainActor private func openApp(_ action: String) {
+        if let onOpenApp { onOpenApp(action) } else { pendingOpenApp = action }
+    }
+
+    // The completion-handler forms, not the `async` ones, and deliberately.
+    // With the `async` form on a nonisolated class the system's completion
+    // handler is called from whatever cooperative thread the body finished
+    // on, and UIKit — which snapshots the app as that handler runs — asserts
+    // it is on the main thread and aborts. That was a real crash, on tapping
+    // a notification. Here the handler is always called on the main actor.
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
         let action = response.actionIdentifier
-        if action == NotificationActions.Action.followSwarm
-            || action == UNNotificationDefaultActionIdentifier {
-            // With a nonce, for the same reason `PhotographFlowerIntent`
-            // carries one: the interface reacts to the value *changing*, and
-            // the second tap of the same button in one session would
-            // otherwise look like no request at all.
-            await MainActor.run { self.onOpenApp?(action + "#" + UUID().uuidString) }
-            return
+        let notification = response.notification.request.identifier
+        Task { @MainActor in
+            defer { completionHandler() }
+            if action == NotificationActions.Action.followSwarm
+                || action == UNNotificationDefaultActionIdentifier {
+                // With a nonce, for the same reason `PhotographFlowerIntent`
+                // carries one: the interface reacts to the value *changing*,
+                // and the second tap of the same button in one session would
+                // otherwise look like no request at all.
+                self.openApp(action + "#" + UUID().uuidString)
+                return
+            }
+            // On the main actor because the store is, and on the save file
+            // because there may be no interface running at all. Those are not
+            // in tension: see `handle(actionIdentifier:persistence:now:)`.
+            _ = NotificationActions.handle(actionIdentifier: action, notificationIdentifier: notification)
         }
-        // On the main actor because the store is, and on the save file because
-        // there may be no interface running at all. Those are not in tension:
-        // see `handle(actionIdentifier:persistence:now:)`.
-        _ = await NotificationActions.handle(actionIdentifier: action)
     }
 
     /// Show decisions even while the app is in the foreground; the in-app
     /// sheet handles them too, but the banner is what says a window opened.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 }

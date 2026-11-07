@@ -24,20 +24,35 @@ struct JobAssignmentView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
-    @State private var emphasis: WorkerJob?
+    /// From the colony rather than this sheet's own state. It was `@State`,
+    /// so the bees stayed pinned while the sheet forgot: reopened, it showed
+    /// no emphasis, hid the button that clears one, and tapping the job again
+    /// pinned them a second time instead of letting them go.
+    private var emphasis: WorkerJob? { store.emphasisedJob }
+
+    /// The job last tapped that no bee could take up. Said here, because the
+    /// row simply not lighting up looks like a tap that missed.
+    @State private var refused: WorkerJob?
 
     private var population: PopulationSummary { store.snapshot.population }
+
+    /// The order the rows were in when the sheet opened, biggest first.
+    /// Fixed for as long as the sheet is up: re-sorted live, pinning a job
+    /// moved bees into it and the row jumped out from under the finger that
+    /// had just tapped it, so the pin landed somewhere the player was no
+    /// longer looking.
+    @State private var order: [WorkerJob] = []
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Text("Bees take on work as they age. You can lean the colony toward a job, but only bees old enough — and well enough — will take it up.")
+                    Text("Bees take on work as they age. Tap a job to lean the colony toward it — only bees old enough, and well enough, will take it up. Tap it again to let them go.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Current workforce") {
+                Section {
                     ForEach(orderedJobs, id: \.job) { entry in
                         JobRow(
                             job: entry.job,
@@ -48,13 +63,25 @@ struct JobAssignmentView: View {
                             toggleEmphasis(entry.job)
                         }
                     }
+                } header: {
+                    // Not "current workforce". These count who can do each job,
+                    // and a winter bee can do them all, so in autumn every row
+                    // read the same and they added up to far more than the
+                    // colony.
+                    Text("Bees able to do each job")
+                } footer: {
+                    if let refused {
+                        Text("No bee is fit to work as \(refused.displayName.lowercased()) right now, so nothing has changed.")
+                    } else if population.winterBees > 0 {
+                        Text("A winter bee can turn her hand to anything, so she is counted under every job.")
+                    }
                 }
 
                 if emphasis != nil {
                     Section {
                         Button("Let the colony decide", role: .destructive) {
-                            emphasis = nil
                             store.clearAllAssignments()
+                            refused = nil
                         }
                     } footer: {
                         Text("Clears every assignment and returns the colony to its natural division of labour.")
@@ -85,6 +112,7 @@ struct JobAssignmentView: View {
                     Text("Winter bees are the exception: they never wore themselves out, so they can turn a hand to anything the colony needs in spring.")
                 }
             }
+            .onAppear { if order.isEmpty { order = Self.biggestFirst(population) } }
             .navigationTitle("Jobs")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -96,9 +124,12 @@ struct JobAssignmentView: View {
     }
 
     private var orderedJobs: [(job: WorkerJob, count: Int)] {
-        WorkerJob.allCases
-            .map { (job: $0, count: population.jobs[$0] ?? 0) }
-            .sorted { $0.count > $1.count }
+        let jobs = order.isEmpty ? Self.biggestFirst(population) : order
+        return jobs.map { (job: $0, count: population.jobs[$0] ?? 0) }
+    }
+
+    private static func biggestFirst(_ population: PopulationSummary) -> [WorkerJob] {
+        WorkerJob.allCases.sorted { (population.jobs[$0] ?? 0) > (population.jobs[$1] ?? 0) }
     }
 
     private var maximumCount: Int {
@@ -108,11 +139,10 @@ struct JobAssignmentView: View {
     /// Pins every capable bee to one job, or releases them all.
     private func toggleEmphasis(_ job: WorkerJob) {
         if emphasis == job {
-            emphasis = nil
             store.clearAllAssignments()
+            refused = nil
         } else {
-            emphasis = job
-            store.emphasise(job)
+            refused = store.emphasise(job) == 0 ? job : nil
         }
     }
 }
@@ -165,8 +195,12 @@ private struct JobRow: View {
             }
         }
         .buttonStyle(.plain)
+        // The whole row, not just the words and the bar. A plain button is
+        // only as big as what it draws, and the gap the Spacer leaves between
+        // the name and the count did nothing when tapped.
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(job.displayName), \(count) bees")
+        .accessibilityLabel("\(job.displayName), \(count.counted("bee"))")
         .accessibilityHint(isEmphasised ? "Tap to release" : "Tap to prioritise this job")
         .accessibilityAddTraits(isEmphasised ? [.isSelected] : [])
     }

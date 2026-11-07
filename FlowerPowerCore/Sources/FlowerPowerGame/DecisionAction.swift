@@ -142,9 +142,10 @@ public enum DecisionAction: Codable, Equatable, Sendable, Hashable {
         }
     }
 
-    /// The answers a gathering swarm is offered from a lock screen, in the
-    /// order the measurement ranks them: making room first, letting them go
-    /// last.
+    /// The answers a gathering swarm is offered from a lock screen, lightest
+    /// first: making room, which commits the colony to nothing, then the rest,
+    /// and letting them go last. Two-year survival no longer ranks them — 78%
+    /// to 80% against 76% for doing nothing.
     ///
     /// Opening the nest up is among them only on its cue — see
     /// `ColonySnapshot.addCombIsOnCue` and `swarmOffersComb`. Taken when the
@@ -199,8 +200,9 @@ extension GameStore {
             // The siege itself has to still be on. `respond(to:with:)` checks
             // the threat has not been replaced by a different one, which is
             // the case a stored identifier cannot detect.
-            guard let threat = snapshot.activeThreat else { return false }
-            respond(to: threat, with: posture)
+            guard let threat = snapshot.activeThreat, respond(to: threat, with: posture) else {
+                return false
+            }
 
         case .discourageSwarm:
             guard snapshot.pendingSwarm != nil else { return false }
@@ -222,12 +224,11 @@ extension GameStore {
             guard splitColony() else { return false }
 
         case .letSwarmGo:
-            // Doing nothing, on purpose. There is nothing to apply and nothing
-            // to check: the answer is the absence of an answer, and the swarm
-            // leaves or does not on its own terms. Reported as applied because
-            // the decision *was* answered, which is what a caller wants to
-            // know when it is deciding whether to stop asking.
+            // Nothing is done to the swarm, which leaves or does not on its
+            // own terms. The answer is recorded, because it is an answer:
+            // every surface has to be able to stop asking.
             guard snapshot.pendingSwarm != nil else { return false }
+            acceptSwarm()
 
         case .staySwarm:
             guard snapshot.departedSwarm != nil else { return false }

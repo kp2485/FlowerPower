@@ -22,6 +22,10 @@ struct CaptureView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
+    /// The garden cell the player tapped on the map to get here, when they
+    /// did. The flower goes there rather than wherever the engine would put it.
+    var plantingAt: HexCoordinate? = nil
+
     @State private var pickerItem: PhotosPickerItem?
     @State private var stage: Stage = .choosing
     @State private var isUsingCamera = false
@@ -36,8 +40,17 @@ struct CaptureView: View {
     /// the part the game cares about.
     @State private var recordings = 0
 
+    /// A camera capture being worked on. Held so that closing the screen stops
+    /// it: this is the one path with no `.task` to cancel for it, and a flower
+    /// the player walked away from was still planted, for good, once the model
+    /// finished. There is no way to remove a flower.
+    @State private var capturing: Task<Void, Never>?
+
     enum Stage: Equatable {
         case choosing
+        /// A library pick on its way down, which for a photograph in iCloud
+        /// can be most of a minute.
+        case loading
         case identifying(UIImage)
         case result(CaptureResult)
         case rejected(UIImage)
@@ -59,6 +72,9 @@ struct CaptureView: View {
                         pickerItem: $pickerItem,
                         onUseCamera: { isUsingCamera = true }
                     )
+                case .loading:
+                    ProgressView("Fetching the photograph…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .identifying(let image):
                     IdentifyingView(image: image)
                 case .result(let result):
@@ -86,10 +102,13 @@ struct CaptureView: View {
                         },
                         onDone: { dismiss() }
                     )
+                // The picker item is cleared on the way back, or choosing the
+                // same photograph again is an equal item and `.task(id:)`
+                // never runs — "Try again" did nothing.
                 case .rejected(let image):
-                    RejectedView(image: image) { stage = .choosing }
+                    RejectedView(image: image) { pickerItem = nil; stage = .choosing }
                 case .failed(let message):
-                    FailureView(message: message) { stage = .choosing }
+                    FailureView(message: message) { pickerItem = nil; stage = .choosing }
                 }
             }
             .navigationTitle("Find a Flower")
@@ -105,7 +124,10 @@ struct CaptureView: View {
             CameraPicker(
                 onCapture: { image in
                     isUsingCamera = false
-                    Task { @MainActor in await handle(image, from: .camera) }
+                    capturing = Task { @MainActor in
+                        let working = await Self.workingImage(from: image)
+                        await handle(working, original: image, from: .camera)
+                    }
                 },
                 onCancel: { isUsingCamera = false }
             )
@@ -120,6 +142,22 @@ struct CaptureView: View {
         .task { @MainActor in
             if classifier == nil {
                 classifier = await FlowerClassifier.bundled()
+            }
+        }
+        .onDisappear { capturing?.cancel() }
+        // The screen swaps underneath a VoiceOver user with nothing to say so.
+        .onChange(of: stage) { _, stage in
+            switch stage {
+            case .result(let result):
+                AccessibilityNotification.Announcement(
+                    "\(result.identification.species?.commonName ?? "A flower we cannot name"), added to your garden."
+                ).post()
+            case .rejected:
+                AccessibilityNotification.Announcement("That does not look like a flower.").post()
+            case .failed(let message):
+                AccessibilityNotification.Announcement(message).post()
+            default:
+                break
             }
         }
     }
@@ -144,21 +182,32 @@ struct CaptureView: View {
         // the second pick can be recognised — and it is, before the model
         // spends ten seconds identifying it.
         if let identifier = item.itemIdentifier,
-           store.snapshot.patches.contains(where: { $0.photoLocalIdentifier == identifier }) {
+           store.snapshot.patches.contains(where: {
+               $0.photoLocalIdentifier == identifier
+                   || $0.photoLocalIdentifier == PhotoLibrary.copy(of: identifier)
+           }) {
             stage = .failed("That photograph is already in your garden.")
             return
         }
 
+        stage = .loading
         do {
+            // Decoded at working size, upright, and off the main actor. A
+            // 48-megapixel original or a panorama decoded whole is hundreds
+            // of megabytes, and it was then held, shown and handed to Vision
+            // three times over.
             guard
                 let data = try await item.loadTransferable(type: Data.self),
-                let image = UIImage(data: data)
+                let image = await Self.workingImage(from: data)
             else {
                 stage = .failed("That image could not be read.")
                 return
             }
-            await handle(image, from: .library(item.itemIdentifier))
+            await handle(image, original: nil, from: .library(item.itemIdentifier))
         } catch {
+            // Picking another photograph, or closing, cancels this one. The
+            // new one owns the screen now and this must not write over it.
+            guard !Task.isCancelled else { return }
             stage = .failed(error.localizedDescription)
         }
     }
@@ -166,8 +215,13 @@ struct CaptureView: View {
     /// Everything after "we have an image", shared by the camera and the
     /// library picker. The two differ only in where the pixels came from —
     /// and so in whether anything has to be written to the library at all.
+    ///
+    /// `image` is the working copy — upright and at most
+    /// `PhotoLibrary.workingPixelSize` on its long edge — and is what is
+    /// identified, shown and learned from. `original` is the full camera
+    /// capture, which is what goes into the photo library.
     @MainActor
-    private func handle(_ image: UIImage, from source: Source) async {
+    private func handle(_ image: UIImage, original: UIImage?, from source: Source) async {
         do {
             stage = .identifying(image)
 
@@ -176,13 +230,28 @@ struct CaptureView: View {
                 return
             }
 
-            // Falls back to the plant gate alone if the capture screen was
-            // opened and used faster than the classifier could be built.
-            let identifier = classifier ?? FlowerClassifier()
-            let identification = try await identifier.identify(
+            // If the capture screen was opened and used faster than the
+            // classifier could be built, wait for it rather than identify
+            // with nothing: a bare classifier has no rungs at all, and
+            // would call every flower unnameable.
+            let identifier: FlowerIdentifying
+            if let classifier {
+                identifier = classifier
+            } else {
+                let built = await FlowerClassifier.bundled()
+                classifier = built
+                identifier = built
+            }
+            let identification = try await Self.identify(
                 cgImage,
-                orientation: image.imageOrientation.cgOrientation
+                orientation: image.imageOrientation.cgOrientation,
+                with: identifier
             )
+
+            // The last moment before anything is written. Identifying takes
+            // seconds and ignores cancellation, so this is where closing the
+            // screen is honoured.
+            guard !Task.isCancelled else { return }
 
             guard identification.looksLikeAFlower else {
                 stage = .rejected(image)
@@ -193,7 +262,7 @@ struct CaptureView: View {
             switch source {
             case .camera:
                 // Nothing holds this photograph yet, so bank it.
-                saved = try await PhotoLibrary.save(image)
+                saved = try await PhotoLibrary.save(original ?? image)
             case .library(let identifier):
                 saved = try await libraryPhoto(image, identifier: identifier)
             }
@@ -202,7 +271,8 @@ struct CaptureView: View {
                 localIdentifier: saved.localIdentifier,
                 species: identification.species,
                 confidence: identification.confidence,
-                takenAt: saved.takenAt
+                takenAt: saved.takenAt,
+                at: plantingAt
             )
 
             recordings += 1
@@ -214,8 +284,36 @@ struct CaptureView: View {
             ))
 
         } catch {
+            guard !Task.isCancelled else { return }
             stage = .failed(error.localizedDescription)
         }
+    }
+
+    // MARK: - Off the main actor
+
+    /// Identification, off the main actor.
+    ///
+    /// With approachable concurrency a nonisolated `async` function runs on
+    /// its caller's actor, so `identify` called from here ran BioCLIP — a
+    /// synchronous Vision request on a ViT-L, then a scan of 57,000 names —
+    /// on the main thread, and the spinner and the Close button froze.
+    @concurrent
+    nonisolated private static func identify(
+        _ image: CGImage,
+        orientation: CGImagePropertyOrientation,
+        with identifier: FlowerIdentifying
+    ) async throws -> FlowerIdentification {
+        try await identifier.identify(image, orientation: orientation)
+    }
+
+    @concurrent
+    nonisolated private static func workingImage(from data: Data) async -> UIImage? {
+        PhotoLibrary.workingImage(from: data)
+    }
+
+    @concurrent
+    nonisolated private static func workingImage(from image: UIImage) async -> UIImage {
+        PhotoLibrary.workingImage(from: image)
     }
 
     /// A photograph chosen from the library, as it already is: its own date,
@@ -247,7 +345,12 @@ struct CaptureView: View {
         // photos they shared. A copy is then the only way to show it in the
         // garden, and it is dated today rather than whenever the original was
         // taken, because a copy is all there is to read a date from.
-        return try await PhotoLibrary.save(image)
+        let copy = try await PhotoLibrary.save(image)
+        // Remembered, because the copy has an identifier of its own: without
+        // this the picker's never matched again, and every further pick of
+        // the same photograph was another flower and another copy.
+        if let identifier { PhotoLibrary.remember(copy: copy.localIdentifier, of: identifier) }
+        return copy
     }
 }
 
@@ -258,7 +361,16 @@ private struct ChooserView: View {
     @Binding var pickerItem: PhotosPickerItem?
     var onUseCamera: () -> Void
 
+    /// All on one screen while it fits. At the largest text sizes it does not,
+    /// and the buttons were pushed off the bottom with no way to reach them.
     var body: some View {
+        ViewThatFits(in: .vertical) {
+            content
+            ScrollView { content }
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 24) {
             Spacer()
 
@@ -285,6 +397,7 @@ private struct ChooserView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.honey)
+                    .foregroundStyle(Theme.onHoney)
                     .controlSize(.large)
 
                     // Secondary once there is a camera above it: the point of
@@ -299,6 +412,7 @@ private struct ChooserView: View {
                     photoLibraryButton
                         .buttonStyle(.borderedProminent)
                         .tint(Theme.honey)
+                        .foregroundStyle(Theme.onHoney)
                         .controlSize(.large)
                 }
             }
@@ -324,12 +438,31 @@ private struct IdentifyingView: View {
 
     let image: UIImage
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var sweeping = false
+
     var body: some View {
         VStack(spacing: 20) {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
                 .frame(maxHeight: 300)
+                // A band of honey light passing over the photograph, so the
+                // wait reads as something looking rather than as a hang.
+                .overlay {
+                    if !reduceMotion {
+                        GeometryReader { geometry in
+                            LinearGradient(
+                                colors: [.clear, Theme.honey.opacity(0.45), .clear],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                            .frame(height: geometry.size.height * 0.35)
+                            .offset(y: sweeping ? geometry.size.height : -geometry.size.height * 0.35)
+                            .blendMode(.plusLighter)
+                        }
+                        .allowsHitTesting(false)
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .accessibilityLabel("The photograph you took")
 
@@ -337,6 +470,54 @@ private struct IdentifyingView: View {
                 .tint(Theme.honey)
         }
         .padding()
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                sweeping = true
+            }
+        }
+    }
+}
+
+/// "A keystone find!" — said with a little ceremony, because these are the
+/// flowers that carry a colony through the gaps and the game should make
+/// finding one feel like it.
+private struct SpecialFindBanner: View {
+
+    let species: FlowerSpecies
+    let revealed: Bool
+
+    private var title: String {
+        species.isKeystone ? "A keystone find!" : "A rare find!"
+    }
+
+    private var detail: String {
+        species.isKeystone
+            ? "This blooms when little else does. Your bees will lean on it."
+            : "Uncommon forage, and worth more to the colony for it."
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: species.isKeystone ? "star.circle.fill" : "sparkles")
+                .font(.title)
+                .foregroundStyle(Theme.queen)
+                .symbolEffect(.bounce, value: revealed)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .background(Theme.queen.opacity(0.12), in: .rect(cornerRadius: 14))
+        .scaleEffect(revealed ? 1 : 0.85)
+        .opacity(revealed ? 1 : 0)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -354,6 +535,18 @@ private struct ResultView: View {
     /// What the player has settled on, so the card reflects a correction
     /// immediately rather than waiting for the next snapshot.
     @State private var corrected: FlowerSpecies?
+
+    /// Flipped once the card is on screen, for the entrance and, for a find
+    /// worth celebrating, the burst and the tap that go with it.
+    @State private var revealed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// A keystone or a rare plant: the finds that matter most to a colony,
+    /// and the ones worth making a fuss of.
+    private var isSpecialFind: Bool {
+        guard corrected == nil, let species = result.identification.species else { return false }
+        return species.isKeystone || species.rarity == .rare
+    }
 
     var body: some View {
         ScrollView {
@@ -374,6 +567,10 @@ private struct ResultView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Planted in your garden, \(metres) metres from the nest.")
+                }
+
+                if isSpecialFind, let species = result.identification.species {
+                    SpecialFindBanner(species: species, revealed: revealed)
                 }
 
                 if let species = corrected ?? result.identification.species {
@@ -403,6 +600,7 @@ private struct ResultView: View {
                 Button("Done", action: onDone)
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.honey)
+                    .foregroundStyle(Theme.onHoney)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
             }
@@ -411,6 +609,14 @@ private struct ResultView: View {
         .sheet(isPresented: $isNaming) {
             SpeciesPickerView { species in
                 correct(to: species, confidence: SpeciesPickerView.manualConfidence)
+            }
+        }
+        .sensoryFeedback(.levelChange, trigger: revealed) { _, now in now && isSpecialFind }
+        .onAppear {
+            if reduceMotion {
+                revealed = true
+            } else {
+                withAnimation(.spring(duration: 0.5, bounce: 0.35).delay(0.15)) { revealed = true }
             }
         }
     }
@@ -535,7 +741,7 @@ private struct IdentifiedCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Might also be")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
 
                     // Two or three flower names side by side stop fitting
                     // somewhere around the first accessibility size, and a
@@ -551,6 +757,8 @@ private struct IdentifiedCard: View {
             Button("Something else", action: onNameItYourself)
                 .font(.caption)
                 .tint(Theme.honey)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
@@ -559,8 +767,11 @@ private struct IdentifiedCard: View {
     @ViewBuilder
     private var alternativeButtons: some View {
         ForEach(alternatives, id: \.species.id) { alternative in
-            Button(alternative.species.commonName) {
+            Button {
                 onPick(alternative.species, alternative.confidence)
+            } label: {
+                Text(alternative.species.commonName)
+                    .frame(minHeight: 32)
             }
             .font(.caption)
             .buttonStyle(.bordered)
@@ -597,6 +808,13 @@ private struct RejectedView: View {
     var onRetry: () -> Void
 
     var body: some View {
+        ViewThatFits(in: .vertical) {
+            content
+            ScrollView { content }
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 20) {
             Image(uiImage: image)
                 .resizable()
@@ -614,6 +832,7 @@ private struct RejectedView: View {
                 Button("Try Again", action: onRetry)
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.honey)
+                    .foregroundStyle(Theme.onHoney)
             }
         }
         .padding()
@@ -634,6 +853,7 @@ private struct FailureView: View {
             Button("Try Again", action: onRetry)
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.honey)
+                .foregroundStyle(Theme.onHoney)
         }
     }
 }

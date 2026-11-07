@@ -43,8 +43,13 @@ public struct PostureSystem: DailySystem {
             // late in the season, once the ivy is nearly over. Sealing in
             // the middle of autumn cost a measurable share of the last flow,
             // and every colony paid it because instinct decided.
-            guard world.entranceDecision == nil,
-                  Season.progress(context.day) >= 0.75,
+            //
+            // A player who said seal it while the colony was short of propolis
+            // gets it as soon as there is enough, rather than never: their
+            // word used to turn instinct off and do nothing itself.
+            let toldToSeal = world.entranceDecision == true
+            guard world.entranceDecision != false,
+                  toldToSeal || Season.progress(context.day) >= 0.75,
                   !world.entranceSealed else { return }
 
             if world.hive.resources[.propolis] >= context.config.entranceSealPropolis {

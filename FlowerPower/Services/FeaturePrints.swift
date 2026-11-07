@@ -94,27 +94,62 @@ enum FeaturePrints {
         }
     }
 
-    /// Whether an image looks like plant material at all.
+    /// What Vision's own classifier makes of an image: its labels, with
+    /// confidences, lower-cased. The taxonomy ships with the OS and needs no
+    /// model. Run once per photograph; both the plant gate and the label
+    /// rung read the same answer.
+    static func labels(
+        for image: CGImage,
+        orientation: CGImagePropertyOrientation = .up
+    ) async throws -> [(label: String, confidence: Float)] {
+        do {
+            let observations = try await ClassifyImageRequest()
+                .perform(on: image, orientation: orientation)
+            return observations.map { ($0.identifier.lowercased(), $0.confidence) }
+        } catch {
+            throw FlowerClassifierError.visionFailed(underlying: error)
+        }
+    }
+
+    /// Whether the labels say plant material at all.
     ///
     /// The coarse gate that stops a photograph of a car door becoming a nectar
-    /// patch. Vision's own taxonomy ships with the OS and needs no model.
+    /// patch.
+    static func looksLikePlantMaterial(
+        _ labels: [(label: String, confidence: Float)],
+        threshold: Float = 0.15
+    ) -> Bool {
+        labels.contains { $0.confidence >= threshold && plantLabels.contains($0.label) }
+    }
+
+    /// Whether an image looks like plant material at all.
     static func looksLikePlantMaterial(
         _ image: CGImage,
         orientation: CGImagePropertyOrientation = .up,
         threshold: Float = 0.15
     ) async throws -> Bool {
+        looksLikePlantMaterial(try await labels(for: image, orientation: orientation), threshold: threshold)
+    }
 
-        do {
-            let observations = try await ClassifyImageRequest()
-                .perform(on: image, orientation: orientation)
-
-            return observations.contains { observation in
-                observation.confidence >= threshold
-                    && plantLabels.contains(observation.identifier.lowercased())
+    /// The best flower Vision named outright, if it named one it is sure of.
+    ///
+    /// Vision's confidences are independent per label rather than a
+    /// distribution, so the threshold is an absolute one: "tulip at 0.7"
+    /// means Vision is fairly sure it is a tulip, whatever else it also
+    /// thought.
+    static func namedFlower(
+        in labels: [(label: String, confidence: Float)],
+        threshold: Float = 0.4
+    ) -> (species: FlowerSpecies, confidence: Double)? {
+        labels
+            .filter { $0.confidence >= threshold && VisionLabelTaxa.knows($0.label) }
+            .sorted { $0.confidence > $1.confidence }
+            .lazy
+            .compactMap { observation in
+                VisionLabelTaxa.species(forLabel: observation.label)
+                    .map { ($0, Double(observation.confidence)) }
             }
-        } catch {
-            throw FlowerClassifierError.visionFailed(underlying: error)
-        }
+            .first
     }
 
     /// Vision taxonomy labels that count as plant material.

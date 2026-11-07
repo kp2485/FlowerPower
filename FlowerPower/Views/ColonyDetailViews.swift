@@ -153,7 +153,7 @@ private struct NestDetailView: View {
 
     var body: some View {
         DetailPage("Nest") {
-            NestConditionSection(nest: store.snapshot.nest)
+            NestConditionSection(nest: store.snapshot.nest, canAffordComb: store.snapshot.canAffordComb)
 
             Explainer(
                 "Brood needs thirty-five degrees, give or take one, and the colony "
@@ -229,8 +229,8 @@ private struct ForageDetailView: View {
     /// Everything the bees can actually work today, the player's flowers first
     /// — that is the half of it they can do something about.
     private var working: [ForageLine] {
-        snapshot.patches.filter(\.isInBloom).map { ForageLine(patch: $0, isWild: false) }
-            + snapshot.wildPatches.filter(\.isInBloom).map { ForageLine(patch: $0, isWild: true) }
+        snapshot.patches.filter { $0.isInBloom && !$0.hasFaded }.map { ForageLine(patch: $0, isWild: false) }
+            + snapshot.wildPatches.filter { $0.isInBloom && !$0.hasFaded }.map { ForageLine(patch: $0, isWild: true) }
     }
 
     var body: some View {
@@ -277,6 +277,7 @@ private struct ForageDetailView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.honey)
+            .foregroundStyle(Theme.onHoney)
 
             IntakeTrace(samples: store.history.recent(60))
         }
@@ -439,7 +440,7 @@ private struct StoresTrace: View {
         }
         let lowest = samples.map(\.edibleEnergy).min() ?? last.edibleEnergy
         let short = last.edibleEnergy < last.winterRequirement
-        return "\(samples.count) days. "
+        return "\(samples.count.counted("day")). "
             + "Stores from \(Int(first.edibleEnergy.rounded())) to "
             + "\(Int(last.edibleEnergy.rounded())) units, lowest \(Int(lowest.rounded())). "
             + "The winter needs \(Int(last.winterRequirement.rounded())), "
@@ -509,10 +510,10 @@ private struct PopulationTrace: View {
             return "No days recorded."
         }
         let peak = samples.map(\.adults).max() ?? last.adults
-        return "\(samples.count) days. "
+        return "\(samples.count.counted("day")). "
             + "Adults from \(first.adults) to \(last.adults), at most \(peak). "
             + "Brood from \(first.brood) to \(last.brood). "
-            + "\(last.winterBees) winter bees now."
+            + "\(last.winterBees.counted("winter bee")) now."
     }
 
     var body: some View {
@@ -543,6 +544,7 @@ private struct PopulationTrace: View {
                         series: .value("Series", "Adults")
                     )
                     .foregroundStyle(by: .value("Series", "Adults"))
+                    .lineStyle(by: .value("Series", "Adults"))
 
                     LineMark(
                         x: .value("Day", Double(sample.day)),
@@ -550,6 +552,7 @@ private struct PopulationTrace: View {
                         series: .value("Series", "Brood")
                     )
                     .foregroundStyle(by: .value("Series", "Brood"))
+                    .lineStyle(by: .value("Series", "Brood"))
 
                     LineMark(
                         x: .value("Day", Double(sample.day)),
@@ -557,6 +560,7 @@ private struct PopulationTrace: View {
                         series: .value("Series", "Winter bees")
                     )
                     .foregroundStyle(by: .value("Series", "Winter bees"))
+                    .lineStyle(by: .value("Series", "Winter bees"))
                 }
                 .interpolationMethod(.monotone)
             }
@@ -565,6 +569,12 @@ private struct PopulationTrace: View {
                 "Adults": Theme.honey,
                 "Brood": Theme.broodNest,
                 "Winter bees": Theme.propolis
+            ])
+            // Three lines apart by more than hue, as History's are.
+            .chartLineStyleScale([
+                "Adults": StrokeStyle(lineWidth: 2),
+                "Brood": StrokeStyle(lineWidth: 2, dash: [6, 3]),
+                "Winter bees": StrokeStyle(lineWidth: 2, dash: [2, 3])
             ])
         }
     }
@@ -579,11 +589,11 @@ private struct TemperatureTrace: View {
         guard !samples.isEmpty else { return "No days recorded." }
         let nest = samples.map(\.nestTemperature)
         let outside = samples.map(\.outsideTemperature)
-        return "\(samples.count) days. "
+        return "\(samples.count.counted("day")). "
             + "The nest held between \(Int((nest.min() ?? 0).rounded())) and "
             + "\(Int((nest.max() ?? 0).rounded())) degrees, against outside "
             + "\(Int((outside.min() ?? 0).rounded())) to "
-            + "\(Int((outside.max() ?? 0).rounded())). Brood needs 34."
+            + "\(Int((outside.max() ?? 0).rounded())). Brood needs 35."
     }
 
     var body: some View {
@@ -615,9 +625,9 @@ private struct TemperatureTrace: View {
                 }
                 .interpolationMethod(.monotone)
 
-                // 34.0 rather than 34: every y value in a chart has to be the
+                // 35.0 rather than 35: every y value in a chart has to be the
                 // same plottable type, and the temperatures are Doubles.
-                RuleMark(y: .value("Brood nest", 34.0))
+                RuleMark(y: .value("Brood nest", 35.0))
                     .foregroundStyle(Color.secondary.opacity(0.4))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
             }
@@ -639,9 +649,9 @@ private struct IntakeTrace: View {
         let total = samples.reduce(0) { $0 + $1.nectarIntake }
         let best = samples.map(\.nectarIntake).max() ?? 0
         let empty = samples.filter { $0.nectarIntake < 0.5 }.count
-        return "\(Int(total.rounded())) units over \(samples.count) days. "
+        return "\(Int(total.rounded()).counted("unit")) over \(samples.count.counted("day")). "
             + "The best day brought in \(Int(best.rounded())), "
-            + "and \(empty) days brought in nothing."
+            + "and \(empty.counted("day")) brought in nothing."
     }
 
     var body: some View {
@@ -672,6 +682,10 @@ private struct IntakeTrace: View {
 /// for it, because Swift Charts otherwise publishes several hundred stops that
 /// each say a number and none of which says what the chart shows.
 private struct TraceCard<Content: View>: View {
+
+    /// Taller with the text, as the History charts are, so the axis labels
+    /// do not crowd out the line they label.
+    @ScaledMetric private var chartHeight: CGFloat = 160
 
     let title: String
     let symbolName: String
@@ -711,7 +725,8 @@ private struct TraceCard<Content: View>: View {
                 }
 
                 content
-                    .frame(height: 160)
+                    .frame(height: chartHeight)
+                    .chartXScale(domain: samples.dayDomain)
                     .chartXAxis {
                         AxisMarks(values: .automatic(desiredCount: 4)) { value in
                             AxisGridLine()

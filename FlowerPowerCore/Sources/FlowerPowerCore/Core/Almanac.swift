@@ -105,7 +105,17 @@ public struct Almanac: Codable, Equatable, Sendable {
     /// than failing to decode at all.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        entries = try container.decodeIfPresent([AlmanacEntry].self, forKey: .entries) ?? []
+        // Saves from before the collapse was written once carry hundreds of
+        // copies of it — one a day for as long as the dead colony was kept —
+        // and those pushed the colony's whole real history out of the limit.
+        // The repeats go; what they displaced is gone, but no more follows.
+        var lastColonyLine: String?
+        entries = (try container.decodeIfPresent([AlmanacEntry].self, forKey: .entries) ?? [])
+            .filter { entry in
+                guard entry.kind == .colony else { return true }
+                defer { lastColonyLine = entry.text }
+                return !(entry.text == Self.colonyGone && lastColonyLine == Self.colonyGone)
+            }
         peakHoney = try container.decodeIfPresent(Double.self, forKey: .peakHoney) ?? 0
         tallies = try container.decodeIfPresent([YearTally].self, forKey: .tallies) ?? []
     }
@@ -143,8 +153,16 @@ public struct Almanac: Codable, Equatable, Sendable {
 
     // MARK: - Writing
 
+    static let colonyGone = "The colony is gone."
+
     mutating func write(_ kind: AlmanacEntry.Kind, _ text: String, day: Int) {
         let season = Season(day: day)
+        // A dead colony reports itself dead every day it is kept. Once is
+        // the record; the rest filled the almanac.
+        if text == Self.colonyGone,
+           entries.last(where: { $0.kind == .colony })?.text == Self.colonyGone {
+            return
+        }
         // One line per kind per day. A wasp siege produces several attack
         // events across the day; the almanac says it once.
         if entries.last(where: { $0.day == day && $0.kind == kind && $0.text == text }) != nil {
@@ -216,7 +234,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .queenEmerged:
                 write(.queen, "A new queen emerges.", day: day)
             case .queenMated(let patrilines):
-                write(.queen, "\(queen) returns from her mating flight, mated with \(patrilines) drones.", day: day)
+                write(.queen, "\(queen) returns from her mating flight, mated with \(patrilines.counted("drone")).", day: day)
             case .matingFlightFailed:
                 write(.queen, "The virgin queen does not return from her mating flight.", day: day)
             case .queenLost:
@@ -224,7 +242,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .supersededQueen:
                 write(.queen, "\(queen) is superseded.", day: day)
             case .swarmed(let lost):
-                write(.swarm, "A swarm leaves with \(lost) bees and the old queen.", day: day)
+                write(.swarm, "A swarm leaves with \(lost.counted("bee")) and the old queen.", day: day)
             case .swarmPreparing(let departs):
                 write(.swarm, "Swarm cells are capped; the colony will divide in about \(max(1, departs - day)) days.", day: day)
             case .swarmAbandoned:
@@ -232,14 +250,14 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .combAdded(let cells):
                 write(.colony, "The nest is opened up: room for \(cells) more cells.", day: day)
             case .colonyDivided(let left):
-                write(.swarm, "The colony is divided on purpose. \(left) bees leave with \(queen); "
+                write(.swarm, "The colony is divided on purpose. \(left.counted("bee")) leave with \(queen); "
                       + "the flying bees stay.", day: day)
             case .absconded(let lost):
-                write(.colony, "The colony absconds, \(lost) bees abandoning the nest.", day: day)
+                write(.colony, "The colony absconds, \(lost.counted("bee")) abandoning the nest.", day: day)
             case .layingWorkersAppeared:
                 write(.queen, "Laying workers appear. There is no way back from this.", day: day)
             case .colonyCollapsed:
-                write(.colony, "The colony is gone.", day: day)
+                write(.colony, Self.colonyGone, day: day)
             case .threatBegan(let predator, _):
                 write(.threat, "\(predator.displayName) at the nest.", day: day)
             case .attackRepelled(let predator):
@@ -247,7 +265,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .raidSucceeded(let predator, let stores):
                 write(.threat, "\(predator.displayName) get in and take \(Int(stores.rounded())) units of stores.", day: day)
             case .combLost(let count):
-                write(.threat, "\(count) cells of comb are destroyed.", day: day)
+                write(.threat, "\(count.counted("cell")) of comb are destroyed.", day: day)
             case .infectionDetected(let pathogen):
                 write(.disease, "\(pathogen.displayName) is found in the colony.", day: day)
             case .infectionCritical(let pathogen):
@@ -255,7 +273,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .infectionCleared(let pathogen):
                 write(.disease, "The colony clears \(pathogen.displayName.lowercased()).", day: day)
             case .winterStoresLow(let have, let need):
-                write(.stores, "Winter stores are short: \(Int(have)) of \(Int(need)) needed.", day: day)
+                write(.stores, "Winter stores are short: \(Int(have.rounded())) of \(Int(need.rounded())) needed.", day: day)
             case .entranceSealed(let sealed):
                 write(.colony, sealed
                       ? "The bees seal the entrance with propolis for winter."
@@ -352,7 +370,7 @@ public extension Almanac {
                 : "You divided it \(tally.splits) times.")
         }
         if tally.combAdded > 0 {
-            notes.append("You gave the bees \(tally.combAdded) cells of comb.")
+            notes.append("You gave the bees \(tally.combAdded.counted("cell")) of comb.")
         }
         if tally.queensRaised > 0 {
             notes.append(queenNote(tally))

@@ -34,7 +34,7 @@ struct ShareSwarmView: View {
                     Section {
                         LabeledContent("Queen", value: swarm.queenTitle)
                         LabeledContent("Bees", value: "\(swarm.beeCount)")
-                        LabeledContent("Honey carried", value: "\(Int(swarm.honeyCarried.rounded())) units")
+                        LabeledContent("Honey carried", value: Int(swarm.honeyCarried.rounded()).counted("unit"))
                     } footer: {
                         Text("Your friend will found a colony from this swarm at a site they choose. Your colony keeps its virgin queen either way.")
                     }
@@ -55,7 +55,17 @@ struct ShareSwarmView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(Theme.honey)
+                        .foregroundStyle(Theme.onHoney)
                         .controlSize(.large)
+
+                        // A share sheet cannot say whether anything was sent,
+                        // so the player says. Without this the swarm stayed
+                        // theirs to follow or give away again.
+                        Button("I've Sent It") {
+                            store.letSwarmGo()
+                            dismiss()
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                 } footer: {
                     if let failure { Text(failure).foregroundStyle(Theme.alarm) }
@@ -86,8 +96,15 @@ struct ShareSwarmView: View {
             return
         }
         do {
+            // The title carries the queen's name, which the player typed. A
+            // "/" in it made a path into a folder that does not exist, and
+            // the share failed; ":" and a leading "." misbehave in Files too.
+            let safeTitle = share.queenTitle
+                .map { "/:\\".contains($0) ? "-" : $0 }
+                .reduce(into: "") { $0.append($1) }
+                .trimmingCharacters(in: CharacterSet(charactersIn: ". "))
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(share.queenTitle).\(SwarmShare.fileExtension)")
+                .appendingPathComponent("\(safeTitle.isEmpty ? "Swarm" : safeTitle).\(SwarmShare.fileExtension)")
             try share.encoded().write(to: url, options: .atomic)
             prepared = url
         } catch {
@@ -138,18 +155,22 @@ struct ReceiveSwarmView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         LabeledContent("Queen", value: share.queenTitle)
                         LabeledContent("Bees", value: "\(share.workerCount)")
-                        LabeledContent("Honey in their crops", value: "\(Int(share.honeyCarried.rounded())) units")
-                        LabeledContent("Mated with", value: "\(share.genetics.patrilines) drones")
+                        LabeledContent("Honey in their crops", value: Int(share.honeyCarried.rounded()).counted("unit"))
+                        LabeledContent("Mated with", value: share.genetics.patrilines.counted("drone"))
                     }
                     .font(.subheadline)
                     .card()
 
-                    Text(store.isCollapsed
-                         ? "Your last colony is gone. This swarm can be the next."
-                         : "Taking this swarm replaces your current colony. Your garden stays.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                    if !adopted {
+                        Text(store.needsSetup
+                             ? "This swarm can be your first colony."
+                             : store.isCollapsed
+                                ? "Your last colony is gone. This swarm can be the next."
+                                : "Taking this swarm replaces your current colony. Your garden stays.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
 
                     if adopted {
                         Label("Settled", systemImage: "checkmark.circle.fill")
@@ -157,13 +178,20 @@ struct ReceiveSwarmView: View {
                             .foregroundStyle(Theme.healthy)
                     } else {
                         Button {
-                            if store.isCollapsed { isChoosingSite = true } else { isConfirmingReplace = true }
+                            // Nothing to replace before the first site is chosen:
+                            // the colony the store holds then is a placeholder.
+                            if store.isCollapsed || store.needsSetup {
+                                isChoosingSite = true
+                            } else {
+                                isConfirmingReplace = true
+                            }
                         } label: {
                             Label("Give Them a Home", systemImage: "hexagon.fill")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(Theme.honey)
+                        .foregroundStyle(Theme.onHoney)
                         .controlSize(.large)
                     }
                 }

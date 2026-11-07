@@ -25,6 +25,7 @@ import Foundation
 import Observation
 import WatchKit
 import WatchConnectivity
+import WidgetKit
 import FlowerPowerCore
 import FlowerPowerGame
 import os
@@ -41,6 +42,32 @@ final class WatchColonyModel: NSObject {
     /// should say so rather than imply it has just spoken to the phone.
     private(set) var isStale = false
 
+    /// The phone sent something this build cannot read — the two apps update
+    /// separately, and a newer save will not decode in an older watch app.
+    /// It used to fail into the log while the watch quietly went on catching
+    /// up an ever older colony.
+    private(set) var isOutOfStep = false
+
+    /// Answers tapped here that the phone has not yet been seen to take.
+    ///
+    /// The phone's copy wins whenever the two speak, and a save or summary it
+    /// wrote before the answer reached it — the answer queued while out of
+    /// range, the save sent by a background refresh — brought the answered
+    /// decision straight back, with the haptic for a new one. These are laid
+    /// back over whatever arrives until the phone's own copy shows them taken.
+    @ObservationIgnored private var pendingAnswers: [PendingAnswer] = []
+
+    private struct PendingAnswer: Codable {
+        let identifier: String
+        let kind: WatchDecision.Kind
+        let answeredAt: Date
+    }
+
+    /// Long enough for a queued answer to reach a phone left at home for the
+    /// afternoon; short enough that one the phone refused cannot linger.
+    private static let pendingLifetime: TimeInterval = 6 * 3600
+    private static let pendingKey = "pendingAnswers"
+
     @ObservationIgnored private let decoder = JSONDecoder()
     @ObservationIgnored private let persistence = GamePersistence()
     @ObservationIgnored private let logger = Logger(
@@ -48,13 +75,45 @@ final class WatchColonyModel: NSObject {
         category: "colony"
     )
 
-    /// A summary older than this is shown with a caveat.
-    private static let staleAfter: TimeInterval = 6 * 3600
+    /// A phone summary older than this gives way to the watch's own catch-up.
+    ///
+    /// It was six hours, which at 300 real seconds a tick is three simulated
+    /// days: long enough for a siege the phone reported to be over while the
+    /// watch went on offering answers to it. The local catch-up runs the same
+    /// deterministic engine from the phone's last save, so after a few minutes
+    /// it is the better figure of the two.
+    private static let staleAfter: TimeInterval = 15 * 60
 
     override init() {
         super.init()
+        if let data = UserDefaults.standard.data(forKey: Self.pendingKey),
+           let stored = try? decoder.decode([PendingAnswer].self, from: data) {
+            pendingAnswers = stored
+        }
         activateSession()
         loadFromSharedContainer()
+    }
+
+    private func savePendingAnswers() {
+        pendingAnswers.removeAll { Date().timeIntervalSince($0.answeredAt) > Self.pendingLifetime }
+        if let data = try? JSONEncoder().encode(pendingAnswers) {
+            UserDefaults.standard.set(data, forKey: Self.pendingKey)
+        }
+    }
+
+    /// Lays the unconfirmed answers over the watch's save, dropping any the
+    /// save no longer has a use for — because the phone took them, or because
+    /// the decision closed.
+    private func reapplyPendingAnswers() {
+        savePendingAnswers()
+        guard !pendingAnswers.isEmpty, let simulation = try? persistence.load() else { return }
+        let store = GameStore(simulation: simulation, persistence: persistence)
+        store.catchUp()
+        pendingAnswers.removeAll { answer in
+            guard let action = DecisionAction(identifier: answer.identifier) else { return true }
+            return !store.apply(action)
+        }
+        savePendingAnswers()
     }
 
     // MARK: - Connectivity
@@ -77,6 +136,26 @@ final class WatchColonyModel: NSObject {
 
         do {
             let decoded = try decoder.decode(WatchSummary.self, from: data)
+            isOutOfStep = false
+            // Queued transfers arrive late and out of order. One written
+            // before what the watch already shows — before an answer tapped
+            // here, typically — would bring the answered decision back, with
+            // a haptic announcing it as new.
+            if let current = summary, decoded.generatedAt < current.generatedAt { return }
+
+            // The phone has closed what was answered here: nothing to hold.
+            pendingAnswers.removeAll { answer in
+                decoded.generatedAt > answer.answeredAt && decoded.decision?.kind != answer.kind
+            }
+            savePendingAnswers()
+            // The phone is still asking something answered here, so the answer
+            // has not reached it yet. The watch's own copy has the answer in
+            // it; show that rather than the question again.
+            if let asking = decoded.decision?.kind, pendingAnswers.contains(where: { $0.kind == asking }) {
+                loadFromSharedContainer(force: true)
+                return
+            }
+
             // A distinct tap for a decision arriving, a different one for
             // trouble. The watch's whole job is to be glanced at; haptics are
             // how it earns the glance.
@@ -98,7 +177,11 @@ final class WatchColonyModel: NSObject {
             summary = decoded
             lastUpdated = Date()
             isStale = false
+            // Newer than any local catch-up still running; see
+            // `loadFromSharedContainer`.
+            loadGeneration &+= 1
         } catch {
+            isOutOfStep = error is DecodingError
             logger.error("could not decode watch summary: \(error.localizedDescription)")
         }
     }
@@ -110,12 +193,25 @@ final class WatchColonyModel: NSObject {
     /// The phone is the authority — it is where photographs are taken and
     /// where the canonical save lives — but a watch that cannot reach it
     /// should still be honest rather than blank.
+    ///
+    /// The catching up is done off the main actor. It runs at launch and on
+    /// every appearance, and a watch away from its phone for a fortnight has
+    /// thousands of ticks to run — on the main thread that was a frozen
+    /// launch on the slowest hardware the game runs on.
     func loadFromSharedContainer(force: Bool = false) {
-        do {
-            guard var simulation = try persistence.load() else { return }
-            simulation.advance(to: Date())
-
-            let computed = simulation.watchSummary()
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        let persistence = self.persistence
+        Task {
+            let computed: WatchSummary?
+            do {
+                computed = try await Self.localSummary(from: persistence)
+            } catch {
+                logger.error("could not read shared save: \(error.localizedDescription)")
+                return
+            }
+            // A later load has been asked for since; its answer is the newer.
+            guard let computed, generation == loadGeneration else { return }
 
             // Only fall back if there is nothing fresher, unless a save has
             // just arrived, in which case it is by definition the best thing
@@ -131,10 +227,18 @@ final class WatchColonyModel: NSObject {
             // Computed here, not sent by the phone, so it is flagged as such.
             // `apply(summary:)` clears it the moment the phone is heard from.
             isStale = true
-
-        } catch {
-            logger.error("could not read shared save: \(error.localizedDescription)")
         }
+    }
+
+    @ObservationIgnored private var loadGeneration = 0
+
+    @concurrent
+    nonisolated private static func localSummary(
+        from persistence: GamePersistence
+    ) async throws -> WatchSummary? {
+        guard var simulation = try persistence.load() else { return nil }
+        simulation.advance(to: Date())
+        return simulation.watchSummary()
     }
 
     // MARK: - Answering
@@ -154,32 +258,60 @@ final class WatchColonyModel: NSObject {
     /// Then it goes to the phone, which holds the colony that counts. The phone
     /// is where photographs are taken and where the canonical save lives, and
     /// the watch's copy is only ever a copy.
-    func answer(_ identifier: String) {
-        guard let action = DecisionAction(identifier: identifier) else { return }
-        applyLocally(action)
+    /// Whether the answer took here. False for a decision that has closed
+    /// since the page was drawn, which the page should not celebrate.
+    @discardableResult
+    func answer(_ identifier: String) -> Bool {
+        guard let action = DecisionAction(identifier: identifier) else { return false }
+        let asked = summary?.decision?.kind
+        let appliedHere = applyLocally(action)
         send(decision: identifier)
+        // The watch's save can be hours behind the phone, so a question fresh
+        // from the phone can be one the local copy has never heard of. Only
+        // the phone can refuse those: the warning buzz here was wrong, and it
+        // threw away the real question for the watch's stale summary.
+        let applied = appliedHere || !isStale
+        // Held until the phone is seen to have it. Not opening the nest up,
+        // which is not checked against any decision: laid over a save again
+        // it would draw another batch of comb every time one arrived.
+        if applied, let asked, !(action == .addComb) {
+            pendingAnswers.append(PendingAnswer(identifier: identifier, kind: asked, answeredAt: Date()))
+            savePendingAnswers()
+        }
+        if !applied {
+            // The page was showing a decision that is no longer open; replace
+            // it with what is true now rather than leave dead buttons up.
+            loadFromSharedContainer(force: true)
+        }
+        return applied
     }
 
-    private func applyLocally(_ action: DecisionAction) {
+    private func applyLocally(_ action: DecisionAction) -> Bool {
         do {
-            guard let simulation = try persistence.load() else { return }
+            // No save on the watch yet means nothing to judge against; the
+            // phone will judge it.
+            guard let simulation = try persistence.load() else { return true }
             // A store around the watch's own save, exactly as the phone builds
             // one around its own for a notification action. The alternative is
             // a second copy of the rules that decide whether a decision is
             // still open, which is how the two ends would come to disagree.
             let store = GameStore(simulation: simulation, persistence: persistence)
             store.catchUp()
-            guard store.apply(action) else { return }
+            guard store.apply(action) else { return false }
 
             summary = store.watchSummary()
             lastUpdated = Date()
+            loadGeneration &+= 1
             // Worked out here rather than sent by the phone, which is what
             // `isStale` means. `apply(summary:)` clears it when the phone is next
             // heard from.
             isStale = true
+            WidgetCenter.shared.reloadAllTimelines()
+            return true
 
         } catch {
             logger.error("could not answer locally: \(error.localizedDescription)")
+            return true
         }
     }
 
@@ -241,6 +373,12 @@ final class WatchColonyModel: NSObject {
     /// touches the model hops to the main actor explicitly.
     func refresh() {
         loadFromSharedContainer()
+        // With no save on the watch to fall back on, the local catch-up has
+        // nothing to offer, and an old summary is all there is. It should at
+        // least say so.
+        if let lastUpdated, Date().timeIntervalSince(lastUpdated) > Self.staleAfter {
+            isStale = true
+        }
 
         guard WCSession.isSupported(), WCSession.default.isReachable else { return }
         WCSession.default.sendMessage(["request": "summary"], replyHandler: { @Sendable [weak self] reply in
@@ -261,7 +399,30 @@ extension WatchColonyModel: WCSessionDelegate {
         _ session: WCSession,
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
-    ) {}
+    ) {
+        // `refresh()` from the first `onAppear` runs before activation has
+        // finished, when the phone never counts as reachable — so every launch
+        // used to say "out of touch" with the phone right there.
+        guard activationState == .activated else { return }
+        // Whatever the phone last left as its context, which may have arrived
+        // while the app was not running.
+        let context = Self.summaryData(in: session.receivedApplicationContext)
+        Task { @MainActor in
+            apply(summary: context)
+            refresh()
+        }
+    }
+
+    /// Routine summaries come this way, latest only. See `WatchLink.send`.
+    nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        let data = Self.summaryData(in: applicationContext)
+        Task { @MainActor in apply(summary: data) }
+    }
+
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        guard session.isReachable else { return }
+        Task { @MainActor in refresh() }
+    }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         let data = Self.summaryData(in: message)
@@ -283,8 +444,14 @@ extension WatchColonyModel: WCSessionDelegate {
             guard let data else { return }
             do {
                 try GamePersistence().write(transferred: data)
+                isOutOfStep = false
+                reapplyPendingAnswers()
                 loadFromSharedContainer(force: true)
+                // The complication reads only this file, and nothing else
+                // tells it the file has changed.
+                WidgetCenter.shared.reloadAllTimelines()
             } catch {
+                isOutOfStep = error is DecodingError
                 logger.error("could not adopt phone save: \(error.localizedDescription)")
             }
         }

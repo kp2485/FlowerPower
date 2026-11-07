@@ -22,7 +22,7 @@ import FlowerPowerGame
 struct FieldGuideView: View {
 
     @Environment(GameStore.self) private var store
-    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.likelyHere.rawValue
 
     @State private var search = ""
 
@@ -217,7 +217,7 @@ struct FieldGuideDetailView: View {
                 .foregroundStyle(.secondary)
             Text("\(entry.family.commonName) · \(entry.family.scientificName) · \(entry.rarity.displayName)")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
 
             if entry.hasBeenPhotographed {
                 Label("In your garden", systemImage: "checkmark.circle.fill")

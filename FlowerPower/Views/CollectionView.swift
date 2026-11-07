@@ -21,7 +21,7 @@ import FlowerPowerGame
 struct CollectionView: View {
 
     @Environment(GameStore.self) private var store
-    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.likelyHere.rawValue
 
     private var collection: BotanyCollection { BotanyCollection(patches: store.snapshot.patches) }
     private var hemisphere: Hemisphere { Hemisphere(rawValue: hemisphereRaw) ?? .northern }
@@ -58,8 +58,37 @@ struct CollectionView: View {
             }
 
             Section("Families in the garden") {
-                ForEach(collection.families) { entry in
+                ForEach(collection.families.filter(\.isModelled)) { entry in
                     FoundFamilyRow(entry: entry, tally: detail(entry))
+                }
+            }
+
+            if !collection.familiesBeyondCatalogue.isEmpty {
+                Section {
+                    ForEach(collection.familiesBeyondCatalogue) { entry in
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(entry.family.commonName).font(.headline)
+                                Spacer()
+                                Text(entry.family.scientificName)
+                                    .font(.caption.italic())
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(entry.family.forageNote)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(detail(entry))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                        .accessibilityElement(children: .combine)
+                    }
+                } header: {
+                    Text("Beyond the catalogue")
+                } footer: {
+                    Text("Families the game does not collect, that your bees have been given anyway.")
                 }
             }
 
@@ -95,6 +124,10 @@ struct CollectionView: View {
     /// the country that nobody photographed.
     private var hasWildForage: Bool { !store.snapshot.wildPatches.isEmpty }
 
+    /// An unnamed flower has no family to be counted under, so a garden of
+    /// them can look empty here while the bees are busy on it.
+    private var hasUnnamedFlowers: Bool { store.snapshot.patches.contains { !$0.isIdentified } }
+
     private var calendar: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Bloom calendar")
@@ -127,10 +160,12 @@ struct CollectionView: View {
                 // in a season the shelf has nothing for. Saying otherwise
                 // would be telling the player their bees are starving while
                 // the foragers are out on the heath.
-                Text("Nothing in the garden flowers in \(collection.seasonsMissing.map { $0.rawValue }.spokenList). "
-                     + (hasWildForage
-                        ? "The bees are left with whatever they can find wild."
-                        : "The colony has no forage then."))
+                Text("Nothing \(hasUnnamedFlowers ? "named " : "")in the garden flowers in \(collection.seasonsMissing.map { $0.rawValue }.spokenList). "
+                     + (hasUnnamedFlowers
+                        ? "Your unnamed flowers may still cover it."
+                        : hasWildForage
+                            ? "The bees are left with whatever they can find wild."
+                            : "The colony has no forage then."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -203,7 +238,7 @@ private struct FoundFamilyRow: View {
                 }
                 Text(tally)
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
             .padding(.vertical, 2)
             .accessibilityElement(children: .combine)
@@ -261,7 +296,7 @@ private struct MissingFamilyRow: View {
                         }
                         Spacer()
                         Text(species.bloomSeasons
-                            .sorted { $0.rawValue < $1.rawValue }
+                            .sorted { Season.allCases.firstIndex(of: $0)! < Season.allCases.firstIndex(of: $1)! }
                             .map(\.displayName)
                             .formatted(.list(type: .and)))
                             .font(.caption2)
@@ -307,7 +342,7 @@ struct BloomPromptCard: View {
             if let wild = prompt.wildKeystone {
                 Label(wild, systemImage: "location.north.circle")
                     .font(.subheadline)
-                    .foregroundStyle(Theme.wild)
+                    .foregroundStyle(Theme.wildInk)
                     .fixedSize(horizontal: false, vertical: true)
             }
 

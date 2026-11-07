@@ -106,7 +106,7 @@ public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
     }
 
     public var scientificName: String? { taxon.scientificName }
-    public var family: PlantFamily { taxon.family }
+    public var family: BotanicalFamily { taxon.family }
 
     /// Nectar a colony can actually bank from this plant, relative to an
     /// ordinary flower.
@@ -158,7 +158,12 @@ public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
     /// good nectar plant with a corolla a honey bee can work, even if nobody
     /// can say whether it is borage or viper's bugloss — so the colony gets
     /// the family's typical forage rather than the generic unknown.
-    public static func generic(for taxon: Taxon) -> FlowerSpecies {
+    ///
+    /// `commonName` is what the identifier knew the plant as, if anything —
+    /// "Albanian tulip" — and is used for the label ahead of the Latin. A
+    /// family-level placement always shows the family's name instead, since
+    /// a common name at that rank would be a guess.
+    public static func generic(for taxon: Taxon, commonName: String? = nil) -> FlowerSpecies {
         let relatives = FlowerCatalogue.all.filter { taxon.contains($0.taxon) }
 
         // Where the catalogue has members of this group, their average is a
@@ -175,7 +180,7 @@ public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
             id: "taxon:\(taxon.scientificName)",
             commonName: taxon.rank == .family
                 ? taxon.family.commonName
-                : taxon.scientificName,
+                : (commonName?.isEmpty == false ? commonName! : taxon.scientificName),
             taxon: taxon,
             rarity: .common,
             bloomSeasons: seasons,

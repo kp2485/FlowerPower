@@ -47,11 +47,17 @@ struct CombLayoutTests {
     func truncatesAVeryLargeNest() {
         var simulation = Fixture.thrivingSimulation(drawnComb: 1_400)
         simulation.runDays(5)
+        // A full larder, a third of the comb, at the edge where trimming bit.
+        simulation.world.hive.resources[.honey] = 1_800
         let layout = CombLayout(snapshot: simulation.snapshot())
 
         #expect(layout.builtCells > CombLayout.maximumCellsDrawn)
         #expect(layout.cells.count == CombLayout.maximumCellsDrawn)
         #expect(layout.isTruncated)
+        // Drawn to scale rather than cut off: the honey is the outermost
+        // band, and trimming the end is what used to lose it.
+        let honey = layout.cells.filter { $0.family == .honey }.count
+        #expect(honey > CombLayout.maximumCellsDrawn / 5, "the honey band was cut off: \(honey) cells")
     }
 
     // MARK: - The tallies are the hive's own numbers

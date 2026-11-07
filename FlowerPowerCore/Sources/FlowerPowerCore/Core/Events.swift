@@ -140,6 +140,8 @@ public struct CatchUpReport: Equatable, Sendable {
     /// Kept in arrival order and capped, so the UI can show a readable
     /// timeline without unbounded growth.
     public private(set) var highlights: [SimEvent] = []
+    /// The day of each highlight, in step with `highlights`.
+    public private(set) var highlightDays: [Int] = []
     public static let highlightLimit = 60
 
     public init() {}
@@ -150,7 +152,38 @@ public struct CatchUpReport: Equatable, Sendable {
     public var totalEmerged: Int { emerged.values.reduce(0, +) }
     public var netPopulationChange: Int { totalEmerged - totalDeaths }
 
-    public mutating func record(_ event: SimEvent) {
+    /// This report followed by a later one, as if the two absences had been
+    /// one. For a report the player has not read yet when the next arrives.
+    public func merging(_ later: CatchUpReport) -> CatchUpReport {
+        var merged = self
+        merged.ticksSimulated += later.ticksSimulated
+        merged.daysSimulated += later.daysSimulated
+        merged.emerged.merge(later.emerged, uniquingKeysWith: +)
+        merged.died.merge(later.died, uniquingKeysWith: +)
+        merged.eggsLaid += later.eggsLaid
+        merged.cellsBuilt += later.cellsBuilt
+        merged.combLost += later.combLost
+        merged.depletedPatches += later.depletedPatches
+        merged.newInfections += later.newInfections
+        merged.criticalInfections += later.criticalInfections
+        merged.attacks += later.attacks
+        merged.storesRaided += later.storesRaided
+        merged.swarmed = swarmed || later.swarmed
+        merged.absconded = absconded || later.absconded
+        merged.queenLost = queenLost || later.queenLost
+        merged.queenMated = queenMated || later.queenMated
+        merged.superseded = superseded || later.superseded
+        merged.layingWorkers = layingWorkers || later.layingWorkers
+        merged.collapsed = collapsed || later.collapsed
+        merged.starved = starved || later.starved
+        merged.groundedDays += later.groundedDays
+        merged.milestones += later.milestones
+        merged.highlights = Array((highlights + later.highlights).prefix(Self.highlightLimit))
+        merged.highlightDays = Array((highlightDays + later.highlightDays).prefix(Self.highlightLimit))
+        return merged
+    }
+
+    public mutating func record(_ event: SimEvent, day: Int = 0) {
         switch event {
         case .emerged(let kind):
             emerged[kind, default: 0] += 1
@@ -196,9 +229,22 @@ public struct CatchUpReport: Equatable, Sendable {
             break
         }
 
-        if event.isHighlight, highlights.count < Self.highlightLimit {
-            highlights.append(event)
+        guard event.isHighlight else { return }
+
+        // Said again each day it stays true. Only the latest figure is news,
+        // and three in a row buried everything between them.
+        if case .winterStoresLow = event,
+           let earlier = highlights.lastIndex(where: {
+               if case .winterStoresLow = $0 { return true }
+               return false
+           }) {
+            highlights.remove(at: earlier)
+            highlightDays.remove(at: earlier)
         }
+
+        guard highlights.count < Self.highlightLimit else { return }
+        highlights.append(event)
+        highlightDays.append(day)
     }
 }
 
@@ -208,8 +254,10 @@ extension SimEvent {
     /// only counting. Births and deaths happen constantly; a swarm does not.
     public var isHighlight: Bool {
         switch self {
+        // Weather included: it turns every day or two, so an 82-day absence read
+        // as a forecast with a wasp somewhere in the middle of it.
         case .emerged, .died, .eggsLaid, .cellsBuilt, .overheating, .chilling,
-             .starving, .patchDepleted, .groundedByWeather:
+             .starving, .patchDepleted, .groundedByWeather, .weatherChanged:
             return false
         // A flower going out of season is the calendar doing what it does,
         // and the garden already shows it on the flower. The first player to
@@ -220,7 +268,7 @@ extension SimEvent {
         case .queenCellStarted, .queenEmerged, .queenMated, .matingFlightFailed,
              .queenLost, .queenFailing, .swarmed, .absconded, .supersededQueen,
              .layingWorkersAppeared, .colonyCollapsed, .combLost,
-             .nectarFlowBegan, .dearth, .weatherChanged,
+             .nectarFlowBegan, .dearth,
              .infectionDetected, .infectionCleared, .infectionCritical,
              .attacked, .attackRepelled, .raidSucceeded, .winterStoresLow,
              .threatBegan, .threatEnded, .swarmPreparing, .swarmAbandoned,

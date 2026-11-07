@@ -18,6 +18,7 @@ import FlowerPowerCore
 struct WatchRootView: View {
 
     @Environment(WatchColonyModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -27,8 +28,11 @@ struct WatchRootView: View {
                         DecisionPage(decision: decision) { identifier in
                             model.answer(identifier)
                         }
+                        // A different decision is a different page, with its
+                        // own count of answers.
+                        .id(decision.kind)
                     }
-                    StatusPage(summary: summary, isStale: model.isStale)
+                    StatusPage(summary: summary, isStale: model.isStale, isOutOfStep: model.isOutOfStep)
                     ConditionsPage(summary: summary)
                     NumbersPage(summary: summary)
                 }
@@ -36,10 +40,15 @@ struct WatchRootView: View {
                 .navigationTitle("Hive")
                 .navigationBarTitleDisplayMode(.inline)
             } else {
-                WaitingView { model.refresh() }
+                WaitingView(isOutOfStep: model.isOutOfStep) { model.refresh() }
             }
         }
         .onAppear { model.refresh() }
+        // A raised wrist brings a suspended app back without an appearance, so
+        // this is what stops hours-old numbers being shown as current.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.refresh() }
+        }
     }
 }
 
@@ -56,12 +65,14 @@ private struct DecisionPage: View {
     let decision: WatchDecision
     /// Takes a `DecisionAction` identifier, which the model parses. The view
     /// deliberately knows nothing about what the answers mean.
-    var onAnswer: (String) -> Void
+    /// Returns whether the answer took.
+    var onAnswer: (String) -> Bool
 
     /// Answering from the wrist deserves the same tap the phone gives. The
     /// model plays a haptic when a decision *arrives*; nothing marked the
     /// answer going back.
     @State private var answers = 0
+    @State private var refused = 0
 
     var body: some View {
         ScrollView {
@@ -90,8 +101,11 @@ private struct DecisionPage: View {
 
                 ForEach(decision.options, id: \.identifier) { option in
                     Button(option.title) {
-                        onAnswer(option.identifier)
-                        answers += 1
+                        if onAnswer(option.identifier) {
+                            answers += 1
+                        } else {
+                            refused += 1
+                        }
                     }
                     .buttonStyle(.bordered)
                     .tint(WatchTheme.honey)
@@ -100,12 +114,13 @@ private struct DecisionPage: View {
 
                 Text("Or leave it to the bees, which is what happens if you do nothing.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 4)
         }
         .sensoryFeedback(.success, trigger: answers)
+        .sensoryFeedback(.warning, trigger: refused)
     }
 
     private func remaining(_ days: Int) -> String {
@@ -123,6 +138,7 @@ private struct StatusPage: View {
 
     let summary: WatchSummary
     let isStale: Bool
+    let isOutOfStep: Bool
 
     var body: some View {
         ScrollView {
@@ -169,10 +185,18 @@ private struct StatusPage: View {
                     .accessibilityElement(children: .combine)
                 }
 
-                if isStale {
+                if isOutOfStep {
+                    // Not "out of touch": the phone is talking, and this app
+                    // cannot read what it says. Only updating fixes that.
+                    Label("Update FlowerPower on your phone and watch to keep them in step",
+                          systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                } else if isStale {
                     Label("Out of touch with your phone", systemImage: "antenna.radiowaves.left.and.right.slash")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 4)
@@ -238,7 +262,7 @@ private struct NumbersPage: View {
 
                 Text(summary.generatedAt, style: .relative)
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .padding(.top, 4)
             }
             .padding(.horizontal, 4)
@@ -298,6 +322,7 @@ private struct WatchReading: View {
 
 private struct WaitingView: View {
 
+    var isOutOfStep = false
     var onRetry: () -> Void
 
     /// In a scroll view because it does not fit otherwise. Held to the
@@ -310,9 +335,11 @@ private struct WaitingView: View {
                     .font(.largeTitle)
                     .foregroundStyle(WatchTheme.honey)
                     .accessibilityHidden(true)
-                Text("No colony yet")
+                Text(isOutOfStep ? "Out of step" : "No colony yet")
                     .font(.headline)
-                Text("Open FlowerPower on your iPhone.")
+                Text(isOutOfStep
+                     ? "Update FlowerPower on your iPhone and watch."
+                     : "Open FlowerPower on your iPhone.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

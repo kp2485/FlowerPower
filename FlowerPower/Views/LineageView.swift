@@ -93,6 +93,7 @@ struct LineageView: View {
                     }
                 }
             }
+            .childSheet()
         }
     }
 
@@ -156,7 +157,7 @@ private struct QueenRow: View {
     /// because a record is looked at rather than read.
     private var record: some View {
         VStack(alignment: .leading, spacing: 6) {
-            LabeledContent("Reign", value: "\(queen.reignDays(on: today)) days")
+            LabeledContent("Reign", value: queen.reignDays(on: today).counted("day"))
             LabeledContent("Emerged", value: dayLabel(queen.emergedOnDay))
             LabeledContent("Mating", value: mating)
             LabeledContent("Quality at emergence", value: "\(Int((queen.quality * 100).rounded()))%")
@@ -194,8 +195,8 @@ private struct QueenRow: View {
 
     private var mating: String {
         guard let patrilines = queen.patrilines else { return "Never mated" }
-        guard let day = queen.matedOnDay else { return "\(patrilines) drones" }
-        return "\(patrilines) drones, \(dayLabel(day))"
+        guard let day = queen.matedOnDay else { return patrilines.counted("drone") }
+        return "\(patrilines.counted("drone")), \(dayLabel(day))"
     }
 
     /// Days are counted from the colony's founding, which past the first year

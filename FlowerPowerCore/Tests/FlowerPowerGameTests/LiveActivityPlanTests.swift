@@ -345,7 +345,7 @@ struct LiveActivityPlanTests {
 
         let item = try #require(outcome(skunkSiege, simulation))
         #expect(item.scene.repelled == false)
-        #expect(item.status == "40 bees lost, 12 honey taken and 1 cell of comb spoiled")
+        #expect(item.status == "40 bees lost, 12 units of honey taken and 1 cell of comb spoiled")
     }
 
     @Test("An old record, or somebody else's, is not this siege's ending")

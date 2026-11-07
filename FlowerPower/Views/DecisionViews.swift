@@ -52,16 +52,15 @@ struct ThreatDecisionCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if snapshot.posture != .instinct {
+            if threat.isAnswered(by: snapshot.posture) {
                 Label("Holding: \(snapshot.posture.displayName)", systemImage: "checkmark.shield.fill")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.healthy)
-            } else {
+            } else if threat.style.hasAnswer {
                 VStack(spacing: 8) {
                     ForEach(threat.options.filter { $0 != .instinct }, id: \.self) { posture in
                         Button {
-                            store.respond(to: threat, with: posture)
-                            answers += 1
+                            if store.respond(to: threat, with: posture) { answers += 1 }
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(posture.displayName).font(.subheadline.weight(.semibold))
@@ -75,7 +74,7 @@ struct ThreatDecisionCard: View {
                 }
                 Text("Or let instinct handle it, which is what happens if you do nothing.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
         .card()
@@ -84,7 +83,7 @@ struct ThreatDecisionCard: View {
 
     private var remaining: String {
         let days = threat.daysRemaining(on: snapshot.day)
-        return days <= 0 ? "resolves today" : "\(days) day\(days == 1 ? "" : "s") to decide"
+        return days <= 0 ? "resolves today" : "\(days.counted("day")) to decide"
     }
 
     /// The engine owns this now, as `AttackStyle.explanation` — and it gained
@@ -101,9 +100,22 @@ struct SwarmDecisionCard: View {
 
     let swarm: PendingSwarm
     let snapshot: ColonySnapshot
+    /// Opens the move. The sheet is the dashboard's, not this card's: a tick
+    /// that settled the swarm took the card away, and a sheet belonging to it
+    /// vanished in the middle of the player's choosing.
+    var onRelocate: () -> Void
     @Environment(GameStore.self) private var store
-    @State private var isRelocating = false
     @State private var answers = 0
+
+    private var swarmDeadline: String {
+        let days = swarm.daysRemaining(on: snapshot.day)
+        return days <= 0 ? "any time now" : days.counted("day")
+    }
+
+    /// Nothing to offer from the largest cavity there is.
+    private var canMoveToLarger: Bool {
+        HiveLocationType.allCases.contains { $0.maximumCells > snapshot.nest.siteType.maximumCells }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -114,7 +126,7 @@ struct SwarmDecisionCard: View {
                 Text("The colony is preparing to swarm")
                     .font(.headline)
                 Spacer()
-                Text("\(swarm.daysRemaining(on: snapshot.day)) days")
+                Text(swarmDeadline)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -130,6 +142,10 @@ struct SwarmDecisionCard: View {
                 Label("Making room. It may still go.", systemImage: "hammer.fill")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.healthy)
+            } else if swarm.accepted == true {
+                Label("You are letting them go.", systemImage: "bird")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
             } else {
                 // Space first. It is what a beekeeper actually does about
                 // congestion, and the only answer here that does not cost the
@@ -148,12 +164,11 @@ struct SwarmDecisionCard: View {
                 // then the card says nothing about comb at all.
                 if snapshot.swarmOffersComb {
                     Button {
-                        store.addComb()
-                        answers += 1
+                        if store.addComb() > 0 { answers += 1 }
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Open the Nest Up").font(.subheadline.weight(.semibold))
-                            Text("\(snapshot.combOnOffer) cells of drawn comb, paid for in the honey it takes to make the wax. Room they can use today rather than room they cannot afford to fill.")
+                            Text("\(snapshot.combOnOffer.counted("cell")) of drawn comb, paid for in the honey it takes to make the wax. Room they can use today rather than room they cannot afford to fill.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -172,8 +187,7 @@ struct SwarmDecisionCard: View {
 
                 if snapshot.canSplit {
                     Button {
-                        store.splitColony()
-                        answers += 1
+                        if store.splitColony() { answers += 1 }
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Divide Them Yourself").font(.subheadline.weight(.semibold))
@@ -212,32 +226,26 @@ struct SwarmDecisionCard: View {
                 .buttonStyle(.bordered)
                 .tint(Theme.honey)
 
-                Button {
-                    isRelocating = true
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Move to a Larger Cavity").font(.subheadline.weight(.semibold))
-                        Text("Abscond to somewhere roomier. The bees go; the comb, stores and brood do not.")
-                            .font(.caption).foregroundStyle(.secondary)
+                if canMoveToLarger {
+                    Button(action: onRelocate) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Move to a Larger Cavity").font(.subheadline.weight(.semibold))
+                            Text("Abscond to somewhere roomier. The bees go; the comb, stores and brood do not.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .buttonStyle(.bordered)
+                    .tint(Theme.honey)
                 }
-                .buttonStyle(.bordered)
-                .tint(Theme.honey)
 
                 Text("Or let them go, which is what happens if you do nothing.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
         .card()
         .sensoryFeedback(.success, trigger: answers)
-        .sheet(isPresented: $isRelocating) {
-            NewColonyView(reason: .relocating) { site in
-                store.relocateHive(to: HiveLocation(type: site))
-                isRelocating = false
-            }
-        }
     }
 
 }
@@ -262,7 +270,7 @@ struct DepartedSwarmCard: View {
                     .font(.headline)
             }
 
-            Text("\(swarm.queenTitle) has gone with \(swarm.beeCount) bees and \(Int(swarm.honeyCarried.rounded())) units of honey in their crops. The colony that stays rests on a virgin queen. You can stay with it, or go with the swarm to a new site — your garden comes either way.")
+            Text("\(swarm.queenTitle) has gone with \(swarm.beeCount.counted("bee")) and \(Int(swarm.honeyCarried.rounded())) units of honey in their crops. The colony that stays rests on a virgin queen. You can stay with it, or go with the swarm to a new site — your garden comes either way.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -275,8 +283,9 @@ struct DepartedSwarmCard: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.honey)
+            .foregroundStyle(Theme.onHoney)
 
-            HStack {
+            ButtonRow {
                 Button("Stay With the Colony") {
                     store.letSwarmGo()
                     answers += 1
@@ -295,9 +304,11 @@ struct DepartedSwarmCard: View {
                 answers += 1
                 isChoosingSite = false
             }
+            .childSheet()
         }
         .sheet(isPresented: $isGifting) {
             ShareSwarmView()
+                .childSheet()
         }
     }
 }
@@ -325,12 +336,13 @@ struct EntranceDecisionCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack {
+            ButtonRow {
                 Button("Seal It") {
                     store.decideEntrance(sealed: true)
                     answers += 1
                 }
                 .buttonStyle(.borderedProminent)
+                .foregroundStyle(Theme.onHoney)
                 Button("Keep It Open") {
                     store.decideEntrance(sealed: false)
                     answers += 1
@@ -381,9 +393,9 @@ struct HoneyDecisionCard: View {
                 Slider(value: $amount, in: 0...snapshot.harvestableHoney, step: 1)
                     .tint(Theme.honey)
                     .accessibilityLabel("Honey to take")
-                    .accessibilityValue("\(Int(amount)) of \(Int(snapshot.harvestableHoney)) units")
+                    .accessibilityValue("\(Int(amount)) of \(Int(snapshot.harvestableHoney).counted("unit"))")
                 HStack {
-                    Text("\(Int(amount)) of \(Int(snapshot.harvestableHoney)) units")
+                    Text("\(Int(amount)) of \(Int(snapshot.harvestableHoney).counted("unit"))")
                         .font(.caption.monospacedDigit())
                         .minimumScaleFactor(0.7)
                     Spacer()
@@ -394,12 +406,18 @@ struct HoneyDecisionCard: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.honey)
+                    .foregroundStyle(Theme.onHoney(enabled: amount >= 1))
                     .disabled(amount < 1)
                 }
             }
         }
         .card()
         .sensoryFeedback(.success, trigger: harvests)
+        // The cap moves with the season, and a slider left past it read
+        // "30 of 12 units".
+        .onChange(of: snapshot.harvestableHoney) { _, cap in
+            amount = min(amount, cap.rounded(.down))
+        }
     }
 }
 
@@ -418,6 +436,7 @@ struct FeedDecisionCard: View {
     @Environment(GameStore.self) private var store
     @State private var amount: Double = 0
     @State private var feeds = 0
+    @State private var hasOpened = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -427,7 +446,8 @@ struct FeedDecisionCard: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("They are short for winter").font(.headline)
-                    Text(String(format: "%.0f units short", snapshot.storesShortfall))
+                    // Up, so a colony a fraction short is not "0 units short".
+                    Text("\(Int(snapshot.storesShortfall.rounded(.up)).counted("unit")) short")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .minimumScaleFactor(0.7)
@@ -446,31 +466,33 @@ struct FeedDecisionCard: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if snapshot.feedOnOffer < 1 {
-                Text("There is no room in the comb for any of it.")
+                Text(snapshot.honeyTaken < 1
+                     ? "There is less than a unit of it left to give."
+                     : "There is no room in the comb for any of it.")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             } else {
                 Slider(value: $amount, in: 0...snapshot.feedOnOffer, step: 1)
                     .tint(Theme.honey)
                     .accessibilityLabel("Honey to give back")
-                    .accessibilityValue("\(Int(amount)) of \(Int(snapshot.feedOnOffer)) units")
+                    .accessibilityValue("\(Int(amount)) of \(Int(snapshot.feedOnOffer).counted("unit"))")
                 HStack {
-                    Text("\(Int(amount)) of \(Int(snapshot.feedOnOffer)) units")
+                    Text("\(Int(amount)) of \(Int(snapshot.feedOnOffer).counted("unit"))")
                         .font(.caption.monospacedDigit())
                         .minimumScaleFactor(0.7)
                     Spacer()
                     Button(DecisionAction.feed.title) {
-                        store.feed(amount)
+                        if store.feed(amount) > 0 { feeds += 1 }
                         amount = 0
-                        feeds += 1
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.honey)
+                    .foregroundStyle(Theme.onHoney(enabled: amount >= 1))
                     .disabled(amount < 1)
                 }
                 Text("Or leave them to it, which is what happens if you do nothing.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
         .card()
@@ -478,8 +500,15 @@ struct FeedDecisionCard: View {
         .onAppear {
             // Opens at what they are actually short of — the amount the
             // notification's one button would give — so the common case is a
-            // single tap and the slider is for disagreeing with it.
-            amount = min(snapshot.storesShortfall, snapshot.feedOnOffer).rounded()
+            // single tap and the slider is for disagreeing with it. Rounded
+            // down, because the cap is shown whole and up read "13 of 12", and
+            // once, so coming back from another tab keeps what was set.
+            guard !hasOpened else { return }
+            hasOpened = true
+            amount = min(snapshot.storesShortfall.rounded(.up), snapshot.feedOnOffer.rounded(.down))
+        }
+        .onChange(of: snapshot.feedOnOffer) { _, cap in
+            amount = min(amount, cap.rounded(.down))
         }
     }
 }
@@ -518,18 +547,18 @@ struct ScoutDecisionCard: View {
         guard let days = terrain.scoutsDaysRemaining, days > 0 else {
             return "The scouts are out. They are back today."
         }
-        return "The scouts are out. They are back in \(days) day\(days == 1 ? "" : "s")."
+        return "The scouts are out. They are back in \(days.counted("day"))."
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "map.fill")
-                    .foregroundStyle(Theme.wild)
+                    .foregroundStyle(Theme.wildInk)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Ground they have not seen").font(.headline)
-                    Text("\(terrain.discovered.count) stretches known")
+                    Text("\(terrain.discovered.count.counted("stretch", plural: "stretches")) known")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .minimumScaleFactor(0.7)
@@ -555,16 +584,16 @@ struct ScoutDecisionCard: View {
                 HStack {
                     Spacer()
                     Button(DecisionAction.scout.title) {
-                        store.sendScouts()
-                        sendings += 1
+                        if store.sendScouts() { sendings += 1 }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.honey)
+                    .foregroundStyle(Theme.onHoney)
                 }
 
                 Text("Or let the foragers find it in their own time, which is what happens if you do nothing.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

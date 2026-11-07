@@ -101,6 +101,7 @@ struct NestView: View {
             }
             .sheet(isPresented: $showingJobs) {
                 JobAssignmentView()
+                    .childSheet()
             }
         }
     }
@@ -122,6 +123,10 @@ private struct CombPanel: View {
     /// user has stepped to. One piece of state for both, so the highlight and
     /// the spoken value never disagree about where the player is.
     @State private var held: Int?
+    /// When the last sweep moved, so the tap running alongside it can tell a
+    /// tap from the end of a sweep.
+    @State private var lastSweep = Date.distantPast
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     /// A cell the player tapped, which stays until it is dismissed.
     @State private var opened: CombCellSummary?
@@ -137,6 +142,7 @@ private struct CombPanel: View {
         .card()
         .sheet(item: $opened) { cell in
             CombCellSheet(cell: cell)
+                .childSheet()
         }
     }
 
@@ -173,17 +179,21 @@ private struct CombPanel: View {
             .contentShape(Rectangle())
             .gesture(sweep(over: geometry))
             // The tap is for the player who never discovers the long press.
-            // A tap recogniser fails once a long press has succeeded, so this
-            // should not fire at the end of a sweep; the guard is there
-            // because a sheet opening as a finger lifts would be maddening and
-            // costs one comparison to rule out. Written the way the World
-            // map's tap is, which has been through the compiler: the
-            // location comes in the view's own space by default.
-            .onTapGesture { point in
-                guard held == nil else { return }
-                let index = geometry.index(atX: Double(point.x), y: Double(point.y))
-                opened = layout.cell(at: index)
-            }
+            // Alongside the sweep rather than after it: attached as a plain
+            // `onTapGesture` outside the long press, the long press swallowed
+            // every tap and a cell never opened — found the first time this
+            // ran. Because the two now run together, a tap that ends a sweep
+            // is ignored; a sheet opening as a finger lifts would be maddening.
+            .simultaneousGesture(
+                SpatialTapGesture().onEnded { value in
+                    guard held == nil, Date().timeIntervalSince(lastSweep) > 0.3 else { return }
+                    let index = geometry.index(
+                        atX: Double(value.location.x),
+                        y: Double(value.location.y)
+                    )
+                    opened = layout.cell(at: index)
+                }
+            )
             .overlay {
                 callout(over: geometry, in: proxy.size)
             }
@@ -210,10 +220,20 @@ private struct CombPanel: View {
         .accessibilityAdjustableAction { direction in
             step(direction)
         }
+        // The tap is guarded on `held`, which stepping sets and nothing
+        // clears, so VoiceOver's double tap would otherwise never open one.
+        .accessibilityAction(named: "Read This Band") {
+            if let cell = layout.cell(at: held) { opened = cell }
+        }
     }
 
     private func draw(in context: inout GraphicsContext, geometry: CombGeometry) {
         guard !layout.cells.isEmpty else { return }
+
+        // A pick that is no longer on the comb — eggs, once the queen stops
+        // laying — has no legend row left to turn it off with, and would leave
+        // every cell dimmed.
+        let picked = highlighted.flatMap { layout.familiesPresent.contains($0) ? $0 : nil }
 
         let mortar = Color(.systemBackground).opacity(0.55)
         let mortarWidth = CGFloat(max(0.5, geometry.radius * 0.08))
@@ -225,12 +245,28 @@ private struct CombPanel: View {
             // Picking a legend entry dims the rest rather than hiding it: the
             // shape of the brood nest is half of what the comb is saying, and
             // blanking it would throw that away to answer a smaller question.
-            if let highlighted, cell.family != highlighted {
+            if let picked, cell.family != picked {
                 fill = fill.opacity(0.18)
             }
 
             context.fill(path, with: .color(fill))
             context.stroke(path, with: .color(mortar), lineWidth: mortarWidth)
+
+            // Brood and the two kinds of pollen store are shades of the same
+            // thing however the palette is chosen, so a player who has asked
+            // for more than colour gets a letter as well.
+            if differentiateWithoutColor, geometry.radius >= 5,
+               let letter = CombPalette.letter(for: cell.family) {
+                context.draw(
+                    Text(letter)
+                        .font(.system(size: CGFloat(geometry.radius * 1.1), weight: .semibold))
+                        .foregroundStyle(.black.opacity(cell.family == picked || picked == nil ? 1 : 0.25)),
+                    at: {
+                        let centre = geometry.centre(of: cell.index)
+                        return CGPoint(x: centre.x, y: centre.y)
+                    }()
+                )
+            }
         }
 
         guard let held, layout.cells.indices.contains(held) else { return }
@@ -278,6 +314,7 @@ private struct CombPanel: View {
             .sequenced(before: DragGesture(minimumDistance: 0))
             .onChanged { value in
                 guard case .second(true, let drag) = value, let drag else { return }
+                lastSweep = Date()
                 let index = geometry.index(
                     atX: Double(drag.location.x),
                     y: Double(drag.location.y)
@@ -286,6 +323,7 @@ private struct CombPanel: View {
             }
             .onEnded { _ in
                 held = nil
+                lastSweep = Date()
             }
     }
 
@@ -329,6 +367,10 @@ private struct CombPanel: View {
     /// beekeeper takes off a frame at a glance.
     private func step(_ direction: AccessibilityAdjustmentDirection) {
         guard !layout.regions.isEmpty else { return }
+        // The bands are rebuilt from every snapshot and `band` is not, so a
+        // comb that has lost its eggs and larvae since the last swipe has
+        // fewer of them than `band` remembers.
+        band = min(band, layout.regions.count - 1)
 
         switch direction {
         case .increment: band = min(layout.regions.count - 1, band + 1)
@@ -445,6 +487,21 @@ private struct CombCellSheet: View {
 /// watch share.
 private enum CombPalette {
 
+    /// One letter per band, for Differentiate Without Color.
+    static func letter(for family: CombCellFamily) -> String? {
+        switch family {
+        case .eggs: return "E"
+        case .larvae: return "L"
+        case .sealedBrood: return "S"
+        case .beeBread: return "B"
+        case .pollen: return "P"
+        case .nectar: return "N"
+        case .honey: return "H"
+        case .queenCells: return "Q"
+        case .empty: return nil
+        }
+    }
+
     static func colour(for content: CombCellContent) -> Color {
         if case .queenCell = content { return Theme.queen }
         if let stage = content.stage { return Theme.colour(for: stage) }
@@ -487,6 +544,8 @@ private struct CombLegend: View {
     let layout: CombLayout
     @Binding var highlighted: CombCellFamily?
 
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 6)], spacing: 6) {
             ForEach(layout.familiesPresent) { family in
@@ -505,7 +564,15 @@ private struct CombLegend: View {
             HStack(spacing: 6) {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(CombPalette.colour(for: family))
+                    .strokeBorder(Color.primary.opacity(0.3), lineWidth: 0.5)
                     .frame(width: 11, height: 11)
+                    .overlay {
+                        if differentiateWithoutColor, let letter = CombPalette.letter(for: family) {
+                            Text(letter)
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(.black)
+                        }
+                    }
                 Text(family.displayName)
                     .font(.caption2)
                     .foregroundStyle(isPicked ? .primary : .secondary)
@@ -543,7 +610,7 @@ private struct JobBreakdown: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionTitle("Who is doing what", systemImage: "person.2.badge.gearshape.fill")
+            SectionTitle("Who can do what", systemImage: "person.2.badge.gearshape.fill")
 
             let jobs = population.jobs
                 .sorted { $0.value > $1.value }
@@ -568,14 +635,15 @@ private struct JobBreakdown: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(job.displayName): \(count) bees")
+                    .accessibilityLabel("\(job.displayName): \(count.counted("bee"))")
                     .accessibilityHint("Double tap to read what this work is.")
                 }
             }
 
-            Text("A worker's job follows her age. She cleans cells, then nurses, then builds and ripens, then guards, and finally forages until she wears out.")
+            Text("A worker's job follows her age. She cleans cells, then nurses, then builds and ripens, then guards, and finally forages until she wears out."
+                 + (population.winterBees > 0 ? " Winter bees can do anything, so each is counted under every job." : ""))
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -646,7 +714,7 @@ private struct JobDetail: View {
                         Image(systemName: Theme.symbol(for: job))
                             .foregroundStyle(Theme.worker)
                             .accessibilityHidden(true)
-                        Text("\(count) bees")
+                        Text(count.counted("bee"))
                             .font(.title3.weight(.semibold))
                             .monospacedDigit()
                     }
@@ -672,6 +740,7 @@ private struct JobDetail: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.honey)
+                .foregroundStyle(Theme.onHoney)
             }
             .padding()
         }
@@ -680,6 +749,7 @@ private struct JobDetail: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingJobs) {
             JobAssignmentView()
+                .childSheet()
         }
     }
 }

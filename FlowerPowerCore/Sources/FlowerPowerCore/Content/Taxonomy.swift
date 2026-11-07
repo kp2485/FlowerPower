@@ -59,6 +59,11 @@ public enum TaxonomicRank: Int, Codable, Comparable, CaseIterable, Sendable {
 ///
 /// Each carries the traits its members typically share, which is what makes a
 /// family-level identification useful rather than a consolation prize.
+///
+/// This is the *modelled* set — what the collection screen counts and what
+/// has traits somebody thought about — not the set a placement may name. A
+/// `Taxon` holds a `BotanicalFamily`, which is any family at all; this enum
+/// is what that name resolves to when the game knows it.
 public enum PlantFamily: String, Codable, CaseIterable, Sendable {
 
     case asteraceae
@@ -325,23 +330,132 @@ public enum PlantFamily: String, Codable, CaseIterable, Sendable {
     }
 }
 
+// MARK: - Any family at all
+
+/// A plant family by name, whether or not the game models it.
+///
+/// `PlantFamily` is the eighteen families a temperate colony lives on, each
+/// with traits somebody thought about. But the world has four hundred and
+/// seventy families of flowering plant in it, and an identifier that can
+/// name a tulip, an orchid or a hibiscus must be able to say which family it
+/// found even when the catalogue has never heard of it. So a placement
+/// carries a family *name*, and asks the catalogue whether it knows it.
+///
+/// Three tiers of knowledge, best first: a `PlantFamily` the game models; a
+/// `WorldFamilies` entry, which is a family the catalogue does not collect
+/// but knows what to say about; and a bare name, which gets a plain
+/// description and middling traits. All three are honest, and the colony can
+/// work all three.
+///
+/// Stored lower-cased — `asteraceae` — which is the spelling `PlantFamily`
+/// uses for its raw values, so a save written when a placement held the enum
+/// reads back unchanged.
+public struct BotanicalFamily: Codable, Hashable, Sendable {
+
+    /// Lower-cased botanical name.
+    public let rawValue: String
+
+    public init(_ name: String) {
+        rawValue = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    public init(_ known: PlantFamily) {
+        rawValue = known.rawValue
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        self.init(try container.decode(String.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    /// The family the game models, if this is one of them.
+    public var known: PlantFamily? { PlantFamily(rawValue: rawValue) }
+
+    /// Whether the name is a family at all: botanical family names end in
+    /// "-aceae", with a handful of conserved exceptions that all end the same
+    /// way once APG IV has had its say. Used to refuse a genus offered as a
+    /// family.
+    public var isWellFormed: Bool {
+        rawValue.hasSuffix("aceae") && rawValue.count > 5
+    }
+
+    /// The botanical name, capitalised: `Asteraceae`.
+    public var scientificName: String {
+        rawValue.prefix(1).uppercased() + rawValue.dropFirst()
+    }
+
+    /// What a gardener would call it, where anybody would call it anything.
+    public var commonName: String {
+        known?.commonName ?? WorldFamilies.entry(for: self)?.commonName ?? scientificName
+    }
+
+    /// One line on what the family means to a colony.
+    public var forageNote: String {
+        known?.forageNote ?? WorldFamilies.entry(for: self)?.forageNote
+            ?? "A family the catalogue has no notes on. Your bees will work it as an ordinary flower."
+    }
+
+    /// Traits shared across the family, used when that is all that is known.
+    public var typicalTraits: FloralTraits {
+        known?.typicalTraits ?? WorldFamilies.entry(for: self)?.traits ?? FloralTraits.unknownFamily
+    }
+
+    /// The families the game models, as names. What the collection is
+    /// measured against.
+    public static var modelled: [BotanicalFamily] {
+        PlantFamily.allCases.map(BotanicalFamily.init)
+    }
+}
+
+/// A modelled family compares equal to its name, so `taxon.family == .fabaceae`
+/// reads as it always has.
+public func == (lhs: BotanicalFamily, rhs: PlantFamily) -> Bool { lhs.rawValue == rhs.rawValue }
+public func == (lhs: PlantFamily, rhs: BotanicalFamily) -> Bool { lhs.rawValue == rhs.rawValue }
+public func != (lhs: BotanicalFamily, rhs: PlantFamily) -> Bool { !(lhs == rhs) }
+public func != (lhs: PlantFamily, rhs: BotanicalFamily) -> Bool { !(lhs == rhs) }
+
+extension FloralTraits {
+
+    /// What to assume about a family nobody has written down: a middling
+    /// flower of no particular distinction. The same standing an unplaced
+    /// photograph gets, because that is what it is — a plant the game knows
+    /// the name of and nothing else.
+    public static let unknownFamily = FloralTraits(
+        corollaDepthMillimetres: 5,
+        nectarSugarConcentration: 0.33,
+        nectarVolume: 0.6,
+        pollenProteinFraction: 0.18,
+        pollenAminoAcidCompleteness: 0.85,
+        pollenAbundance: 0.7
+    )
+}
+
 // MARK: - A placement
 
 /// Where a plant sits, to whatever depth is known.
 public struct Taxon: Codable, Hashable, Sendable {
 
-    public let family: PlantFamily
+    public let family: BotanicalFamily
     /// Capitalised, as botanical convention requires: `Trifolium`.
     public let genus: String?
     /// Lower case, as botanical convention requires: `repens`.
     public let specificEpithet: String?
 
-    public init(family: PlantFamily, genus: String? = nil, specificEpithet: String? = nil) {
+    public init(family: BotanicalFamily, genus: String? = nil, specificEpithet: String? = nil) {
         self.family = family
         // A specific epithet without a genus is not a placement, it is half a
         // name. Dropped rather than stored, so `rank` cannot lie.
         self.genus = genus
         self.specificEpithet = genus == nil ? nil : specificEpithet
+    }
+
+    public init(family: PlantFamily, genus: String? = nil, specificEpithet: String? = nil) {
+        self.init(family: BotanicalFamily(family), genus: genus, specificEpithet: specificEpithet)
     }
 
     public var rank: TaxonomicRank {

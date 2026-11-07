@@ -14,6 +14,17 @@ public enum Sky: String, Codable, CaseIterable, Sendable {
     case rain
     case storm
 
+    /// For a sentence. `rawValue` is the noun, and "the weather turned rain"
+    /// is not English.
+    public var adjective: String {
+        switch self {
+        case .clear: return "clear"
+        case .cloudy: return "cloudy"
+        case .rain: return "rainy"
+        case .storm: return "stormy"
+        }
+    }
+
     /// Fraction of normal foraging achieved. Bees will not fly in rain, and a
     /// storm keeps them home entirely.
     public var forageFactor: Double {

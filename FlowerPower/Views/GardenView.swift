@@ -24,8 +24,13 @@ import FlowerPowerGame
 
 struct GardenView: View {
 
+    /// Which half of the world the player is in, for the seasonal advice and
+    /// the guide's bloom calendar. The same preference `FieldGuideView` and
+    /// `CollectionView` read, under the same key.
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.likelyHere.rawValue
+    private var hemisphere: Hemisphere { Hemisphere(rawValue: hemisphereRaw) ?? .northern }
+
     @Environment(GameStore.self) private var store
-    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
     var onPhotograph: () -> Void
 
     @State private var filter: Filter = .all
@@ -72,9 +77,9 @@ struct GardenView: View {
     private var patches: [PatchSummary] {
         switch filter {
         case .all: return snapshot.patches
-        case .inBloom: return snapshot.patches.filter(\.isInBloom)
+        case .inBloom: return snapshot.patches.filter { $0.isInBloom && !$0.hasFaded }
         case .unidentified: return snapshot.patches.filter { !$0.isIdentified }
-        case .rare: return snapshot.patches.filter { $0.rarity != .common }
+        case .rare: return snapshot.patches.filter { $0.rarity == .rare }
         }
     }
 
@@ -116,6 +121,7 @@ struct GardenView: View {
             .sensoryFeedback(.selection, trigger: opens)
             .sheet(item: $route) { route in
                 destination(for: route)
+                    .childSheet()
             }
         }
     }
@@ -161,16 +167,15 @@ struct GardenView: View {
         }
     }
 
-    /// Which half of the world the player is in, for the guide's bloom
-    /// calendar. The same preference `FieldGuideView` and `CollectionView`
-    /// read, under the same key.
-    private var hemisphere: Hemisphere { Hemisphere(rawValue: hemisphereRaw) ?? .northern }
-
     private var gardenGrid: some View {
         ScrollView {
             VStack(spacing: 16) {
                 TipView(AppTips.garden)
-                SeasonalAdviceCard(season: snapshot.season)
+                // The season outside, not the colony's. The game's year runs
+                // in about a month, so its season told the player to look for
+                // winter flowers in July — and contradicted the bloom prompt
+                // and the Field Guide, which both use this.
+                SeasonalAdviceCard(season: RealSeason.current(in: hemisphere))
 
                 Picker("Filter", selection: $filter) {
                     ForEach(Filter.allCases) { option in
@@ -279,7 +284,7 @@ private struct SeasonalAdviceCard: View {
                 .font(.subheadline.weight(.semibold))
 
             if best.isEmpty {
-                Text("Almost nothing flowers now. Your bees are living on what they stored.")
+                Text("Almost nothing flowers outside now. Your bees are living on what they stored.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -327,8 +332,8 @@ private struct FlowerThumbnail: View {
                     }
                 }
                 .overlay(alignment: .bottomLeading) {
-                    if !patch.isInBloom {
-                        Text("Out of season")
+                    if patch.hasFaded || !patch.isInBloom {
+                        Text(patch.hasFaded ? "Gone over" : "Out of season")
                             .font(.caption2.weight(.medium))
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
@@ -343,7 +348,7 @@ private struct FlowerThumbnail: View {
                     .lineLimit(1)
                     .foregroundStyle(patch.isIdentified ? .primary : .secondary)
 
-                ProgressView(value: patch.remainingFraction)
+                ProgressView(value: patch.hasFaded ? 0 : patch.remainingFraction)
                     .tint(Theme.nectar)
                     .scaleEffect(y: 0.6, anchor: .center)
             }
@@ -353,7 +358,7 @@ private struct FlowerThumbnail: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(spokenName)
-        .accessibilityValue("\(Int(patch.remainingFraction * 100)) percent forage left")
+        .accessibilityValue(patch.hasFaded ? "Gone over" : "\(Int((patch.remainingFraction * 100).rounded())) percent forage left")
     }
 
     /// The star and the "out of season" pill are the two things a tile says
@@ -413,8 +418,8 @@ private struct FlowerPreview: View {
     private var state: String { parts.joined(separator: " · ") }
 
     private var parts: [String] {
-        var parts: [String] = [patch.isInBloom ? "In bloom" : "Out of season"]
-        parts.append("\(Int(patch.remainingFraction * 100))% forage left")
+        var parts: [String] = [patch.hasFaded ? "Gone over" : patch.isInBloom ? "In bloom" : "Out of season"]
+        parts.append("\(patch.hasFaded ? 0 : Int((patch.remainingFraction * 100).rounded()))% forage left")
         if patch.foragersWorkingIt > 0 {
             parts.append("\(patch.foragersWorkingIt) bees on it")
         }
@@ -478,8 +483,22 @@ struct PhotoThumbnail: View {
 /// and a picture folded shut says nothing at all.
 struct FlowerDetailView: View {
 
-    let patch: PatchSummary
+    /// The patch as it was when the sheet opened. What is shown is looked up
+    /// live from the store by its id, so the forage left and the bees working
+    /// it move with the colony rather than freezing at the moment of the tap.
+    private let opened: PatchSummary
+    @Environment(GameStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+
+    init(patch: PatchSummary) {
+        self.opened = patch
+    }
+
+    private var patch: PatchSummary {
+        store.snapshot.patches.first { $0.id == opened.id }
+            ?? store.snapshot.wildPatches.first { $0.id == opened.id }
+            ?? opened
+    }
     @State private var isSharing = false
 
     /// The catalogue entry when the plant was placed to a species, and the
@@ -495,8 +514,12 @@ struct FlowerDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    PhotoThumbnail(localIdentifier: patch.photoLocalIdentifier)
+                    // A square of its own with the picture laid over it. On
+                    // the picture itself the ratio took a landscape photo's
+                    // width, and the whole sheet went wider than the screen.
+                    Color.clear
                         .aspectRatio(1, contentMode: .fit)
+                        .overlay { PhotoThumbnail(localIdentifier: patch.photoLocalIdentifier) }
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .accessibilityElement()
                         .accessibilityLabel("Your photograph of \(patch.speciesName)")
@@ -513,7 +536,7 @@ struct FlowerDetailView: View {
 
                         Text(patch.discoveredAt.formatted(date: .long, time: .shortened))
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
 
                         if patch.isShared {
                             Label(
@@ -698,6 +721,10 @@ private struct PatchStateCard: View {
 
     let patch: PatchSummary
 
+    /// A stand that has gone over is finished whatever its nectaries still
+    /// hold, and its cell has gone back to the garden.
+    private var remaining: Double { patch.hasFaded ? 0 : patch.remainingFraction }
+
     var body: some View {
         ExpandableCard(
             title: "Right now",
@@ -723,8 +750,8 @@ private struct PatchStateCard: View {
         VStack(alignment: .leading, spacing: 14) {
             MeterView(
                 label: "Forage remaining",
-                value: patch.remainingFraction,
-                caption: "\(Int(patch.remainingFraction * 100))%",
+                value: remaining,
+                caption: "\(Int((remaining * 100).rounded()))%",
                 tint: Theme.nectar,
                 symbolName: "drop.fill"
             )
@@ -738,7 +765,7 @@ private struct PatchStateCard: View {
             // something again — a flower in the first ring is worked at a
             // distance efficiency of 0.89 against 0.67, and the player can
             // see which of their flowers are the close ones.
-            if let cell = patch.cell {
+            if let cell = patch.cell, !patch.hasFaded {
                 let ring = HexCoordinate.origin.distance(to: cell)
                 let metres = Int(Double(ring) * HexCoordinate.cellMetres)
 
@@ -753,7 +780,12 @@ private struct PatchStateCard: View {
                 .accessibilityLabel("In the garden, \(metres) metres from the nest, ring \(ring)")
             }
 
-            if !patch.isInBloom {
+            if patch.hasFaded {
+                Label("Gone over. The bees have finished with it.", systemImage: "leaf.arrow.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(Theme.caution)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if !patch.isInBloom {
                 Label("Not in bloom this season", systemImage: "calendar.badge.exclamationmark")
                     .font(.caption)
                     .foregroundStyle(Theme.caution)
@@ -785,8 +817,7 @@ private struct FlowerFactsCard: View {
         var parts: [String] = [
             species.nectarRichness == 0 ? "No nectar, pollen only" : "Nectar and pollen"
         ]
-        parts.append(species.bloomSeasons
-            .sorted { $0.rawValue < $1.rawValue }
+        parts.append(Season.allCases.filter(species.bloomSeasons.contains)
             .map(\.displayName)
             .formatted(.list(type: .and)))
         if species.isKeystone { parts.append("keystone") }
@@ -810,8 +841,8 @@ private struct FlowerFactsCard: View {
             )
 
             LabeledContent("Blooms") {
-                Text(species.bloomSeasons
-                    .sorted { $0.rawValue < $1.rawValue }
+                Text(Season.allCases
+                    .filter(species.bloomSeasons.contains)
                     .map(\.displayName)
                     .formatted(.list(type: .and)))
             }
@@ -865,6 +896,7 @@ private struct EmptyGardenView: View {
             Button("Photograph a Flower", action: onPhotograph)
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.honey)
+                .foregroundStyle(Theme.onHoney)
         }
     }
 }

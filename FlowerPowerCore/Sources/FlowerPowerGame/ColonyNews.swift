@@ -124,31 +124,61 @@ public struct ColonyNews: Equatable, Sendable {
 
     // MARK: - The decision
 
+    /// The single most important piece of news, for a caller that can say
+    /// only one thing.
     public static func between(before: Facts, after: Facts) -> ColonyNews? {
+        all(before: before, after: after).first
+    }
+
+    /// Everything worth saying, most important first: every decision that
+    /// opened, and — only when nothing opened — how the colony is doing.
+    ///
+    /// A background refresh can cover hours, and a siege and a swarm starting
+    /// in the same stretch used to produce one notification. The next refresh
+    /// compares against a colony that already had the other one, so it was
+    /// never told at all.
+    public static func all(before: Facts, after: Facts) -> [ColonyNews] {
+        let decisions = decisionsOpened(before: before, after: after)
+        if !decisions.isEmpty { return decisions }
+        return condition(before: before, after: after).map { [$0] } ?? []
+    }
+
+    /// The identifier a siege's news carries, which is also how a tapped
+    /// notification is matched back to the siege it was about.
+    public static func identifier(for threat: ActiveThreat) -> String {
+        "threat-\(threat.predator.rawValue)-\(threat.beganOnDay)"
+    }
+
+    public static func identifier(for swarm: PendingSwarm) -> String {
+        "swarm-\(swarm.startedOnDay)"
+    }
+
+    private static func decisionsOpened(before: Facts, after: Facts) -> [ColonyNews] {
+        var news: [ColonyNews] = []
 
         // A decision arriving is always worth an interruption, because it
         // has a window, and a window the player never heard about is a
         // decision made for them by silence.
         if let threat = after.threat, before.threat != threat {
-            return ColonyNews(
-                identifier: "threat-\(threat.predator.rawValue)-\(threat.beganOnDay)",
+            news.append(ColonyNews(
+                identifier: identifier(for: threat),
                 title: "\(threat.predator.displayName) at the nest",
                 body: "\(threat.style.displayName). The colony holds by instinct unless you say otherwise. "
-                    + "\(threat.daysRemaining(on: after.day)) days to decide."
-            )
+                    + "\(threat.daysRemaining(on: after.day).counted("day")) to decide."
+            ))
         }
-        if let swarm = after.pendingSwarm, before.pendingSwarm != swarm, !swarm.discouraged {
-            return ColonyNews(
-                identifier: "swarm-\(swarm.startedOnDay)",
+        if let swarm = after.pendingSwarm, before.pendingSwarm != swarm, !swarm.isAnswered {
+            news.append(ColonyNews(
+                identifier: identifier(for: swarm),
                 title: "The colony is preparing to swarm",
                 body: "Swarm cells are started. They will divide in about "
-                    + "\(swarm.daysRemaining(on: after.day)) days. "
+                    + "\(swarm.daysRemaining(on: after.day).counted("day")). "
                     + (after.canAddComb
                        ? "Room is the answer to congestion; a deliberate split "
                             + "is the other one."
                        : "A deliberate split costs fewer bees than letting "
                             + "them go.")
-            )
+            ))
         }
         // Before the cells, not after them. A colony that has filled its
         // cavity will raise swarm cells within the week, and by then the only
@@ -157,7 +187,7 @@ public struct ColonyNews: Equatable, Sendable {
         // once — and only once, which is what the before/after comparison is
         // for.
         if after.nestIsFull, !before.nestIsFull, after.pendingSwarm == nil {
-            return ColonyNews(
+            news.append(ColonyNews(
                 identifier: "nest-full-\(after.day)",
                 title: "The nest is full",
                 body: after.canAddComb
@@ -167,14 +197,14 @@ public struct ColonyNews: Equatable, Sendable {
                     : "Every cell is drawn and there is no more cavity. They "
                         + "will divide before long unless you divide them "
                         + "first."
-            )
+            ))
         }
         if let departed = after.departedSwarmDay, before.departedSwarmDay != departed {
-            return ColonyNews(
+            news.append(ColonyNews(
                 identifier: "departed-\(departed)",
                 title: "A swarm has left",
                 body: "The old queen has gone with most of the bees. Stay with the colony, or follow the swarm."
-            )
+            ))
         }
         // The colony is short for winter and the player is holding honey it
         // could have. Said when the window opens and not again, like the
@@ -182,7 +212,7 @@ public struct ColonyNews: Equatable, Sendable {
         // this is the one part of that warning the player can answer from the
         // lock screen.
         if after.feedDecisionOpen, !before.feedDecisionOpen {
-            return ColonyNews(
+            news.append(ColonyNews(
                 identifier: "feed-\(after.day / Season.daysPerYear)",
                 title: "The colony is short for winter",
                 body: String(
@@ -190,7 +220,7 @@ public struct ColonyNews: Equatable, Sendable {
                         + "honey put by. Feeding them is the only thing left that helps.",
                     after.storesShortfall
                 )
-            )
+            ))
         }
         // The one piece of good news the game ever interrupts anybody with,
         // and it is here rather than higher up because it can always wait.
@@ -198,7 +228,7 @@ public struct ColonyNews: Equatable, Sendable {
         // goes several times a summer, and a colony that rumours fresh ground
         // every fortnight would otherwise ping every fortnight.
         if after.scoutDecisionOpen, !before.scoutDecisionOpen, after.rumouredChunks > 0 {
-            return ColonyNews(
+            news.append(ColonyNews(
                 identifier: "scout-\(after.day / Season.daysPerYear)",
                 title: "The nectar is flowing",
                 body: "They can spare a few. The dancers are pointing at "
@@ -206,27 +236,31 @@ public struct ColonyNews: Equatable, Sendable {
                     + (after.rumouredChunks == 1 ? "stretch" : "stretches")
                     + " of country nobody has been to, and scouts would bring "
                     + "back all of it."
-            )
+            ))
         }
         if after.entranceDecisionOpen, !before.entranceDecisionOpen {
-            return ColonyNews(
+            news.append(ColonyNews(
                 identifier: "entrance-\(after.day / Season.daysPerYear)",
                 title: "Autumn at the hive",
                 body: "The bees will seal the entrance for winter unless you keep it open."
-            )
+            ))
         }
 
         // The end. Worth saying once, whatever else is true, and said even
         // though nothing can be done about it — a player who is never told
         // simply finds a dead colony whenever they next happen to look.
         if after.status == .collapsed, before.status != .collapsed {
-            return ColonyNews(
+            news.append(ColonyNews(
                 identifier: "collapsed",
                 title: "The colony is gone",
                 body: after.epitaph ?? "A new swarm is looking for somewhere to live."
-            )
+            ))
         }
 
+        return news
+    }
+
+    private static func condition(before: Facts, after: Facts) -> ColonyNews? {
         // Nothing to say about a colony holding steady or recovering, and
         // nothing to say about a decline that lands somewhere comfortable.
         guard after.status < before.status, after.status <= .struggling else {
@@ -274,6 +308,13 @@ public struct ColonyNews: Equatable, Sendable {
         after: ColonySnapshot
     ) -> ColonyNews? {
         between(before: before.newsFacts, after: after.newsFacts)
+    }
+
+    public static func all(
+        before: ColonySnapshot,
+        after: ColonySnapshot
+    ) -> [ColonyNews] {
+        all(before: before.newsFacts, after: after.newsFacts)
     }
 }
 

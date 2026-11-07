@@ -87,9 +87,10 @@ struct EventNarrationTests {
     /// narration actually was.
     @Test("The decision events narrate what they decided")
     func decisionEvents() {
-        #expect(SimEvent.threatBegan(.hornet, resolvesOnDay: 210).narration.contains("210"))
-        #expect(SimEvent.threatEnded(.hornet).narration.contains("Hornet"))
-        #expect(SimEvent.swarmPreparing(departsOnDay: 150).narration.contains("150"))
+        // One on from the engine's day, as a day is written everywhere else.
+        #expect(SimEvent.threatBegan(.hornet, resolvesOnDay: 210).narration.contains("211"))
+        #expect(SimEvent.threatEnded(.hornet).narration.contains("hornet"))
+        #expect(SimEvent.swarmPreparing(departsOnDay: 150).narration.contains("151"))
         #expect(!SimEvent.swarmAbandoned.narration.isEmpty)
         #expect(SimEvent.honeyTaken(18).narration.contains("18"))
         #expect(SimEvent.combAdded(cells: 175).narration.contains("175"))

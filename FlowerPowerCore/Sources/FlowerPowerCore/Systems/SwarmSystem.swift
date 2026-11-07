@@ -29,6 +29,12 @@ public struct SwarmSystem: DailySystem {
         // before then would abandon the nest queenless.
         let swarmCells = world.hive.comb.queenCells.filter { $0.purpose == .swarm }
         guard let leadCell = swarmCells.max(by: { $0.daysDeveloped < $1.daysDeveloped }) else {
+            // No swarm cells left means no swarm, however the cells went —
+            // torn down by an emerging virgin, retired, abandoned in a dearth.
+            // The pending swarm was only cleared when one left or was called
+            // off, so the decision could stay open for months with nothing
+            // behind it, and no new swarm could be announced while it did.
+            world.pendingSwarm = nil
             return
         }
         guard leadCell.daysDeveloped >= context.config.swarmDepartureDay else { return }

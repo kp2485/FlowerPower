@@ -38,9 +38,27 @@ struct NewColonyView: View {
     /// Nil on a first launch, otherwise how the last colony ended, so the
     /// player is told what happened rather than left to guess.
     var epitaph: String?
+    /// Where the colony is now, when it is moving. It is not offered: leaving
+    /// the comb behind to arrive at the same kind of hole is never the point.
+    var currentSite: HiveLocationType? = nil
+    /// Offers only sites with more room than `currentSite`. For "Move to a
+    /// Larger Cavity", which used to open on a Living Tree whatever the colony
+    /// was in, smaller than a cave and all.
+    var largerOnly = false
     let onChoose: (HiveLocationType) -> Void
 
     @State private var selection: HiveLocationType = .livingTreeCavity
+    @State private var isConfirming = false
+
+    private var sites: [HiveLocationType] {
+        guard let currentSite else { return HiveLocationType.allCases }
+        return HiveLocationType.allCases.filter {
+            $0 != currentSite && (!largerOnly || $0.maximumCells > currentSite.maximumCells)
+        }
+    }
+
+    @Environment(\.isPresented) private var isPresented
+    @Environment(\.dismiss) private var dismiss
 
     /// Flipped once, on appearing, so the collapse gets a single error tap.
     /// The trigger form never fires on its initial value, which is the point:
@@ -57,7 +75,7 @@ struct NewColonyView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
-                    ForEach(HiveLocationType.allCases, id: \.self) { site in
+                    ForEach(sites, id: \.self) { site in
                         SiteRow(site: site, isSelected: site == selection)
                             .contentShape(Rectangle())
                             .onTapGesture { selection = site }
@@ -71,19 +89,52 @@ struct NewColonyView: View {
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Moving, following a swarm and starting over are all opened
+                // as sheets, and swiping down was the only way back out of
+                // them. Not after a collapse, where this is the whole screen
+                // and there is nothing behind it to go back to.
+                if isPresented, reason != .afterCollapse {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 Button {
-                    onChoose(selection)
+                    // A move throws away everything the colony has built, and
+                    // is the only thing that does so without being asked twice.
+                    if reason == .relocating {
+                        isConfirming = true
+                    } else {
+                        onChoose(selection)
+                    }
                 } label: {
                     Label(actionTitle, systemImage: "hexagon.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.honey)
+                .foregroundStyle(Theme.onHoney)
                 .controlSize(.large)
                 .padding()
                 .background(.bar)
             }
+            .confirmationDialog(
+                "Abandon the nest?",
+                isPresented: $isConfirming,
+                titleVisibility: .visible
+            ) {
+                Button("Abscond to \(selection.displayName)", role: .destructive) {
+                    onChoose(selection)
+                }
+                Button("Stay", role: .cancel) {}
+            } message: {
+                Text("The comb, the stores and all the brood stay behind. This cannot be undone.")
+            }
+        }
+        .onAppear {
+            if !sites.contains(selection), let first = sites.first { selection = first }
         }
         .sensoryFeedback(.error, trigger: hasMourned)
         // `onAppear` rather than `task`: this is a one-line main-actor write
@@ -219,7 +270,7 @@ private struct Trait: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(label)
-        .accessibilityValue("\(Int(value * 100)) percent")
+        .accessibilityValue("\(Int((value * 100).rounded())) percent")
     }
 }
 

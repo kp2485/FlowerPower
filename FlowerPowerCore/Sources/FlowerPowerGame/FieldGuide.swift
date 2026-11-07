@@ -163,7 +163,7 @@ public struct FieldGuideEntry: Identifiable, Equatable, Sendable {
 
     public var commonName: String { species.commonName }
     public var taxon: Taxon { species.taxon }
-    public var family: PlantFamily { species.family }
+    public var family: BotanicalFamily { species.family }
     public var genus: String? { species.taxon.genus }
     /// "Trifolium repens", written as a botanist writes it.
     public var scientificName: String { species.taxon.scientificName }
@@ -215,10 +215,10 @@ public struct FieldGuideEntry: Identifiable, Equatable, Sendable {
 public struct FieldGuide: Equatable, Sendable {
 
     public struct FamilyGroup: Identifiable, Equatable, Sendable {
-        public let family: PlantFamily
+        public let family: BotanicalFamily
         public let entries: [FieldGuideEntry]
 
-        public var id: PlantFamily { family }
+        public var id: BotanicalFamily { family }
         public var photographedCount: Int {
             entries.filter(\.hasBeenPhotographed).count
         }
@@ -248,7 +248,7 @@ public struct FieldGuide: Equatable, Sendable {
             )
         }
 
-        var byFamily: [PlantFamily: [FieldGuideEntry]] = [:]
+        var byFamily: [BotanicalFamily: [FieldGuideEntry]] = [:]
         for entry in all {
             byFamily[entry.family, default: []].append(entry)
         }

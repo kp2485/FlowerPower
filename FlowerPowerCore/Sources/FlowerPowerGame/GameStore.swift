@@ -30,6 +30,17 @@ public final class GameStore {
     public private(set) var isBusy = false
     public private(set) var lastError: String?
 
+    /// True through a catch-up long enough to notice. Anything answered in
+    /// that time would be answered on the colony as it was, so the interface
+    /// holds still until it lands. `isBusy` is not it: that is also true for a
+    /// moment every twenty seconds under the live ticker.
+    public private(set) var isCatchingUp = false
+
+    /// Counts the times this store's colony became a different colony: a new
+    /// one, a swarm followed, a backup restored. For whatever the interface
+    /// holds about the colony it was showing.
+    public private(set) var colonyChanges = 0
+
     /// Whether this is a colony nobody has chosen yet.
     ///
     /// `load` always hands back a playable store — there has to be something
@@ -47,7 +58,13 @@ public final class GameStore {
 
     // MARK: - Private state
 
-    private var simulation: Simulation
+    private var simulation: Simulation {
+        // Every change, however it is made. A catch-up run off the main actor
+        // compares this before and after, and throws its result away if the
+        // colony changed underneath it.
+        didSet { revision &+= 1 }
+    }
+    @ObservationIgnored private var revision = 0
     private let persistence: GamePersisting
     private let clock: () -> Date
 
@@ -69,8 +86,13 @@ public final class GameStore {
     /// decided in there goes with it.
     private var unreadableSave: String?
 
-    /// Set when `load` could neither read the save nor move it aside, and
-    /// then this store writes nothing at all. See `setAsideUnreadableSave()`.
+    /// Set when `load` found a save it could not read *yet* and started the
+    /// introduction instead. See `retryUnreadableSave()`.
+    @ObservationIgnored private var hasUnreadableSaveAtLaunch = false
+
+    /// Set when `load` could neither read the save nor move it aside, or could
+    /// not read it yet, and then this store writes nothing at all. See
+    /// `setAsideUnreadableSave()`.
     private var heldSave: String?
 
     /// Drives the live view while the app is in the foreground. The simulation
@@ -110,11 +132,16 @@ public final class GameStore {
     ) -> GameStore {
         let saved: Simulation?
         var unreadable = false
+        var notReadableYet = false
         do {
             saved = try persistence.load()
         } catch {
             saved = nil
-            unreadable = true
+            if Self.isNotReadableYet(error) {
+                notReadableYet = true
+            } else {
+                unreadable = true
+            }
         }
 
         if let saved {
@@ -133,6 +160,11 @@ public final class GameStore {
         let store = GameStore(simulation: fresh, persistence: persistence, clock: clock)
         store.needsSetup = true
         if unreadable { store.setAsideUnreadableSave() }
+        if notReadableYet {
+            store.heldSave = Self.notReadableYetMessage
+            store.lastError = Self.notReadableYetMessage
+            store.hasUnreadableSaveAtLaunch = true
+        }
         return store
     }
 
@@ -148,6 +180,21 @@ public final class GameStore {
     static let heldMessage = "Your colony's save could not be opened, and this session "
         + "will not save over it. Close FlowerPower and open it again; if this keeps "
         + "happening, keep the app installed and update it when you can."
+
+    /// What the player is told when the save is there but could not be read
+    /// at all, which is a good save the phone is not letting anyone open yet.
+    static let notReadableYetMessage = "Your colony's save could not be read just now. "
+        + "FlowerPower will try again when you come back, and will not save over it."
+
+    /// Whether a failed load is the file being locked away rather than wrong.
+    ///
+    /// Before the phone's first unlock a protected file cannot be read at all,
+    /// and the error says so. That is a perfectly good save, and moving it
+    /// aside would start the player again on a colony they still have.
+    static func isNotReadableYet(_ error: Error) -> Bool {
+        guard let error = error as? CocoaError else { return false }
+        return error.code == .fileReadNoPermission || error.code == .fileLocking
+    }
 
     /// Moves an unreadable save out of the colony's way.
     ///
@@ -170,14 +217,98 @@ public final class GameStore {
         }
     }
 
+    /// Looks again at a save that could not be read at launch.
+    ///
+    /// A launch before the phone's first unlock cannot read a protected file
+    /// at all. Called each time the app comes forward until the save reads or
+    /// the player settles it by choosing a site, which they can do without
+    /// risk: nothing is written while the save is held.
+    public func retryUnreadableSave() {
+        guard hasUnreadableSaveAtLaunch, needsSetup,
+              let saved = try? persistence.load() else { return }
+        hasUnreadableSaveAtLaunch = false
+        heldSave = nil
+        needsSetup = false
+        lastError = nil
+        simulation = saved
+        snapshot = simulation.snapshot()
+        storedSaveToken = try? persistence.changeToken()
+        colonyChanges += 1
+    }
+
     // MARK: - Advancing time
 
     /// Brings the colony up to date. Safe to call on launch, on foreground, and
     /// as often as you like — the engine works out how much time has passed.
-    public func catchUp() {
+    ///
+    /// - Parameter reporting: whether time that passes here is time the
+    ///   player was away. The live ticker passes false: it advances a colony
+    ///   the player is looking at, and when one of its ticks crossed midnight
+    ///   it raised a full-screen "While you were away" about the last hour,
+    ///   every simulated day, over whatever the player was doing.
+    public func catchUp(reporting: Bool = true) {
         // Before anything else, because everything below reads the colony and
         // the last thing this does is write it over the save.
         takeInOutsideChanges()
+
+        var advanced = simulation
+        let report = advanced.advance(to: clock())
+        let moved = advanced.clock != simulation.clock
+        adopt(advanced, report: report, snapshot: moved ? advanced.snapshot() : nil, reporting: reporting)
+    }
+
+    /// The same, with the simulating done off the main actor.
+    ///
+    /// For the two callers that can be slow: coming back to the app, which
+    /// may mean months of ticks after a long absence, and the live ticker,
+    /// which runs every twenty seconds under whatever the player is doing.
+    /// Both used to advance the colony and rebuild the snapshot on the main
+    /// thread, where weeks away meant a frozen screen at launch.
+    public func catchUpInBackground(reporting: Bool = true) async {
+        guard !isBusy else { return }
+        takeInOutsideChanges()
+
+        let start = revision
+        let now = clock()
+        isBusy = true
+        isCatchingUp = simulation.clock.pendingTicks(at: now) >= SimClock.ticksPerDay * 7
+        let (advanced, report, fresh) = await Self.advanced(simulation, to: now)
+        isBusy = false
+        isCatchingUp = false
+
+        // A button pressed, or a save taken in, while this was away: the
+        // result is for a colony that no longer exists. Do it again here,
+        // from the one that does.
+        guard revision == start else {
+            catchUp(reporting: reporting)
+            return
+        }
+        adopt(advanced, report: report, snapshot: fresh, reporting: reporting)
+    }
+
+    @concurrent
+    nonisolated private static func advanced(
+        _ simulation: Simulation,
+        to date: Date
+    ) async -> (Simulation, CatchUpReport, ColonySnapshot?) {
+        var advanced = simulation
+        let report = advanced.advance(to: date)
+        let moved = advanced.clock != simulation.clock
+        return (advanced, report, moved ? advanced.snapshot() : nil)
+    }
+
+    /// Takes on a caught-up colony. `fresh` is nil when nothing moved — no
+    /// tick fell due and the clock did not need rebasing — and then there is
+    /// no snapshot to rebuild and nothing new to write. The ticker runs every
+    /// twenty seconds and a tick lasts five minutes, so that is most of them;
+    /// each one used to encode and write the whole colony regardless.
+    private func adopt(
+        _ advanced: Simulation,
+        report: CatchUpReport,
+        snapshot fresh: ColonySnapshot?,
+        reporting: Bool
+    ) {
+        guard let fresh else { return }
 
         // Whether the colony was already gone before this catch-up. A player
         // returning to a colony that died last week should not be handed a
@@ -185,11 +316,18 @@ public final class GameStore {
         // shown the death once, and then the way to start again.
         let wasCollapsed = isCollapsed
 
-        let report = simulation.advance(to: clock())
-        snapshot = simulation.snapshot()
+        simulation = advanced
+        snapshot = fresh
 
-        if !wasCollapsed, !report.isEmpty, report.daysSimulated >= 1 {
-            pendingReport = report
+        if reporting, !wasCollapsed, !report.isEmpty {
+            if let unread = pendingReport {
+                // Still on screen, or backgrounded before it was read. Adding
+                // to it rather than replacing it, which threw away everything
+                // the first absence had to say.
+                pendingReport = unread.merging(report)
+            } else if report.daysSimulated >= 1 {
+                pendingReport = report
+            }
         }
 
         if isCollapsed { stopLiveUpdates() }
@@ -218,7 +356,7 @@ public final class GameStore {
             while !Task.isCancelled {
                 try? await Task.sleep(for: interval)
                 guard let self else { return }
-                await MainActor.run { self.catchUp() }
+                await self.catchUpInBackground(reporting: false)
             }
         }
     }
@@ -228,22 +366,36 @@ public final class GameStore {
         ticker = nil
     }
 
+    /// For tests.
+    var isRunningLiveUpdates: Bool { ticker != nil }
+
     // MARK: - Player actions
 
     /// Registers a photographed flower. The identification may still be
     /// running; pass what is known and call `attachIdentification` later.
+    ///
+    /// - Parameter cell: where the player asked for it, by tapping an empty
+    ///   cell of the garden on the map. Honoured only if that cell is still
+    ///   empty garden by the time the photograph lands; otherwise the engine
+    ///   chooses, as it does for every other photograph.
     @discardableResult
     public func recordPhotograph(
         localIdentifier: String,
         species: FlowerSpecies?,
         confidence: Double,
-        takenAt: Date
+        takenAt: Date,
+        at cell: HexCoordinate? = nil
     ) -> EntityID {
+        takeInOutsideChanges()
+        let wanted = cell.flatMap { cell in
+            snapshot.terrain?.garden.first { $0.cell == cell && $0.patchID == nil }?.cell
+        }
         let patch = simulation.registerPhotograph(
             photoLocalIdentifier: localIdentifier,
             species: species,
             confidence: confidence,
-            takenAt: takenAt
+            takenAt: takenAt,
+            at: wanted
         )
         refresh()
         return patch.id
@@ -254,11 +406,13 @@ public final class GameStore {
         confidence: Double,
         to patch: EntityID
     ) {
+        takeInOutsideChanges()
         simulation.identifyPatch(patch, as: species, confidence: confidence)
         refresh()
     }
 
     public func assign(_ job: WorkerJob?, to bee: EntityID) {
+        takeInOutsideChanges()
         simulation.assign(job, to: bee)
         refresh()
     }
@@ -267,17 +421,23 @@ public final class GameStore {
     /// take it up, which is what the interface reports back to the player.
     @discardableResult
     public func emphasise(_ job: WorkerJob) -> Int {
+        takeInOutsideChanges()
         let assigned = simulation.emphasise(job)
         refresh()
         return assigned
     }
 
+    /// See `Simulation.emphasisedJob`.
+    public var emphasisedJob: WorkerJob? { simulation.emphasisedJob }
+
     public func clearAllAssignments() {
+        takeInOutsideChanges()
         simulation.clearAllAssignments()
         refresh()
     }
 
     public func relocateHive(to location: HiveLocation) {
+        takeInOutsideChanges()
         simulation.relocate(to: location)
         refresh()
     }
@@ -303,19 +463,25 @@ public final class GameStore {
     public var history: ColonyHistory { simulation.history }
 
     public func setDifficulty(_ config: SimulationConfig) {
+        takeInOutsideChanges()
         simulation.config = config
         refresh()
     }
 
     // MARK: - Decisions
 
-    /// Answers a siege with a posture. Ignored if the siege is over.
-    public func respond(to threat: ActiveThreat, with posture: HivePosture) {
-        simulation.respond(to: threat, with: posture)
+    /// Answers a siege with a posture. Ignored if the siege is over, and says
+    /// so, because a card can outlive the siege it was drawn for by a tick.
+    @discardableResult
+    public func respond(to threat: ActiveThreat, with posture: HivePosture) -> Bool {
+        takeInOutsideChanges()
+        let answered = simulation.respond(to: threat, with: posture)
         refresh()
+        return answered
     }
 
     public func adoptPosture(_ posture: HivePosture, forDays days: Int = 3) {
+        takeInOutsideChanges()
         simulation.adoptPosture(posture, forDays: days)
         refresh()
     }
@@ -324,6 +490,7 @@ public final class GameStore {
     /// added, so the interface can say what happened.
     @discardableResult
     public func addComb() -> Int {
+        takeInOutsideChanges()
         let added = simulation.addComb()
         if added > 0 { refresh() }
         return added
@@ -334,24 +501,34 @@ public final class GameStore {
     /// follow it, give it away, or let it go.
     @discardableResult
     public func splitColony() -> Bool {
+        takeInOutsideChanges()
         let divided = simulation.split()
         if divided { refresh() }
         return divided
     }
 
     public func discourageSwarm() {
+        takeInOutsideChanges()
         simulation.discourageSwarm()
+        refresh()
+    }
+
+    public func acceptSwarm() {
+        takeInOutsideChanges()
+        simulation.acceptSwarm()
         refresh()
     }
 
     /// The autumn decision. Nil hands it back to instinct.
     public func decideEntrance(sealed: Bool?) {
+        takeInOutsideChanges()
         simulation.decideEntrance(sealed: sealed)
         refresh()
     }
 
     @discardableResult
     public func takeHoney(_ units: Double) -> Double {
+        takeInOutsideChanges()
         let taken = simulation.takeHoney(units)
         refresh()
         return taken
@@ -362,6 +539,7 @@ public final class GameStore {
     /// to store it in.
     @discardableResult
     public func feed(_ units: Double) -> Double {
+        takeInOutsideChanges()
         let given = simulation.feed(units)
         if given > 0 { refresh() }
         return given
@@ -374,12 +552,14 @@ public final class GameStore {
     ///   ground left to find.
     @discardableResult
     public func sendScouts() -> Bool {
+        takeInOutsideChanges()
         guard simulation.sendScouts() else { return false }
         refresh()
         return true
     }
 
     public func nameQueen(_ number: Int, _ name: String?) {
+        takeInOutsideChanges()
         simulation.nameQueen(number, name)
         refresh()
     }
@@ -391,14 +571,21 @@ public final class GameStore {
         guard let followed = simulation.followingSwarm(
             to: site, startingAt: clock(), seed: UInt64.random(in: 1...UInt64.max)
         ) else { return }
+        // A colony the player chose, so the introduction is over. See
+        // `startNewGame`.
+        needsSetup = false
         simulation = followed
         pendingReport = nil
-        startLiveUpdates()
+        colonyChanges += 1
+        // Refreshed first: `startLiveUpdates` asks the snapshot whether there
+        // is a colony to run, and the snapshot here may still be a dead one.
         refresh()
+        startLiveUpdates()
     }
 
     /// Stays with the parent colony. The swarm is gone.
     public func letSwarmGo() {
+        takeInOutsideChanges()
         simulation.forgetLastSwarm()
         refresh()
     }
@@ -434,6 +621,10 @@ public final class GameStore {
     /// unless the current one is already gone. The garden stays.
     public func adoptSwarm(_ share: SwarmShare, at site: HiveLocation) {
         let share = share.validated()
+        // Can arrive during the introduction — a file opened from Messages on
+        // a first run — and the colony it founds is a choice, not a
+        // placeholder. Without this it was never saved.
+        needsSetup = false
         simulation = Simulation.newGame(
             fromSwarm: share.departedSwarm(),
             at: site,
@@ -441,11 +632,16 @@ public final class GameStore {
             config: simulation.config,
             seed: UInt64.random(in: 1...UInt64.max),
             inheriting: simulation.patches,
-            generation: simulation.world.lineage.generation + 1
+            inheritedOnDay: simulation.clock.day,
+            importedShares: simulation.world.importedShares,
+            generation: simulation.world.lineage.generation + 1,
+            queenName: share.queen?.name
         )
         pendingReport = nil
-        startLiveUpdates()
+        colonyChanges += 1
+        // After the refresh, for the reason in `followSwarm`.
         refresh()
+        startLiveUpdates()
     }
 
     // MARK: - Asking for a flower
@@ -455,8 +651,10 @@ public final class GameStore {
     /// in.
     public func forageRequest(from senderName: String?, note: String? = nil) -> FlowerShare {
         let season = snapshot.season
-        let workable = Set(snapshot.patches.filter(\.isInBloom).compactMap(\.family))
-        let wanted = Set(FlowerCatalogue.inBloom(during: season).map(\.family))
+        // Modelled families only: a request names what the catalogue can
+        // describe, and a friend can only send what they can name.
+        let workable = Set(snapshot.patches.filter(\.isInBloom).compactMap { $0.family?.known })
+        let wanted = Set(FlowerCatalogue.inBloom(during: season).compactMap(\.family.known))
             .subtracting(workable)
             .sorted { $0.scientificName < $1.scientificName }
 
@@ -484,8 +682,11 @@ public final class GameStore {
 
         // Validated on the way out as well as on the way in, so an empty name
         // typed and then deleted travels as no name rather than as "".
+        let species = patch.species
         return FlowerShare(
-            speciesID: patch.species?.id,
+            speciesID: species?.id,
+            taxon: species?.taxon,
+            taxonCommonName: species?.commonName,
             confidence: patch.identificationConfidence,
             takenAt: patch.discoveredAt,
             sharedBy: senderName,
@@ -504,6 +705,7 @@ public final class GameStore {
     /// Takes in a flower somebody sent.
     @discardableResult
     public func importShared(_ share: FlowerShare) -> ImportOutcome {
+        takeInOutsideChanges()
         let share = share.validated()
 
         guard let patch = simulation.importSharedFlower(
@@ -548,10 +750,20 @@ public final class GameStore {
     /// Saved immediately rather than at the next tick, so a player who
     /// restores and then force-quits still has the colony they asked for.
     public func restore(from archive: SaveArchive) {
-        simulation = archive.simulation
+        // The new-phone case: a backup opened before any site was chosen.
+        // Still gated, the restored colony was never saved, and choosing a
+        // site afterwards replaced it.
+        needsSetup = false
+        var restored = archive.simulation
+        // Picks up from the moment it was saved. Left on its own clock, the
+        // colony ran every hour since the backup in one silent catch-up twenty
+        // seconds later: the screen promised day 120 and delivered day 240 and
+        // often a dead one, so restoring to undo a death just repeated it.
+        restored.resumeClock(at: clock())
+        simulation = restored
         pendingReport = nil
-        // Refreshed before the ticker rather than after, which is the other
-        // way round from `startNewGame`. A restored colony may be a dead one —
+        colonyChanges += 1
+        // Refreshed before the ticker. A restored colony may be a dead one —
         // a player keeping a backup of a colony that later collapsed is an
         // obvious reason to have one — and `startLiveUpdates` decides whether
         // to run from the snapshot, so it has to be looking at the restored
@@ -609,6 +821,11 @@ public final class GameStore {
     /// put. Those events happened, the player has not been shown them, and
     /// clearing the sheet out from under them because a widget button was
     /// pressed would lose the one thing this store exists to say.
+    ///
+    /// Also run at the start of every player action, which mutates and then
+    /// saves without catching up. Without it a button pressed in the seconds
+    /// between a widget, notification or background refresh writing the file
+    /// and the next tick wrote this store's older colony over that one.
     private func takeInOutsideChanges() {
         // A store with no claim on the save must not reload one. That is a
         // first run, where the colony is a placeholder nobody has chosen and
@@ -705,6 +922,12 @@ public final class GameStore {
     ///   flowers are still there whether or not the bees are. Passing `false`
     ///   is a genuine restart from nothing, for a player who asks for one.
     public func startNewGame(at site: HiveLocation, keepingFlowers: Bool = true) {
+        // The last chance to keep a save that would not read, which this is
+        // about to write over. The copy made at launch can itself have failed.
+        if hasUnreadableSaveAtLaunch {
+            _ = try? persistence.preserveUnreadable()
+            hasUnreadableSaveAtLaunch = false
+        }
         // A site has been chosen, so there is a colony worth keeping. Cleared
         // before the calls below, both of which are gated on it.
         needsSetup = false
@@ -713,11 +936,17 @@ public final class GameStore {
             startingAt: clock(),
             config: simulation.config,
             seed: UInt64.random(in: 1...UInt64.max),
-            inheriting: keepingFlowers ? simulation.patches : []
+            inheriting: keepingFlowers ? simulation.patches : [],
+            inheritedOnDay: simulation.clock.day,
+            importedShares: keepingFlowers ? simulation.world.importedShares : []
         )
         pendingReport = nil
-        startLiveUpdates()
+        colonyChanges += 1
+        // After the refresh, for the reason in `followSwarm`. This is what
+        // "Begin Again" calls, and the other order left the new colony's
+        // dashboard frozen until the app next came to the foreground.
         refresh()
+        startLiveUpdates()
     }
 }
 

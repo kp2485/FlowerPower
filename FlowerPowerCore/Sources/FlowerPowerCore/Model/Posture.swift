@@ -153,6 +153,16 @@ public struct ActiveThreat: Codable, Equatable, Sendable {
     public var style: AttackStyle { predator.attackStyle }
     public var options: [HivePosture] { HivePosture.options(against: style) }
 
+    /// Whether a posture is a real answer to this threat.
+    ///
+    /// Not merely whether the colony is holding one. "Make Room" is a posture,
+    /// and a wasp arriving while it ran found the buttons gone, the card
+    /// reading "Holding: Make Room" and no way to defend the nest, on every
+    /// surface at once.
+    public func isAnswered(by posture: HivePosture) -> Bool {
+        posture != .instinct && options.contains(posture)
+    }
+
     public func daysRemaining(on day: Int) -> Int {
         max(0, resolvesOnDay - day)
     }
@@ -184,6 +194,16 @@ public struct PendingSwarm: Codable, Equatable, Sendable {
     public let departsOnDay: Int
     /// Whether the player has tried to talk them out of it.
     public var discouraged: Bool
+    /// Whether the player has said to let them go. Optional so saves from
+    /// before it still decode.
+    public var accepted: Bool?
+
+    /// Whether the player has had their say, one way or the other. "Let Them
+    /// Go" changes nothing about the swarm, so it used to change nothing about
+    /// the question either: it stayed open on every surface, and the watch,
+    /// which holds an answer until the phone stops asking, stopped listening
+    /// to the phone for six hours.
+    public var isAnswered: Bool { discouraged || accepted == true }
 
     public init(startedOnDay: Int, departsOnDay: Int, discouraged: Bool = false) {
         self.startedOnDay = startedOnDay

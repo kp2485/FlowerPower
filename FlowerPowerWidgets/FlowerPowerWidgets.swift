@@ -167,8 +167,10 @@ struct HiveWidgetView: View {
                         BestAnswerButton(decision: decision)
                             .buttonStyle(.borderedProminent)
                             .tint(WidgetTheme.caution)
+                            .foregroundStyle(WidgetTheme.onCaution)
                             .font(.caption2)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     } else {
                         HStack {
                             Label("\(summary.population)", systemImage: "hexagon.fill")
@@ -204,6 +206,7 @@ struct HiveActivity: Widget {
             HiveActivityCard(
                 kind: context.attributes.kind,
                 symbol: context.attributes.symbol,
+                startedOnDay: context.attributes.startedOnDay,
                 state: context.state,
                 isStale: context.isStale
             )
@@ -224,7 +227,7 @@ struct HiveActivity: Widget {
                         Text(timerInterval: span(context.state, to: target), countsDown: true)
                             .font(.headline.monospacedDigit())
                             .multilineTextAlignment(.trailing)
-                            .frame(width: 72)
+                            .frame(width: 90)
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -239,7 +242,7 @@ struct HiveActivity: Widget {
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                         if showsAnswers(context.state, isStale: context.isStale) {
-                            AnswerRow(answers: context.state.answers)
+                            AnswerRow(answers: context.state.answers, beganOnDay: context.attributes.startedOnDay)
                         }
                     }
                 }
@@ -249,10 +252,17 @@ struct HiveActivity: Widget {
                     .accessibilityLabel(context.state.title)
             } compactTrailing: {
                 if let target = countdownTarget(context.attributes.kind, context.state, isStale: context.isStale) {
-                    Text(timerInterval: span(context.state, to: target), countsDown: true)
-                        .monospacedDigit()
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 50)
+                    // A ring rather than the clock. A deciding card runs up to
+                    // two hours and a swarm much longer, and "1:59:59" does not
+                    // fit the compact island at body size.
+                    ProgressView(timerInterval: span(context.state, to: target), countsDown: true) {
+                        EmptyView()
+                    } currentValueLabel: {
+                        EmptyView()
+                    }
+                    .progressViewStyle(.circular)
+                    .tint(activityTint(context.state))
+                    .frame(width: 20, height: 20)
                 } else if context.state.phase == .resolved {
                     Image(systemName: context.state.repelled == false ? "xmark" : "checkmark")
                         .foregroundStyle(activityTint(context.state))
@@ -274,6 +284,7 @@ struct HiveActivityCard: View {
 
     let kind: HiveActivityAttributes.Kind
     let symbol: String
+    let startedOnDay: Int
     let state: HiveActivityAttributes.ContentState
     let isStale: Bool
 
@@ -316,7 +327,7 @@ struct HiveActivityCard: View {
             }
 
             if showsAnswers(state, isStale: isStale) {
-                AnswerRow(answers: state.answers)
+                AnswerRow(answers: state.answers, beganOnDay: startedOnDay)
             }
         }
         .padding(14)
@@ -412,12 +423,13 @@ struct CountdownRing: View {
 struct AnswerRow: View {
 
     let answers: [String]
+    var beganOnDay: Int? = nil
 
     var body: some View {
         HStack(spacing: 6) {
             ForEach(answers, id: \.self) { identifier in
                 if let action = DecisionAction(identifier: identifier) {
-                    AnswerButton(action: action)
+                    AnswerButton(action: action, beganOnDay: beganOnDay)
                 }
             }
         }
@@ -488,6 +500,10 @@ private func activityStatus(
     case (.resolved, _): return state.status
     case (_, .matingFlight): return "Open FlowerPower to see how she is getting on."
     case (.deciding, _): return "Left to instinct. Open FlowerPower to see how it goes."
+    // A swarm can run past the longest a card may stay up, so a stale
+    // holding card is not necessarily a settled one.
+    case (.holding, _) where state.resolvesAt > Date():
+        return "Still going. Open FlowerPower to see where it stands."
     case (.holding, _): return "Settled by now. Open FlowerPower to see how it went."
     }
 }
@@ -531,7 +547,15 @@ struct PhotographFlowerControl: ControlWidget {
 enum WidgetTheme {
     static let honey = Color(red: 0.93, green: 0.68, blue: 0.13)
     static let alarm = Color(red: 0.82, green: 0.25, blue: 0.20)
-    static let caution = Color(red: 0.90, green: 0.55, blue: 0.10)
+    /// Adaptive, as the app's own is: the old fixed orange was about 2.5:1 as
+    /// text on a light lock screen, and the answer buttons are its text.
+    static let caution = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.96, green: 0.66, blue: 0.25, alpha: 1)
+            : UIColor(red: 0.57, green: 0.29, blue: 0.02, alpha: 1)
+    })
+    /// A label on a `caution` fill.
+    static let onCaution = Color(UIColor { $0.userInterfaceStyle == .dark ? .black : .white })
     static let healthy = Color(red: 0.30, green: 0.62, blue: 0.36)
 
     static func colour(for status: ColonyStatus) -> Color {

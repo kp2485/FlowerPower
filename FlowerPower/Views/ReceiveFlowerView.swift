@@ -27,6 +27,12 @@ struct ReceiveFlowerView: View {
     /// and worth the same tap. Counted, so nothing fires on appearance.
     @State private var imports = 0
 
+    /// Decoded once, off the main actor and through the guarded decoder: what
+    /// arrives is somebody else's file, and a share's size limit is on its
+    /// compressed bytes rather than the pixels they unpack to.
+    @State private var image: UIImage?
+    @State private var hasDecoded = false
+
     private var alreadyHave: Bool { store.hasImported(share) }
 
     var body: some View {
@@ -74,6 +80,10 @@ struct ReceiveFlowerView: View {
             .navigationTitle("A Flower For You")
             .navigationBarTitleDisplayMode(.inline)
             .sensoryFeedback(.success, trigger: imports)
+            .task { @MainActor in
+                image = await Self.decoded(share.imageData)
+                hasDecoded = true
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(outcome == nil ? "Not Now" : "Done") { dismiss() }
@@ -82,9 +92,17 @@ struct ReceiveFlowerView: View {
         }
     }
 
+    @concurrent
+    nonisolated private static func decoded(_ data: Data) async -> UIImage? {
+        PhotoLibrary.workingImage(from: data)
+    }
+
     @ViewBuilder
     private var photograph: some View {
-        if let image = UIImage(data: share.imageData) {
+        if !hasDecoded {
+            ProgressView()
+                .frame(maxWidth: .infinity, minHeight: 200)
+        } else if let image {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
@@ -113,8 +131,8 @@ struct ReceiveFlowerView: View {
     private var detail: some View {
         if let species = share.species {
             Label(
-                species.bloomSeasons
-                    .sorted { $0.rawValue < $1.rawValue }
+                Season.allCases
+                    .filter(species.bloomSeasons.contains)
                     .map { $0.rawValue.capitalized }
                     .joined(separator: ", ")
                     + (species.isKeystone
@@ -156,6 +174,7 @@ struct ReceiveFlowerView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.honey)
+                .foregroundStyle(Theme.onHoney)
                 .controlSize(.large)
             }
         }
@@ -165,7 +184,11 @@ struct ReceiveFlowerView: View {
         // The picture is kept first. If it were stored after the patch, a
         // failure here would leave a flower in the garden with nothing to
         // show for it.
-        SharedImageStore.store(share.imageData, forShare: share.id)
+        // Re-encoded rather than filed as it came, so what stays is an ordinary
+        // JPEG of a sensible size whatever the file claimed to be.
+        if let image, let data = SharedImageStore.prepareForSharing(image) {
+            SharedImageStore.store(data, forShare: share.id)
+        }
         let result = store.importShared(share)
         outcome = result
         if case .added = result { imports += 1 }
@@ -175,10 +198,9 @@ struct ReceiveFlowerView: View {
         // identification is worth rather less than one this player made
         // themselves, but it is a real example of a real flower and the
         // library records where its labels came from.
-        if let species = share.species,
-           let image = UIImage(data: share.imageData)?.cgImage {
+        if let species = share.species, let cgImage = image?.cgImage {
             Task.detached(priority: .utility) {
-                await FeaturePrintStore.shared.learn(image, as: species, source: .received)
+                await FeaturePrintStore.shared.learn(cgImage, as: species, source: .received)
             }
         }
     }

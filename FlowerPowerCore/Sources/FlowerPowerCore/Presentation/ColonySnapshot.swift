@@ -356,7 +356,7 @@ public struct PatchSummary: Identifiable, Codable, Equatable, Sendable {
 
     /// Where the plant sits botanically, to whatever rank was reached.
     public let taxon: Taxon?
-    public var family: PlantFamily? { taxon?.family }
+    public var family: BotanicalFamily? { taxon?.family }
     public var rank: TaxonomicRank? { taxon?.rank }
     public var scientificName: String? { taxon?.scientificName }
 
@@ -524,6 +524,10 @@ public struct TerrainSummary: Codable, Equatable, Sendable {
 public struct ColonySnapshot: Codable, Equatable, Sendable {
 
     public let day: Int
+    /// The day as it is written for a person. `day` counts from zero, and some
+    /// screens added one while others did not, so the same morning could be
+    /// day 586 on the dashboard and day 587 in History.
+    public var displayDay: Int { day + 1 }
     public let season: Season
     public let hourOfDay: Int
     public let weather: Weather
@@ -724,7 +728,7 @@ extension Simulation {
                 )
             },
             entranceSealed: world.entranceSealed,
-            entranceDecisionOpen: season == .autumn && !world.entranceSealed,
+            entranceDecisionOpen: season == .autumn && world.entranceDecision == nil && !world.entranceSealed,
             daysUntilSpring: Season.daysUntilSpring(from: clock.day),
             canAddComb: canAddComb,
             canAffordComb: canAffordComb,
@@ -942,7 +946,9 @@ extension Simulation {
         let day = clock.day
         let config = self.config
         var occupants: [HexCoordinate: EntityID] = [:]
-        for patch in world.patches {
+        // The player's flowers only: a wild stand is not planted in the
+        // garden, and drawing one there made a cell look taken.
+        for patch in world.patches where !patch.isWild {
             guard let cell = patch.cell,
                   !patch.hasFaded(onDay: day, config: config)
             else { continue }
@@ -1010,7 +1016,11 @@ extension Simulation {
             return "Preparing to swarm."
         }
 
-        return "Foraging steadily."
+        // Not "steadily" under a Struggling badge. The alerts say why.
+        switch colonyStatus() {
+        case .struggling, .critical: return "Foraging, but not keeping up."
+        default: return "Foraging steadily."
+        }
     }
 
     /// What the cluster is doing, which changes four times over the winter.
@@ -1028,7 +1038,7 @@ extension Simulation {
 
         // Being short is the only thing worth saying, if it is true.
         if !hive.isWinterReady, hive.resources.edibleEnergy < hive.winterStoresRequired * 0.6 {
-            return "Clustered, and short of stores with \(untilSpring) days to spring."
+            return "Clustered, and short of stores with \(untilSpring.counted("day")) to spring."
         }
 
         if progress < 0.25 {
@@ -1036,7 +1046,7 @@ extension Simulation {
                 + "its centre at thirty-five degrees."
         }
         if progress < Season.winterDormancyEnds {
-            return "The deep of it. \(untilSpring) days to spring, and every "
+            return "The deep of it. \(untilSpring.counted("day")) to spring, and every "
                 + "one of them paid for out of the larder."
         }
         if hive.broodCount == 0 {
@@ -1102,8 +1112,8 @@ extension Simulation {
                 severity: .critical,
                 title: "No Queen",
                 detail: hive.comb.hasQueenCells
-                    ? "Queenless for \(hive.daysQueenless) days, with \(hive.comb.queenCells.count) queen cells under way."
-                    : "Queenless for \(hive.daysQueenless) days, with no replacement being raised.",
+                    ? "Queenless for \(hive.daysQueenless.counted("day")), with \(hive.comb.queenCells.count) queen cells under way."
+                    : "Queenless for \(hive.daysQueenless.counted("day")), with no replacement being raised.",
                 suggestion: hive.canStillRearAQueen
                     ? "There is still young brood to raise a queen from."
                     : "There is no young brood left to raise a queen from."
@@ -1207,7 +1217,7 @@ extension Simulation {
                 kind: .noForage,
                 severity: .warning,
                 title: "Nothing to Forage",
-                detail: world.patches.isEmpty
+                detail: !world.patches.contains(where: { !$0.isWild })
                     ? "You have not photographed any flowers yet."
                     : "Nothing you have found is in bloom and in range right now.",
                 suggestion: "Photograph flowers that bloom in \(season.displayName.lowercased())."

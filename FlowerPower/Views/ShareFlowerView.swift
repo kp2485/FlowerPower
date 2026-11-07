@@ -73,8 +73,9 @@ struct ShareFlowerView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(Theme.honey)
+                        .foregroundStyle(Theme.onHoney)
                         .controlSize(.large)
-                    } else {
+                    } else if failure == nil {
                         HStack {
                             Spacer()
                             ProgressView()
@@ -102,6 +103,14 @@ struct ShareFlowerView: View {
         // share sheet can never hand over a stale one — signed with a name the
         // player has since corrected, or missing the line they just typed.
         .task(id: rebuildKey) { @MainActor in
+            // Not on every keystroke: each rebuild resizes and re-encodes the
+            // photograph on the main thread, and typing a name lagged. The
+            // stale file is withdrawn at once so it cannot be sent.
+            prepared = nil
+            if image != nil {
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
+            }
             await prepare()
         }
     }
@@ -124,7 +133,7 @@ struct ShareFlowerView: View {
         }
 
         guard let source, let data = SharedImageStore.prepareForSharing(source) else {
-            failure = "That photograph could not be prepared to send."
+            failure = "That photograph is not on this phone, so it cannot be sent."
             return
         }
 

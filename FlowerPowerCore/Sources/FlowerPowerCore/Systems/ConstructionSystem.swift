@@ -29,6 +29,16 @@ public struct ConstructionSystem: SimulationSystem {
         // 1. There must be somewhere to put it.
         guard world.hive.comb.canExpand else { return false }
 
+        // A swarm in a bare cavity builds at once, from what it carried. That
+        // is what the honey in a swarm's crops is for. Not by the nest's
+        // temperature, which with no brood to heat sits at the air's: a
+        // swarm makes wax in the core of its own cluster, which it holds at
+        // brood heat for exactly that. Only winter stops it.
+        if isFounding(world, context) {
+            guard context.season != .winter else { return false }
+            return world.hive.resources[.honey] > foundingReserve(world, context)
+        }
+
         // 2. Wax-making requires warmth; bees cannot secrete it in the cold.
         guard world.hive.temperatureCelsius >= context.config.minimumWaxTemperature else {
             return false
@@ -49,6 +59,17 @@ public struct ConstructionSystem: SimulationSystem {
 
         // 5. And there must be honey to spare over the reserve.
         return world.hive.resources[.honey] > buildingReserve(world, context)
+    }
+
+    private func isFounding(_ world: World, _ context: TickContext) -> Bool {
+        world.hive.comb.builtCells < context.config.foundingCombCells
+    }
+
+    private func foundingReserve(_ world: World, _ context: TickContext) -> Double {
+        Double(world.hive.adultCount)
+            * context.config.honeyPerAdult
+            * Double(SimClock.ticksPerDay)
+            * context.config.foundingReserveDays
     }
 
     /// Honey the colony refuses to convert into wax.
@@ -103,10 +124,14 @@ public struct ConstructionSystem: SimulationSystem {
             / Double(SimClock.ticksPerDay)
 
         // And still never below the reserve the colony needs to stay alive.
-        let spendable = min(
-            max(0, world.hive.resources[.honey] - context.config.buildHoneyReserve),
-            fromIncome
-        )
+        // A founding colony has no income and no choice: it spends its stores
+        // down to a couple of days' food, which is what a real swarm does.
+        let spendable = isFounding(world, context)
+            ? max(0, world.hive.resources[.honey] - foundingReserve(world, context))
+            : min(
+                max(0, world.hive.resources[.honey] - context.config.buildHoneyReserve),
+                fromIncome
+            )
         let capacity = builders * context.config.waxPerBuilder
         let affordable = spendable / context.config.honeyPerWax
 

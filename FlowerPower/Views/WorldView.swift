@@ -42,9 +42,14 @@ struct WorldView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The same closure the Garden and the Colony use, so that an empty cell
-    /// is a way into the camera rather than a dead end.
-    var onPhotograph: () -> Void
+    /// Opens the camera. With a cell when an empty garden cell was tapped,
+    /// so the flower is planted where the player pointed; without one from
+    /// the button in the empty state.
+    var onPhotograph: (HexCoordinate?) -> Void
+
+    /// A cell just planted from the map, set once the camera closes. The map
+    /// plays it blooming and clears it.
+    @Binding var bloomingCell: HexCoordinate?
 
     /// A flower the player tapped on the map. Opens the Garden's own detail
     /// sheet — one description of a patch, reached from two places.
@@ -65,7 +70,13 @@ struct WorldView: View {
     /// A stand of something wild the player tapped. Shown in a card under the
     /// map beside the chunk's, for the same reason: it is three short facts,
     /// and a sheet to read three facts is the wrong trade.
-    @State private var selectedWild: PatchSummary?
+    /// By identifier and looked up live, so its bloom and its count of bees
+    /// follow the colony rather than stopping at the moment of the tap.
+    @State private var selectedWildID: EntityID?
+
+    private var selectedWild: PatchSummary? {
+        snapshot.wildPatches.first { $0.id == selectedWildID }
+    }
 
     /// Every chunk the map draws.
     ///
@@ -95,20 +106,23 @@ struct WorldView: View {
                             onSelectPatch: { selectedPatch = $0 },
                             onSelectChunk: {
                                 selectedChunk = $0
-                                selectedWild = nil
+                                selectedWildID = nil
                             },
                             onSelectWild: {
-                                selectedWild = $0
+                                selectedWildID = $0.id
                                 selectedChunk = nil
                             },
-                            onPhotograph: onPhotograph
+                            onPhotograph: onPhotograph,
+                            bloomingCell: $bloomingCell
                         )
 
                         if let wild = selectedWild {
                             WildStandCard(
                                 patch: wild,
-                                chunk: terrain.chunk(containing: wild.cell ?? .origin)
-                            ) { selectedWild = nil }
+                                chunk: terrain.chunk(containing: wild.cell ?? .origin),
+                                plantable: terrain.emptyCells.contains { $0.cell == wild.cell }
+                                    ? { onPhotograph(wild.cell) } : nil
+                            ) { selectedWildID = nil }
                         }
 
                         if let chunk = selectedChunk {
@@ -146,12 +160,20 @@ struct WorldView: View {
                                 camera.focus = MapGeometry.point(for: .origin)
                             }
                         }
-                        .disabled(camera.isFitted || camera.isOnNest)
+                        // At the fit the whole map is in frame, wherever the
+                        // focus was left, so there is nothing for it to do.
+                        .disabled(camera.zoom <= 1 || camera.isOnNest)
                     }
                 }
             }
+            // The cards are about ground the colony has just left behind.
+            .onChange(of: store.colonyChanges) { _, _ in
+                selectedChunk = nil
+                selectedWildID = nil
+            }
             .sheet(item: $selectedPatch) { patch in
                 FlowerDetailView(patch: patch)
+                    .childSheet()
             }
         }
     }
@@ -178,21 +200,12 @@ private struct GroundHeader: View {
 
     /// How the garden is doing, and what would make it bigger.
     ///
-    /// The milestone titles are taken from `Milestone` rather than written out
-    /// again, so the sentence here and the badge in the Milestones screen
-    /// cannot drift apart.
     private var gardenLine: String {
-        let counted = "\(planted) of \(terrain.garden.count) cells planted"
-        switch terrain.gardenRings {
-        case 1:
-            return counted + " — ring 2 opens at "
-                + Milestone.tenFlowers.title.lowercased() + "."
-        case 2:
-            return counted + " — ring 3 opens at "
-                + Milestone.tenFamilies.title.lowercased() + "."
-        default:
-            return counted + ". The garden is as wide as it goes."
-        }
+        // Worked out from what the engine does: the flower that finds every
+        // open ring full opens the next. This used to quote milestones that
+        // rarely decide it, and to call a garden with no limit finished.
+        "\(planted) of \(terrain.garden.count.counted("cell")) planted. "
+            + "A new ring opens when these are full."
     }
 
     /// Where the scouting party is, when there is one out.
@@ -200,7 +213,7 @@ private struct GroundHeader: View {
         guard let days = terrain.scoutsDaysRemaining, days > 0 else {
             return "Scouts are out — back today."
         }
-        return "Scouts are out — back in \(days) day\(days == 1 ? "" : "s")."
+        return "Scouts are out — back in \(days.counted("day"))."
     }
 
     var body: some View {
@@ -249,11 +262,13 @@ private struct NeighbourCard: View {
                     .labelStyle(.iconOnly)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
 
             Text(chunk.biome.displayName)
                 .font(.subheadline)
-                .foregroundStyle(Theme.colour(for: chunk.biome))
+                .foregroundStyle(.secondary)
 
             Text(chunk.biome.summary)
                 .font(.caption)
@@ -275,11 +290,13 @@ private struct WildStandCard: View {
 
     let patch: PatchSummary
     let chunk: Chunk?
+    /// For a stand growing on an empty cell of the garden, which a tap used to
+    /// treat as the cell alone, so the stand could never be looked at.
+    var plantable: (() -> Void)?
     var onDismiss: () -> Void
 
     private var workingLine: String {
-        let bees = patch.foragersWorkingIt
-        return "\(bees) bee\(bees == 1 ? "" : "s") working it"
+        "\(patch.foragersWorkingIt.counted("bee")) working it"
     }
 
     var body: some View {
@@ -292,12 +309,14 @@ private struct WildStandCard: View {
                     .labelStyle(.iconOnly)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
 
             if let chunk {
                 Text(chunk.name)
                     .font(.subheadline)
-                    .foregroundStyle(Theme.wild)
+                    .foregroundStyle(Theme.wildInk)
             }
 
             HStack(spacing: 10) {
@@ -305,12 +324,19 @@ private struct WildStandCard: View {
                     patch.isInBloom ? "In bloom" : "Not in bloom",
                     systemImage: patch.isInBloom ? "sun.max.fill" : "moon.zzz.fill"
                 )
-                .foregroundStyle(patch.isInBloom ? Theme.wild : .secondary)
+                .foregroundStyle(patch.isInBloom ? Theme.wildInk : .secondary)
 
                 Text(workingLine)
                     .foregroundStyle(.secondary)
             }
             .font(.caption)
+
+            if let plantable {
+                Button("Plant a Flower Here", systemImage: "camera.fill", action: plantable)
+                    .buttonStyle(.bordered)
+                    .tint(Theme.honey)
+                    .font(.subheadline.weight(.medium))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
@@ -350,9 +376,25 @@ private struct WorldMap: View {
     var onSelectPatch: (PatchSummary) -> Void
     var onSelectChunk: (Chunk?) -> Void
     var onSelectWild: (PatchSummary) -> Void
-    var onPhotograph: () -> Void
+    var onPhotograph: (HexCoordinate?) -> Void
+    @Binding var bloomingCell: HexCoordinate?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// A flower blooming where one was just planted, and when it began.
+    @State private var bloom: MapLife.Bloom?
+
+    /// Country coming out of the fog, and when it began to.
+    @State private var reveals: [MapLife.Reveal] = []
+
+    /// Chunks the player has already seen drawn, kept across launches so that
+    /// what the scouts or the foragers found while the app was closed is shown
+    /// arriving the next time the map is looked at, not silently already there.
+    @AppStorage("seenChunks") private var seenChunksRaw = ""
+
+    /// Haptic triggers.
+    @State private var bloomCount = 0
+    @State private var revealCount = 0
 
     /// Where a pan started from, so that a drag is measured from the place the
     /// finger went down rather than accumulated frame by frame.
@@ -360,6 +402,18 @@ private struct WorldMap: View {
     /// The same for a pinch: `MagnifyGesture` reports a multiple of the zoom
     /// the gesture began at.
     @State private var zoomAnchor: CGFloat?
+
+    /// True while each gesture is live. Gesture state resets when a gesture
+    /// is cancelled as well as when it ends — a sheet, a tab switch, the
+    /// scroll view taking the touch — where `onEnded` never runs; the anchors
+    /// above used to survive those, and the next drag or pinch snapped back
+    /// to where the cancelled one began.
+    @GestureState private var isPanning = false
+    @GestureState private var isPinching = false
+    /// Set when a pinch interrupts a drag, so the drag picks up from where
+    /// the pinch left the map rather than from where the finger first went
+    /// down.
+    @State private var panResumesAfterPinch = false
 
     /// The box the chunks fill, in units of one hexagon's radius. Everything
     /// else — the frame's shape, the fit, how far the map may be dragged —
@@ -405,6 +459,17 @@ private struct WorldMap: View {
                 bounds: bounds,
                 draw: draw
             )
+            .overlay {
+                MapLife(
+                    zoom: layout.zoom,
+                    focusX: layout.focus.x,
+                    focusY: layout.focus.y,
+                    bounds: bounds,
+                    flights: reduceMotion ? [] : flights,
+                    bloom: reduceMotion ? nil : bloom,
+                    reveals: reveals
+                )
+            }
             .onTapGesture(count: 2) { point in
                 doubleTap(at: point, layout: layout)
             }
@@ -419,8 +484,31 @@ private struct WorldMap: View {
                 pan(layout: layout),
                 including: layout.zoom > 1 ? .all : .subviews
             )
+            .onChange(of: isPanning) { _, live in
+                if !live {
+                    panAnchor = nil
+                    panResumesAfterPinch = false
+                }
+            }
+            .onChange(of: isPinching) { _, live in if !live { zoomAnchor = nil } }
             .accessibilityRepresentation { reading }
         }
+        .onChange(of: bloomingCell, initial: true) { _, cell in
+            guard let cell else { return }
+            bloomingCell = nil
+            // Only if something was actually planted there.
+            guard terrain.garden.contains(where: { $0.cell == cell && $0.patchID != nil }) else { return }
+            bloom = MapLife.Bloom(cell: cell, start: .now)
+            bloomCount += 1
+            Task {
+                try? await Task.sleep(for: .seconds(MapLife.bloomDuration))
+                if bloom?.cell == cell { bloom = nil }
+            }
+        }
+        .onAppear { revealNewGround() }
+        .onChange(of: chunks.map(\.coordinate)) { _, _ in revealNewGround() }
+        .sensoryFeedback(.impact(weight: .light), trigger: bloomCount)
+        .sensoryFeedback(.success, trigger: revealCount)
         // The shape of the ground, taken from the geometry rather than guessed,
         // so the map fits the width exactly and no cell is clipped. Seven
         // chunks come out very nearly square; a wider country later will come
@@ -438,6 +526,49 @@ private struct WorldMap: View {
         .overlay {
             RoundedRectangle(cornerRadius: Theme.cardCorner)
                 .strokeBorder(Theme.comb.opacity(0.5), lineWidth: 1)
+        }
+    }
+
+    // MARK: What moves
+
+    /// Bees on their way to whatever they are working, while they are flying.
+    /// A handful per flower rather than one per forager — enough to show
+    /// where the colony's effort is going, and which way.
+    private var flights: [MapLife.Flight] {
+        guard snapshot.isForaging else { return [] }
+        return (snapshot.patches + snapshot.wildPatches).compactMap { patch in
+            guard patch.foragersWorkingIt > 0, let cell = patch.cell else { return nil }
+            return MapLife.Flight(to: cell, bees: min(5, 1 + patch.foragersWorkingIt / 10))
+        }
+    }
+
+    /// Fades in whatever ground has been found since the map was last seen.
+    private func revealNewGround() {
+        let current = chunks.map(\.coordinate)
+        let key = { (chunk: ChunkCoordinate) in "\(chunk.q),\(chunk.r)" }
+        let currentKeys = Set(current.map(key))
+        // The first time, everything is simply there: nothing has been found,
+        // the map is just being looked at for the first time.
+        guard !seenChunksRaw.isEmpty else {
+            seenChunksRaw = currentKeys.sorted().joined(separator: ";")
+            return
+        }
+        let seen = Set(seenChunksRaw.split(separator: ";").map(String.init))
+        let found = current.filter { !seen.contains(key($0)) }
+        // A new colony on new ground is not a discovery either.
+        guard !found.isEmpty, found.count < current.count else {
+            seenChunksRaw = currentKeys.sorted().joined(separator: ";")
+            return
+        }
+        seenChunksRaw = currentKeys.union(seen).sorted().joined(separator: ";")
+        guard !reduceMotion else { return }
+
+        let reveal = MapLife.Reveal(cells: found.flatMap(\.cells), start: .now)
+        reveals.append(reveal)
+        revealCount += 1
+        Task {
+            try? await Task.sleep(for: .seconds(MapLife.revealDuration))
+            reveals.removeAll { $0.start == reveal.start }
         }
     }
 
@@ -513,7 +644,7 @@ private struct WorldMap: View {
 
         // The nest, at the origin, in honey.
         let nest = layout.path(for: .origin)
-        context.fill(nest, with: .color(Theme.honey))
+        context.fill(nest, with: .color(Theme.honeyFill))
         context.stroke(
             nest,
             with: .color(Theme.propolis),
@@ -586,20 +717,24 @@ private struct WorldMap: View {
     private func handleTap(at point: CGPoint, layout: MapLayout) {
         let cell = layout.cell(at: point, snappingTo: terrain.garden)
 
-        if let garden = terrain.garden.first(where: { $0.cell == cell }) {
-            if let patch = patch(in: garden) {
-                onSelectPatch(patch)
-            } else {
-                onPhotograph()
-            }
+        let garden = terrain.garden.first { $0.cell == cell }
+        if let garden, let patch = patch(in: garden) {
+            onSelectPatch(patch)
             return
         }
 
         // Something the bees found. Ahead of the chunk, because a stand is the
         // smaller and more particular thing to have aimed at: a player who
-        // wanted the parish can tap the ground beside it.
+        // wanted the parish can tap the ground beside it. Ahead of an empty
+        // garden cell too, since the ring can open over a stand, and the card
+        // offers the planting.
         if let wild = wildByCell[cell] {
             onSelectWild(wild)
+            return
+        }
+
+        if let garden {
+            onPhotograph(garden.cell)
             return
         }
 
@@ -636,9 +771,29 @@ private struct WorldMap: View {
     /// be brought back.
     private func pan(layout: MapLayout) -> some Gesture {
         DragGesture(minimumDistance: 8)
+            .updating($isPanning) { _, live, _ in live = true }
             .onChanged { value in
-                let start = panAnchor ?? layout.focus
+                // A pinch owns the map while it lasts. Both used to write the
+                // focus in the same frame, and the pan's arithmetic undid the
+                // pinch's anchoring, so a zoom drifted out from under the
+                // fingers.
+                guard zoomAnchor == nil else {
+                    panAnchor = nil
+                    panResumesAfterPinch = true
+                    return
+                }
+                // Resuming after a pinch, anchored so the map stays where the
+                // pinch left it however far the finger has travelled since it
+                // went down; otherwise from the focus, so the map follows the
+                // finger from the first point.
+                let start = panAnchor ?? (panResumesAfterPinch
+                    ? CGPoint(
+                        x: layout.focus.x + value.translation.width / layout.radius,
+                        y: layout.focus.y + value.translation.height / layout.radius
+                    )
+                    : layout.focus)
                 panAnchor = start
+                panResumesAfterPinch = false
                 camera.focus = layout.clamped(focus: CGPoint(
                     x: start.x - value.translation.width / layout.radius,
                     y: start.y - value.translation.height / layout.radius
@@ -652,6 +807,7 @@ private struct WorldMap: View {
     /// somebody else moving the map.
     private func pinch(layout: MapLayout, size: CGSize) -> some Gesture {
         MagnifyGesture()
+            .updating($isPinching) { _, live, _ in live = true }
             .onChanged { value in
                 let start = zoomAnchor ?? layout.zoom
                 zoomAnchor = start
@@ -716,14 +872,18 @@ private struct WorldMap: View {
             }
 
             if !terrain.rumoured.isEmpty {
-                Text("\(terrain.rumoured.count) stretches of country the dancers have pointed at and nobody has been to.")
+                Text("\(terrain.rumoured.count.counted("stretch", plural: "stretches")) of country the dancers have pointed at and nobody has been to.")
             }
 
             // One line per stretch of country rather than one per stand:
             // there are hundreds of these and a list of them is not a map. A
             // parish and what is out in it is what a forager would say.
-            ForEach(wildInBloom, id: \.name) { chunk in
-                Text("\(chunk.name): \(chunk.species.spokenList) in bloom.")
+            ForEach(Array(wildInBloom.enumerated()), id: \.offset) { _, chunk in
+                Button {
+                    onSelectWild(chunk.firstStand)
+                } label: {
+                    Text("\(chunk.name): \(chunk.species.spokenList) in bloom.")
+                }
             }
 
             ForEach(planted) { cell in
@@ -734,14 +894,24 @@ private struct WorldMap: View {
                 }
             }
 
-            if !terrain.emptyCells.isEmpty {
+            // By ring, so where a flower goes can be chosen here as well: ring
+            // 1 is the close one, and worth more than a tap could say.
+            ForEach(emptyByRing, id: \.ring) { group in
                 Button {
-                    onPhotograph()
+                    onPhotograph(group.first)
                 } label: {
-                    Text("\(terrain.emptyCells.count) empty cells in the garden. Photograph a flower to plant one.")
+                    Text("\(group.count.counted("empty cell")) in ring \(group.ring) of the garden. Photograph a flower to plant one.")
                 }
             }
         }
+    }
+
+    private var emptyByRing: [(ring: Int, count: Int, first: HexCoordinate)] {
+        Dictionary(grouping: terrain.emptyCells, by: \.ring)
+            .sorted { $0.key < $1.key }
+            .compactMap { ring, cells in
+                cells.first.map { (ring, cells.count, $0.cell) }
+            }
     }
 
     /// The six directions, in the order `HexCoordinate.directions` fixes them
@@ -752,7 +922,7 @@ private struct WorldMap: View {
 
     private func label(for planted: PlantedCell) -> String {
         let metres = Int(planted.garden.distanceMetres)
-        let remaining = Int(planted.patch.remainingFraction * 100)
+        let remaining = Int((planted.patch.remainingFraction * 100).rounded())
         return "\(planted.patch.speciesName), ring \(planted.garden.ring), "
             + "\(metres) metres from the nest, \(remaining) percent left."
     }
@@ -782,21 +952,27 @@ private struct WorldMap: View {
     private struct WildChunk {
         let name: String
         let species: [String]
+        /// Where a screen reader goes to hear about them.
+        let firstStand: PatchSummary
     }
 
     private var wildInBloom: [WildChunk] {
         var species: [ChunkCoordinate: Set<String>] = [:]
+        var first: [ChunkCoordinate: PatchSummary] = [:]
         for patch in snapshot.wildPatches where patch.isInBloom {
             guard let cell = patch.cell else { continue }
-            species[ChunkCoordinate.containing(cell), default: []].insert(patch.speciesName)
+            let chunk = ChunkCoordinate.containing(cell)
+            species[chunk, default: []].insert(patch.speciesName)
+            if first[chunk] == nil { first[chunk] = patch }
         }
 
         // Walked in the discovered order so the reading is stable between
         // ticks, and named from the terrain so a stand in ground that has
         // somehow gone unknown is left out rather than given a coordinate.
         return terrain.discovered.compactMap { chunk in
-            guard let names = species[chunk.coordinate], !names.isEmpty else { return nil }
-            return WildChunk(name: chunk.name, species: names.sorted())
+            guard let names = species[chunk.coordinate], !names.isEmpty,
+                  let stand = first[chunk.coordinate] else { return nil }
+            return WildChunk(name: chunk.name, species: names.sorted(), firstStand: stand)
         }
     }
 }
@@ -836,6 +1012,155 @@ private struct MapCanvas: View, Animatable {
                 focus: CGPoint(x: focusX, y: focusY)
             )
             draw(&context, size, layout)
+        }
+    }
+}
+
+// MARK: - What moves
+
+/// The map's living layer, over the ground: bees flying to and from what they
+/// work, a flower blooming where one has just been planted, and country
+/// coming out of the fog. Drawn apart from the ground so the ground is not
+/// redrawn sixty times a second, and paused whenever nothing is moving.
+///
+/// Animatable over the camera for the same reason `MapCanvas` is, so a bee
+/// stays over its flower while the map glides to the nest.
+private struct MapLife: View, Animatable {
+
+    struct Flight {
+        let to: HexCoordinate
+        let bees: Int
+    }
+
+    struct Bloom {
+        let cell: HexCoordinate
+        let start: Date
+    }
+
+    struct Reveal {
+        let cells: [HexCoordinate]
+        let start: Date
+    }
+
+    static let bloomDuration: TimeInterval = 1.6
+    static let revealDuration: TimeInterval = 1.8
+
+    var zoom: CGFloat
+    var focusX: CGFloat
+    var focusY: CGFloat
+
+    let bounds: CGRect
+    let flights: [Flight]
+    let bloom: Bloom?
+    let reveals: [Reveal]
+
+    var animatableData: AnimatablePair<CGFloat, AnimatablePair<CGFloat, CGFloat>> {
+        get { AnimatablePair(zoom, AnimatablePair(focusX, focusY)) }
+        set {
+            zoom = newValue.first
+            focusX = newValue.second.first
+            focusY = newValue.second.second
+        }
+    }
+
+    private var isIdle: Bool { flights.isEmpty && bloom == nil && reveals.isEmpty }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: isIdle)) { timeline in
+            Canvas { context, size in
+                let layout = MapLayout(
+                    size: size, bounds: bounds, zoom: zoom,
+                    focus: CGPoint(x: focusX, y: focusY)
+                )
+                let now = timeline.date
+                drawReveals(in: &context, layout: layout, now: now)
+                drawBloom(in: &context, layout: layout, now: now)
+                drawFlights(in: &context, layout: layout, now: now)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func centre(of cell: HexCoordinate, in layout: MapLayout) -> CGPoint {
+        let dot = layout.dot(at: cell, fraction: 0.1)
+        return CGPoint(x: dot.midX, y: dot.midY)
+    }
+
+    /// The fog drawn back over new ground, thinning to nothing.
+    private func drawReveals(in context: inout GraphicsContext, layout: MapLayout, now: Date) {
+        for reveal in reveals {
+            let progress = min(1, max(0, now.timeIntervalSince(reveal.start) / Self.revealDuration))
+            let fog = 1 - progress * progress * (3 - 2 * progress)
+            guard fog > 0 else { continue }
+            for cell in reveal.cells {
+                context.fill(layout.path(for: cell), with: .color(Theme.fog.opacity(fog)))
+            }
+        }
+    }
+
+    /// Two rings of honey spreading out from the new flower, and the flower
+    /// itself swelling into place under them.
+    private func drawBloom(in context: inout GraphicsContext, layout: MapLayout, now: Date) {
+        guard let bloom else { return }
+        let progress = min(1, max(0, now.timeIntervalSince(bloom.start) / Self.bloomDuration))
+        let centre = centre(of: bloom.cell, in: layout)
+        for ring in 0..<2 {
+            let local = min(1, max(0, progress * 1.4 - Double(ring) * 0.3))
+            guard local > 0, local < 1 else { continue }
+            let radius = layout.radius * (0.4 + 2.2 * local)
+            let rect = CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)
+            context.stroke(
+                Path(ellipseIn: rect),
+                with: .color(Theme.honeyFill.opacity(1 - local)),
+                lineWidth: max(1, layout.radius * 0.18 * (1 - local))
+            )
+        }
+        let swell = sin(min(1, progress * 2) * .pi) * 0.35
+        let size = layout.radius * (0.84 + swell)
+        context.fill(
+            Path(ellipseIn: CGRect(x: centre.x - size / 2, y: centre.y - size / 2, width: size, height: size)),
+            with: .color(Theme.pollen.opacity(0.9 * (1 - progress)))
+        )
+    }
+
+    /// Bees going out and coming back. Each makes the round trip in a time
+    /// that grows with the distance, spaced along it so a busy flower has a
+    /// little line of them rather than a clump.
+    private func drawFlights(in context: inout GraphicsContext, layout: MapLayout, now: Date) {
+        let nest = centre(of: .origin, in: layout)
+        let beeRadius = max(1.4, layout.radius * 0.13)
+        let seconds = now.timeIntervalSinceReferenceDate
+
+        for flight in flights {
+            let target = centre(of: flight.to, in: layout)
+            let dx = target.x - nest.x, dy = target.y - nest.y
+            let length = max(1, hypot(dx, dy))
+            // Across the path, for the wander.
+            let nx = -dy / length, ny = dx / length
+            let period = 2.5 + Double(length / max(layout.radius, 1)) * 0.35
+
+            for bee in 0..<flight.bees {
+                let phase = (seconds / period + Double(bee) / Double(flight.bees)
+                    + Double(abs(flight.to.q &* 31 &+ flight.to.r)) * 0.137)
+                    .truncatingRemainder(dividingBy: 1)
+                // Out on the first half of the trip, home on the second.
+                let along = phase < 0.5 ? phase * 2 : (1 - phase) * 2
+                let wander = sin(phase * .pi * 6 + Double(bee)) * Double(layout.radius) * 0.25
+                let point = CGPoint(
+                    x: nest.x + dx * along + nx * wander,
+                    y: nest.y + dy * along + ny * wander
+                )
+                let rect = CGRect(
+                    x: point.x - beeRadius, y: point.y - beeRadius,
+                    width: beeRadius * 2, height: beeRadius * 2
+                )
+                context.fill(Path(ellipseIn: rect), with: .color(Theme.honey))
+                context.stroke(
+                    Path(ellipseIn: rect), with: .color(Theme.propolis.opacity(0.8)),
+                    lineWidth: max(0.5, beeRadius * 0.35)
+                )
+            }
         }
     }
 }
@@ -1161,6 +1486,6 @@ private struct MapLayout {
 // MARK: - Preview
 
 #Preview {
-    WorldView(onPhotograph: {})
+    WorldView(onPhotograph: { _ in }, bloomingCell: .constant(nil))
         .environment(GameStore.preview())
 }

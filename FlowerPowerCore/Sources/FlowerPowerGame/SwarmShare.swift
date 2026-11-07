@@ -31,6 +31,9 @@ public struct SwarmShare: Codable, Equatable, Sendable, Identifiable {
     /// model's scale. Anything past this is not a swarm.
     public static let maximumWorkers = 600
 
+    /// A swarm is a few numbers and two short strings.
+    public static let maximumBytes = 64 * 1024
+
     public var version: Int
     public var id: String
     /// The queen who left, with her number and name if she had one.
@@ -137,7 +140,7 @@ public struct SwarmShare: Codable, Equatable, Sendable, Identifiable {
     }
 
     public static func decoded(from data: Data) throws -> SwarmShare {
-        guard data.count < 64 * 1024 else { throw Failure.notASwarmFile }
+        guard data.count < maximumBytes else { throw Failure.notASwarmFile }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -174,9 +177,20 @@ public struct SwarmShare: Codable, Equatable, Sendable, Identifiable {
         copy.sharedBy = sharedBy.flatMap(Self.tidy)
         copy.note = note.flatMap(Self.tidy)
         if let queen = queen {
-            var clean = queen
-            clean.name = queen.name.flatMap(Self.tidy)
-            copy.queen = clean
+            // The next queen is numbered one past the highest, so a number
+            // near `Int.max` from a crafted file overflowed and trapped at the
+            // first supersedure — and on every launch after, from the save.
+            copy.queen = QueenRecord(
+                number: min(10_000, max(1, queen.number)),
+                name: queen.name.flatMap(Self.tidy),
+                motherNumber: queen.motherNumber.map { min(10_000, max(1, $0)) },
+                emergedOnDay: queen.emergedOnDay,
+                matedOnDay: queen.matedOnDay,
+                patrilines: queen.patrilines,
+                quality: queen.quality.isFinite ? min(1, max(0, queen.quality)) : 1,
+                endedOnDay: queen.endedOnDay,
+                ending: queen.ending
+            )
         }
         if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             copy.id = UUID().uuidString

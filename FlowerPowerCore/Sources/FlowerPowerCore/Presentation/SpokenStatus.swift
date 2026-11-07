@@ -66,7 +66,7 @@ extension ColonySnapshot {
         // Under a hundred is a colony in trouble, and the exact figure is the
         // interesting part — the difference between sixty bees and forty is
         // the difference between a cluster and an ending.
-        if count < 100 { return "\(count) bees" }
+        if count < 100 { return "\(count.counted("bee"))" }
         return "about \(Self.spokenRounding(of: count)) bees"
     }
 
@@ -101,11 +101,11 @@ extension ColonySnapshot {
                 + "bees. You can follow it or stay with the colony."
         }
 
-        if let swarm = pendingSwarm, !swarm.discouraged {
+        if let swarm = pendingSwarm, !swarm.isAnswered {
             let days = swarm.daysRemaining(on: day)
             return "They are preparing to swarm"
-                + (days > 0 ? " in about \(days) days" : " within the day")
-                + ". Making room is the best answer there is."
+                + (days > 0 ? " in about \(days.counted("day"))" : " within the day")
+                + ". Making room may hold them back."
         }
 
         // "Full" is the same test `ColonyNews` uses: `addCombIsOnCue`. This

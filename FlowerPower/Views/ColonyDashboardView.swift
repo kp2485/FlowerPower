@@ -32,8 +32,13 @@ import FlowerPowerGame
 struct ColonyDashboardView: View {
 
     @Environment(GameStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var onPhotograph: () -> Void
-    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.northern.rawValue
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.likelyHere.rawValue
+    @State private var isRelocating = false
+    /// Set by the swarm card's "move" button. The decision sheet has to be
+    /// gone before the site picker can come up, so the move waits for it.
+    @State private var relocateOnceClosed = false
 
     /// What the player has opened.
     ///
@@ -62,7 +67,9 @@ struct ColonyDashboardView: View {
     /// Two columns on a phone, more on anything wider, and one at the
     /// accessibility text sizes where 150 points is a single word.
     private var columns: [GridItem] {
-        [GridItem(.adaptive(minimum: 150), spacing: 12)]
+        dynamicTypeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.adaptive(minimum: 150), spacing: 12)]
     }
 
     var body: some View {
@@ -125,8 +132,27 @@ struct ColonyDashboardView: View {
                 ColonyDetailView(kind: kind, onPhotograph: onPhotograph)
             }
             .sensoryFeedback(.selection, trigger: path.count)
-            .sheet(item: $openDecision) { kind in
-                DecisionSheet(kind: kind, snapshot: snapshot) { openDecision = nil }
+            .sheet(item: $openDecision, onDismiss: {
+                guard relocateOnceClosed else { return }
+                relocateOnceClosed = false
+                isRelocating = true
+            }) { kind in
+                DecisionSheet(kind: kind, snapshot: snapshot, onRelocate: {
+                    relocateOnceClosed = true
+                    openDecision = nil
+                }) { openDecision = nil }
+                .childSheet()
+            }
+            .sheet(isPresented: $isRelocating) {
+                NewColonyView(
+                    reason: .relocating,
+                    currentSite: snapshot.nest.siteType,
+                    largerOnly: true
+                ) { site in
+                    store.relocateHive(to: HiveLocation(type: site))
+                    isRelocating = false
+                }
+                .childSheet()
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -154,6 +180,11 @@ struct ColonyDashboardView: View {
 struct ColonyTile: View {
 
     let tile: DashboardSummary.Tile
+
+    /// One tile to a row at these sizes, with the width to wrap rather than
+    /// shrink a word like "Laying workers" to half its size.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var lines: Int? { dynamicTypeSize.isAccessibilitySize ? nil : 1 }
 
     private var tint: Color { Theme.colour(forDashboard: tile.severity) }
 
@@ -184,19 +215,19 @@ struct ColonyTile: View {
                 .font(.title3.weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(.primary)
-                .lineLimit(1)
+                .lineLimit(lines)
                 .minimumScaleFactor(0.5)
 
             Text(tile.title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(tint)
-                .lineLimit(1)
+                .lineLimit(lines)
                 .minimumScaleFactor(0.7)
 
             Text(tile.caption)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .minimumScaleFactor(0.8)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -477,7 +508,7 @@ private struct DecisionRows: View {
         return DecisionRow(
             kind: .feed,
             title: "They are short for winter",
-            detail: String(format: "%.0f units short", snapshot.storesShortfall),
+            detail: "\(Int(snapshot.storesShortfall.rounded()).counted("unit")) short",
             symbolName: "takeoutbag.and.cup.and.straw.fill",
             tint: Theme.caution,
             open: $open
@@ -591,6 +622,7 @@ private struct DecisionSheet: View {
 
     let kind: DecisionKind
     let snapshot: ColonySnapshot
+    let onRelocate: () -> Void
     let onDone: () -> Void
 
     var body: some View {
@@ -638,7 +670,7 @@ private struct DecisionSheet: View {
     @ViewBuilder
     private var swarmCard: some View {
         if let swarm = snapshot.pendingSwarm {
-            SwarmDecisionCard(swarm: swarm, snapshot: snapshot)
+            SwarmDecisionCard(swarm: swarm, snapshot: snapshot, onRelocate: onRelocate)
         } else {
             Answered()
         }
@@ -673,7 +705,9 @@ private struct DecisionSheet: View {
 
     @ViewBuilder
     private var scoutCard: some View {
-        if let terrain = snapshot.terrain {
+        // The same test as the banner. A flow that ends with the sheet open
+        // left a live "Send Scouts" button that the store refused in silence.
+        if let terrain = snapshot.terrain, snapshot.scoutDecisionOpen || snapshot.scoutsOut {
             ScoutDecisionCard(snapshot: snapshot, terrain: terrain)
         } else {
             Answered()
@@ -706,15 +740,26 @@ private struct StatusHeader: View {
 
     let snapshot: ColonySnapshot
 
+    /// These rows hold four short things side by side. At the accessibility
+    /// sizes that left each a sliver, and "Struggling" broke into three lines
+    /// of letters, so they stack instead.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var rowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 16))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
+            rowLayout {
                 Label(snapshot.status.displayName, systemImage: snapshot.status.symbolName)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.colour(for: snapshot.status))
                     .minimumScaleFactor(0.7)
 
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
 
                 Label(snapshot.season.displayName, systemImage: Theme.symbol(for: snapshot.season))
                     .font(.caption)
@@ -726,7 +771,7 @@ private struct StatusHeader: View {
                 .font(.callout.weight(.medium))
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 14) {
+            rowLayout {
                 WeatherChip(weather: snapshot.weather)
 
                 Label(
@@ -737,12 +782,11 @@ private struct StatusHeader: View {
                 .foregroundStyle(.secondary)
                 .minimumScaleFactor(0.7)
 
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
 
-                Text("Day \(snapshot.day)")
+                Text("Day \(snapshot.displayDay)")
                     .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -756,7 +800,7 @@ private struct WeatherChip: View {
 
     var body: some View {
         Label {
-            Text("\(Int(weather.temperatureCelsius))°")
+            Text("\(Int(weather.temperatureCelsius.rounded()))°C")
                 .monospacedDigit()
         } icon: {
             Image(systemName: Theme.symbol(for: weather.sky))
@@ -764,7 +808,7 @@ private struct WeatherChip: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .accessibilityLabel(
-            "\(weather.sky.displayName), \(Int(weather.temperatureCelsius)) degrees"
+            "\(weather.sky.displayName), \(Int(weather.temperatureCelsius.rounded())) degrees"
         )
     }
 }
@@ -865,7 +909,7 @@ private struct AlertRow: View {
                 if let suggestion = alert.suggestion {
                     Text(suggestion)
                         .font(.caption.italic())
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -894,6 +938,10 @@ struct StoresSection: View {
     /// worth seeing beside what is actually in the comb.
     let banked: Double
 
+    @Environment(\.lastLook) private var lastLook
+    /// With the text, so "Royal Jelly" keeps a tile it can be read in.
+    @ScaledMetric private var tileWidth: CGFloat = 88
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionTitle("Stores", systemImage: "archivebox.fill")
@@ -904,7 +952,7 @@ struct StoresSection: View {
                 MeterView(
                     label: "Winter Stores",
                     value: stores.winterReadiness,
-                    caption: "\(Int(stores.edibleEnergy)) / \(Int(stores.winterRequirement))",
+                    caption: "\(Int(stores.edibleEnergy.rounded())) / \(Int(stores.winterRequirement.rounded()))",
                     tint: stores.isWinterReady ? Theme.healthy : Theme.caution,
                     symbolName: "snowflake"
                 )
@@ -912,7 +960,7 @@ struct StoresSection: View {
 
             if banked >= 1 {
                 Label(
-                    "\(Int(banked.rounded())) units taken and still yours to give back",
+                    "\(Int(banked.rounded()).counted("unit")) taken and still yours to give back",
                     systemImage: "arrow.uturn.backward.circle"
                 )
                 .font(.caption)
@@ -922,11 +970,15 @@ struct StoresSection: View {
             let ordered = ResourceKind.allCases.filter { (stores.resources[$0] ?? 0) > 0.5 }
 
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 88), spacing: 12)],
+                columns: [GridItem(.adaptive(minimum: tileWidth), spacing: 12)],
                 spacing: 12
             ) {
                 ForEach(ordered, id: \.self) { kind in
-                    ResourceTile(kind: kind, amount: stores.resources[kind] ?? 0)
+                    ResourceTile(
+                        kind: kind,
+                        amount: stores.resources[kind] ?? 0,
+                        delta: lastLook.map { (stores.resources[kind] ?? 0) - $0.resource(kind) }
+                    )
                 }
             }
         }
@@ -939,11 +991,18 @@ private struct ResourceTile: View {
 
     let kind: ResourceKind
     let amount: Double
+    /// How far it has come since the player last looked, when they have been
+    /// away long enough for that to be worth saying.
+    var delta: Double? = nil
+
+    private var spokenAmount: String {
+        "\(kind.displayName): \(Int(amount.rounded()))" + spoken(delta: delta)
+    }
 
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: Theme.symbol(for: kind))
-                .foregroundStyle(Theme.colour(for: kind))
+                .foregroundStyle(Theme.symbolColour(for: kind))
                 .imageScale(.large)
                 .accessibilityHidden(true)
 
@@ -951,6 +1010,12 @@ private struct ResourceTile: View {
                 .font(.headline.monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                // The live tick changes these every few minutes; rolling the
+                // digits is what lets the player see the colony working.
+                .contentTransition(.numericText(value: amount.rounded()))
+                .animation(.snappy, value: amount.rounded())
+
+            if let delta { DeltaChip(delta: delta) }
 
             Text(kind.displayName)
                 .font(.caption2)
@@ -961,8 +1026,8 @@ private struct ResourceTile: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(kind.displayName): \(Int(amount))")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spokenAmount)
     }
 }
 
@@ -972,22 +1037,37 @@ struct PopulationSection: View {
 
     let population: PopulationSummary
 
+    @Environment(\.lastLook) private var lastLook
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionTitle("Population", systemImage: "person.3.fill")
 
-            HStack(spacing: 0) {
-                CountPill(value: population.total, label: "Total")
-                CountPill(value: population.adults, label: "Adults")
-                CountPill(value: population.brood, label: "Brood")
-                CountPill(value: population.drones, label: "Drones")
+            // Four across leaves 70 points each. Two wide gives a five-figure
+            // colony somewhere to go at the accessibility sizes.
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: 0),
+                    count: dynamicTypeSize.isAccessibilitySize ? 2 : 4
+                ),
+                spacing: 12
+            ) {
+                CountPill(value: population.total, label: "Total",
+                          delta: lastLook.map { population.total - $0.total })
+                CountPill(value: population.adults, label: "Adults",
+                          delta: lastLook.map { population.adults - $0.adults })
+                CountPill(value: population.brood, label: "Brood",
+                          delta: lastLook.map { population.brood - $0.brood })
+                CountPill(value: population.drones, label: "Drones",
+                          delta: lastLook.map { population.drones - $0.drones })
             }
 
             BroodBar(population: population)
 
             if population.winterBees > 0 {
                 Label(
-                    "\(population.winterBees) winter bees — long-lived, and what carries the colony to spring",
+                    "\(population.winterBees.counted("winter bee")) — long-lived, and what carries the colony to spring",
                     systemImage: "snowflake"
                 )
                 .font(.caption)
@@ -1012,6 +1092,7 @@ private struct CountPill: View {
 
     let value: Int
     let label: String
+    var delta: Int? = nil
 
     var body: some View {
         VStack(spacing: 2) {
@@ -1019,6 +1100,9 @@ private struct CountPill: View {
                 .font(.title3.weight(.semibold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
+                .contentTransition(.numericText(value: Double(value)))
+                .animation(.snappy, value: value)
+            if let delta { DeltaChip(delta: Double(delta)) }
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -1026,8 +1110,8 @@ private struct CountPill: View {
                 .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label): \(value)")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label): \(value)" + spoken(delta: delta.map(Double.init)))
     }
 }
 
@@ -1037,7 +1121,7 @@ private struct BroodBar: View {
 
     let population: PopulationSummary
 
-    private var segments: [(stage: DevelopmentStage, count: Int)] {
+    fileprivate var segments: [(stage: DevelopmentStage, count: Int)] {
         [(.egg, population.eggs), (.larva, population.larvae), (.pupa, population.pupae)]
             .filter { $0.1 > 0 }
     }
@@ -1051,6 +1135,8 @@ private struct BroodBar: View {
                     ForEach(segments, id: \.stage) { segment in
                         RoundedRectangle(cornerRadius: 3)
                             .fill(Theme.colour(for: segment.stage))
+                            // An egg is the colour of the card in light mode.
+                            .strokeBorder(Color.primary.opacity(0.3), lineWidth: 0.5)
                             .frame(
                                 width: max(2, geometry.size.width
                                           * Double(segment.count) / Double(total) - 2)
@@ -1060,23 +1146,31 @@ private struct BroodBar: View {
             }
             .frame(height: 10)
 
-            HStack(spacing: 12) {
-                ForEach(segments, id: \.stage) { segment in
-                    Label("\(segment.count)", systemImage: "circle.fill")
-                        .labelStyle(LegendLabelStyle(colour: Theme.colour(for: segment.stage)))
-                        .font(.caption2)
-                    Text(segment.stage.displayName)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { legend }
+                VStack(alignment: .leading, spacing: 4) { legend }
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "Brood: \(population.eggs) eggs, \(population.larvae) larvae, \(population.pupae) pupae"
+            "Brood: \(population.eggs.counted("egg")), \(population.larvae.counted("larva", plural: "larvae")), \(population.pupae.counted("pupa", plural: "pupae"))"
         )
+    }
+}
+
+extension BroodBar {
+
+    @ViewBuilder fileprivate var legend: some View {
+        ForEach(segments, id: \.stage) { segment in
+            HStack(spacing: 4) {
+                Label("\(segment.count)", systemImage: "circle.fill")
+                    .labelStyle(LegendLabelStyle(colour: Theme.colour(for: segment.stage)))
+                    .font(.caption2)
+                Text(segment.stage.displayName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
@@ -1107,8 +1201,8 @@ struct QueenSection: View {
                     .font(.headline)
                     .foregroundStyle(queen.state == .laying ? Theme.queen : Theme.alarm)
                 Spacer()
-                if queen.state != .absent {
-                    Text("\(queen.ageDays) days old")
+                if queen.state != .absent, queen.state != .droneLayer || queen.ageDays > 0 {
+                    Text("\(queen.ageDays.counted("day")) old")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -1120,7 +1214,7 @@ struct QueenSection: View {
                 MeterView(
                     label: "Genetic Diversity",
                     value: queen.geneticDiversity,
-                    caption: "\(queen.patrilines) patrilines",
+                    caption: queen.patrilines.counted("patriline"),
                     tint: Theme.queen,
                     symbolName: "point.3.connected.trianglepath.dotted"
                 )
@@ -1135,12 +1229,12 @@ struct QueenSection: View {
 
                 Text("Diversity comes from how many drones she mated with. It is the colony's main defence against disease.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if queen.daysQueenless > 0 {
-                Label("Queenless for \(queen.daysQueenless) days", systemImage: "clock.badge.exclamationmark")
+                Label("Queenless for \(queen.daysQueenless.counted("day"))", systemImage: "clock.badge.exclamationmark")
                     .font(.caption)
                     .foregroundStyle(Theme.alarm)
             }
@@ -1155,6 +1249,7 @@ struct QueenSection: View {
 struct NestConditionSection: View {
 
     let nest: NestSummary
+    let canAffordComb: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1177,30 +1272,14 @@ struct NestConditionSection: View {
                 symbolName: "hexagon.fill"
             )
 
-            HStack(spacing: 20) {
-                ReadingView(
-                    symbol: "thermometer.medium",
-                    value: String(format: "%.1f°C", nest.temperatureCelsius),
-                    label: "Brood nest",
-                    tint: abs(nest.temperatureCelsius - 35) < 2 ? Theme.healthy : Theme.caution
-                )
-                ReadingView(
-                    symbol: "humidity.fill",
-                    value: String(format: "%.0f%%", nest.humidity * 100),
-                    label: "Humidity",
-                    tint: Theme.colour(for: .water)
-                )
-                ReadingView(
-                    symbol: "shield.lefthalf.filled",
-                    value: String(format: "%.0f%%", nest.propolisEnvelope * 100),
-                    label: "Propolis",
-                    tint: Theme.propolis
-                )
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 20) { readings }
+                VStack(spacing: 12) { readings }
             }
 
             if !nest.queenCells.isEmpty {
                 let names = Set(nest.queenCells.map(\.displayName)).sorted().joined(separator: ", ")
-                Label("\(nest.queenCells.count) queen cells — \(names)", systemImage: "crown")
+                Label("\(nest.queenCells.count.counted("queen cell")) — \(names)", systemImage: "crown")
                     .font(.caption)
                     .foregroundStyle(Theme.queen)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1210,7 +1289,7 @@ struct NestConditionSection: View {
             // shown once the comb has actually filled the cavity — offering
             // space to a colony with empty frames still in it would be noise.
             if nest.builtCells >= nest.capacity {
-                RoomRow(nest: nest)
+                RoomRow(nest: nest, canAffordComb: canAffordComb)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1218,10 +1297,35 @@ struct NestConditionSection: View {
     }
 }
 
+extension NestConditionSection {
+
+    @ViewBuilder fileprivate var readings: some View {
+        ReadingView(
+            symbol: "thermometer.medium",
+            value: String(format: "%.1f°C", nest.temperatureCelsius),
+            label: "Brood nest",
+            tint: abs(nest.temperatureCelsius - 35) < 2 ? Theme.healthy : Theme.caution
+        )
+        ReadingView(
+            symbol: "humidity.fill",
+            value: String(format: "%.0f%%", nest.humidity * 100),
+            label: "Humidity",
+            tint: Theme.colour(for: .water)
+        )
+        ReadingView(
+            symbol: "shield.lefthalf.filled",
+            value: String(format: "%.0f%%", nest.propolisEnvelope * 100),
+            label: "Propolis",
+            tint: Theme.propolis
+        )
+    }
+}
+
 /// What can be done about a nest that has filled its cavity.
 private struct RoomRow: View {
 
     let nest: NestSummary
+    let canAffordComb: Bool
     @Environment(GameStore.self) private var store
 
     /// Counts the times the player has opened the nest up, purely so the
@@ -1234,24 +1338,35 @@ private struct RoomRow: View {
             Divider()
 
             if nest.siteCanBeExtended {
-                Text("The comb has filled the cavity. A \(nest.siteType.displayName.lowercased()) has room for about \(nest.combExtensionRemaining) more cells — give it to them and they will keep building; leave it and they will divide instead.")
+                Text("The comb has filled the cavity. There is room here for about \(nest.combExtensionRemaining.counted("more cell", plural: "more cells")) — give it to them and they will keep building; leave it and they will divide instead.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button {
-                    store.addComb()
-                    combAdded += 1
-                } label: {
-                    Label("Open the Nest Up", systemImage: "plus.rectangle.on.rectangle")
-                        .font(.subheadline.weight(.medium))
+                if canAffordComb {
+                    Button {
+                        if store.addComb() > 0 { combAdded += 1 }
+                    } label: {
+                        Label("Open the Nest Up", systemImage: "plus.rectangle.on.rectangle")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Theme.honey)
+                    .sensoryFeedback(.impact(weight: .medium), trigger: combAdded)
+                } else {
+                    // The same answer the swarm card gives. A button here did
+                    // nothing in a dearth and said nothing about why.
+                    Label(
+                        "Not the honey to draw comb into it yet — wax costs about seven times its weight in stores.",
+                        systemImage: "drop.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .buttonStyle(.bordered)
-                .tint(Theme.honey)
-                .sensoryFeedback(.impact(weight: .medium), trigger: combAdded)
             } else {
                 Label(
-                    "The cavity is full and there is no more of it. A \(nest.siteType.displayName.lowercased()) gives what it gives.",
+                    "The cavity is full and there is no more of it.",
                     systemImage: "square.slash"
                 )
                 .font(.caption)
@@ -1313,7 +1428,7 @@ struct HealthSection: View {
             if health.infections[.varroa] != nil {
                 Text("Varroa breeds in sealed brood and carries deformed wing virus. Hygienic bees uncap infested cells and remove them.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 

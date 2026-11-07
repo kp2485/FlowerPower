@@ -42,7 +42,24 @@ final class HiveHum {
     /// fraction of a cycle of drift that nobody can hear.
     private let tone = Tone()
 
-    private init() {}
+    private init() {
+        // Headphones connecting or disconnecting reconfigure the engine and
+        // stop it, while `isRunning` stayed true and `start()` then refused
+        // to do anything — the hum went silent until the app was backgrounded.
+        NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
+        ) { _ in
+            Task { @MainActor in HiveHum.shared.restartIfRunning() }
+        }
+        // An interruption — a call — takes the app out of the foreground,
+        // which stops the hum, and coming back starts it; see `ContentView`.
+    }
+
+    private func restartIfRunning() {
+        guard isRunning else { return }
+        stop()
+        start()
+    }
 
     /// The oscillator's state, shared with the render thread.
     ///
@@ -127,6 +144,11 @@ final class HiveHum {
                 tone.phase1 += 2 * .pi * tone.frequency / sampleRate
                 tone.phase2 += 2 * .pi * (tone.frequency * 1.013) / sampleRate
                 tone.tremoloPhase += 2 * .pi * 5.5 / sampleRate
+                // Kept small. Left to grow for an hour these lose enough
+                // precision that `sin` of them is audibly rough.
+                if tone.phase1 > 2 * .pi { tone.phase1 -= 2 * .pi }
+                if tone.phase2 > 2 * .pi { tone.phase2 -= 2 * .pi }
+                if tone.tremoloPhase > 2 * .pi { tone.tremoloPhase -= 2 * .pi }
 
                 let tremolo = 0.85 + 0.15 * sin(tone.tremoloPhase)
                 let sample = Float((sin(tone.phase1) * 0.6 + sin(tone.phase2) * 0.4)
@@ -151,7 +173,10 @@ final class HiveHum {
             try engine.start()
             isRunning = true
         } catch {
-            // No sound is not a problem worth surfacing.
+            // No sound is not a problem worth surfacing — but the node comes
+            // off again, or each failed attempt left another one attached.
+            engine.detach(node)
+            source = nil
             isRunning = false
         }
     }

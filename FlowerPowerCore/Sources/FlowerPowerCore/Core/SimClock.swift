@@ -91,6 +91,10 @@ public struct SimClock: Codable, Equatable, Sendable {
 
     public static let defaultWinterSpeed: Double = 2
 
+    /// Far past any colony that could ever be played, and short of the point
+    /// where `tick + pending` and the arithmetic built on it can overflow.
+    public static let maximumTick = 100_000_000
+
     /// Real seconds already accounted for by the ticks processed so far.
     /// Kept rather than recomputed, so a catch-up walks only the pending ticks.
     public private(set) var realSecondsAtTick: Double
@@ -116,14 +120,25 @@ public struct SimClock: Codable, Equatable, Sendable {
     /// Saves from before the seasonal clock carry neither field.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Every number is clamped on the way in. A backup is a file the
+        // player can be sent, and these four are enough to hang or crash the
+        // app for good: a ceiling of `Int.max` overflows `ceiling` below, and
+        // a tick too short for a Double to add to the accounted seconds makes
+        // `resynchronize` loop for ever — and one merely very short makes it
+        // walk tens of millions of ticks. Nothing has ever shipped under a
+        // minute. A restore saves at once, so either
+        // would happen again on every launch.
         epoch = try container.decode(Date.self, forKey: .epoch)
-        tick = try container.decode(Int.self, forKey: .tick)
-        realSecondsPerTick = try container.decode(Double.self, forKey: .realSecondsPerTick)
-        maxCatchUpDays = try container.decode(Int.self, forKey: .maxCatchUpDays)
+        tick = min(max(0, try container.decode(Int.self, forKey: .tick)), Self.maximumTick)
+        let rate = try container.decode(Double.self, forKey: .realSecondsPerTick)
+        realSecondsPerTick = rate.isFinite ? min(max(rate, 60), 86_400) : Self.defaultRealSecondsPerTick
+        maxCatchUpDays = min(max(try container.decode(Int.self, forKey: .maxCatchUpDays), 1), 3650)
         // An old save ran at a uniform rate. Keeping it uniform means the
         // date-to-tick mapping it was written under still holds.
-        winterSpeed = try container.decodeIfPresent(Double.self, forKey: .winterSpeed) ?? 1
-        if let stored = try container.decodeIfPresent(Double.self, forKey: .realSecondsAtTick) {
+        let speed = try container.decodeIfPresent(Double.self, forKey: .winterSpeed) ?? 1
+        winterSpeed = speed.isFinite ? min(max(speed, 0.25), 8) : 1
+        if let stored = try container.decodeIfPresent(Double.self, forKey: .realSecondsAtTick),
+           stored.isFinite, stored >= 0 {
             realSecondsAtTick = stored
         } else {
             realSecondsAtTick = Double(tick) * realSecondsPerTick
@@ -184,6 +199,28 @@ public struct SimClock: Codable, Equatable, Sendable {
     public mutating func commitTick() {
         realSecondsAtTick += seconds(forTick: tick)
         tick += 1
+    }
+
+    /// Moves the epoch so the current tick falls at `date`, when the colony
+    /// has got ahead of the wall clock.
+    ///
+    /// That only happens when the device clock goes backwards — most often
+    /// set forward to skip ahead, then put right. Without this the colony
+    /// froze: `pendingTicks` stays at zero until real time catches up with
+    /// the tick it reached, which after a month's jump is a month of nothing.
+    /// A few minutes either way is left alone, since a tick is five of them.
+    public mutating func rebase(ifAheadOf date: Date, tolerance: TimeInterval = 600) {
+        let elapsed = date.timeIntervalSince(epoch)
+        guard realSecondsAtTick - elapsed > tolerance else { return }
+        epoch = date.addingTimeInterval(-realSecondsAtTick)
+    }
+
+    /// Moves the epoch so the current tick falls at `date` whichever way the
+    /// colony has drifted. A restored backup uses this: the colony picks up
+    /// from the moment it was saved, rather than living every hour since in
+    /// one silent catch-up a few seconds after it came back.
+    public mutating func resume(at date: Date) {
+        epoch = date.addingTimeInterval(-realSecondsAtTick)
     }
 
     /// Discards unsimulated backlog beyond the catch-up ceiling so the clock

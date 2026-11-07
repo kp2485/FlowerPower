@@ -149,6 +149,17 @@ private struct HighlightGroupRow: View {
     /// The gravest group opens by itself. The one thing this screen must not
     /// do is make a player tap to find out their colony collapsed.
     @State private var isExpanded: Bool
+    /// Past the cap, once asked. "And 9 more" was a sentence with nothing
+    /// behind it: the lines it counted could not be reached at all.
+    @State private var showingAll = false
+
+    private func spoken(_ line: ReportDigest.Line) -> String {
+        switch line.severity {
+        case .critical: return "Serious: \(line.display)"
+        case .warning: return "Warning: \(line.display)"
+        default: return line.display
+        }
+    }
 
     init(group: ReportDigest.Group) {
         self.group = group
@@ -158,7 +169,7 @@ private struct HighlightGroupRow: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(group.visibleLines) { line in
+                ForEach(showingAll ? group.lines : group.visibleLines) { line in
                     HStack(alignment: .top, spacing: 10) {
                         Circle()
                             .fill(Theme.colour(for: line.severity))
@@ -172,14 +183,17 @@ private struct HighlightGroupRow: View {
 
                         Spacer(minLength: 0)
                     }
-                    .accessibilityElement(children: .combine)
+                    // The dot says how much this matters, which a sighted
+                    // player reads at a glance and nobody else gets at all.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(spoken(line))
                 }
 
-                if let overflow = group.overflowLine {
-                    Text(overflow)
+                if !showingAll, let overflow = group.overflowLine {
+                    Button(overflow) { showingAll = true }
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
                         .padding(.leading, 17)
+                        .accessibilityHint("Shows the rest of this group.")
                 }
             }
             .padding(.top, 8)
@@ -226,10 +240,10 @@ private struct PopulationChangeCard: View {
             SectionTitle("The colony", systemImage: "person.3.fill")
 
             HStack {
-                Stat(value: report.eggsLaid, label: "Eggs laid", tint: Theme.colour(for: .egg))
+                Stat(value: report.eggsLaid, label: "Eggs laid", tint: .primary)
                 Stat(value: report.totalEmerged, label: "Emerged", tint: Theme.healthy)
                 Stat(value: report.totalDeaths, label: "Died", tint: Theme.alarm)
-                Stat(value: report.cellsBuilt, label: "Cells built", tint: Theme.comb)
+                Stat(value: report.cellsBuilt, label: "Cells built", tint: Theme.honey)
             }
 
             let net = report.netPopulationChange
@@ -319,7 +333,7 @@ private struct RaidsCard: View {
             }
 
             if report.storesRaided > 0 {
-                Text("\(Int(report.storesRaided)) of stores taken.")
+                Text("\(Int(report.storesRaided.rounded()).counted("unit")) of stores taken.")
                     .font(.caption)
                     .foregroundStyle(Theme.alarm)
             }

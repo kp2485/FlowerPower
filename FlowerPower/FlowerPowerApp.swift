@@ -83,6 +83,34 @@ struct FlowerPowerApp: App {
                     WidgetCenter.shared.reloadAllTimelines()
                     HiveHum.shared.update(for: snapshot)
                 }
+                // The home-screen widget offers the open decision as a button.
+                // Nothing told it when one was answered or closed in the app,
+                // so it kept the button up for hours and every tap was
+                // refused. Only on a change, to stay inside the reload budget.
+                .onChange(of: NotificationActions.decisionKey(store.snapshot)) { _, _ in
+                    WidgetCenter.shared.reloadAllTimelines()
+                    let snapshot = store.snapshot
+                    Task { await NotificationActions.withdrawClosedDecisions(in: snapshot) }
+                    // The complication reads the save and nothing else, and
+                    // the file is otherwise throttled to four hours, so an
+                    // answered siege stayed on the wrist that long.
+                    watchLink.send(
+                        store.simulationForTransfer,
+                        summary: store.watchSummary(),
+                        force: true
+                    )
+                }
+                // A different colony altogether, which `decisionKey` can miss:
+                // two colonies with nothing open look the same to it. Widgets
+                // and the watch went on showing the last one for hours.
+                .onChange(of: store.colonyChanges) { _, _ in
+                    WidgetCenter.shared.reloadAllTimelines()
+                    watchLink.send(
+                        store.simulationForTransfer,
+                        summary: store.watchSummary(),
+                        force: true
+                    )
+                }
                 .onAppear {
                     notifications.onOpenApp = { action in
                         requestedAction = action

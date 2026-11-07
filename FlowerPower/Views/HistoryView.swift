@@ -134,7 +134,7 @@ private struct PopulationChart: View {
             return "No days recorded."
         }
         let peak = samples.map(\.adults).max() ?? last.adults
-        return "\(samples.count) days. "
+        return "\(samples.count.counted("day")). "
             + "Adults from \(first.adults) to \(last.adults), at most \(peak). "
             + "Brood from \(first.brood) to \(last.brood). "
             + "\(last.winterBees) winter bees now."
@@ -165,6 +165,7 @@ private struct PopulationChart: View {
                         series: .value("Series", "Adults")
                     )
                     .foregroundStyle(by: .value("Series", "Adults"))
+                    .lineStyle(by: .value("Series", "Adults"))
 
                     LineMark(
                         x: .value("Day", Double(sample.day)),
@@ -172,6 +173,7 @@ private struct PopulationChart: View {
                         series: .value("Series", "Brood")
                     )
                     .foregroundStyle(by: .value("Series", "Brood"))
+                    .lineStyle(by: .value("Series", "Brood"))
 
                     LineMark(
                         x: .value("Day", Double(sample.day)),
@@ -179,6 +181,7 @@ private struct PopulationChart: View {
                         series: .value("Series", "Winter bees")
                     )
                     .foregroundStyle(by: .value("Series", "Winter bees"))
+                    .lineStyle(by: .value("Series", "Winter bees"))
                 }
                 .interpolationMethod(.monotone)
             }
@@ -187,11 +190,18 @@ private struct PopulationChart: View {
             // that only knows it holds some view. This hands back a
             // fractional day, and the record turns it into one it holds.
             .chartXSelection(value: $selectedDay)
+            .chartXScale(domain: samples.dayDomain)
             .chartYScale(domain: 0...ceiling)
             .chartForegroundStyleScale([
                 "Adults": Theme.honey,
                 "Brood": Theme.broodNest,
                 "Winter bees": Theme.propolis
+            ])
+            // Three lines apart by more than hue.
+            .chartLineStyleScale([
+                "Adults": StrokeStyle(lineWidth: 2),
+                "Brood": StrokeStyle(lineWidth: 2, dash: [6, 3]),
+                "Winter bees": StrokeStyle(lineWidth: 2, dash: [2, 3])
             ])
         }
     }
@@ -268,7 +278,7 @@ private struct StoresChart: View {
         }
         let lowest = samples.map(\.edibleEnergy).min() ?? last.edibleEnergy
         let short = last.edibleEnergy < last.winterRequirement
-        return "\(samples.count) days. "
+        return "\(samples.count.counted("day")). "
             + "Stores from \(Int(first.edibleEnergy.rounded())) to "
             + "\(Int(last.edibleEnergy.rounded())) units, lowest \(Int(lowest.rounded())). "
             + "The winter needs \(Int(last.winterRequirement.rounded())), "
@@ -324,6 +334,7 @@ private struct StoresChart: View {
                 .interpolationMethod(.monotone)
             }
             .chartXSelection(value: $selectedDay)
+            .chartXScale(domain: samples.dayDomain)
             .chartForegroundStyleScale([
                 "Stores": Theme.honey,
                 "Winter needs": Theme.alarm
@@ -348,11 +359,11 @@ private struct TemperatureChart: View {
         guard !samples.isEmpty else { return "No days recorded." }
         let nest = samples.map(\.nestTemperature)
         let outside = samples.map(\.outsideTemperature)
-        return "\(samples.count) days. "
+        return "\(samples.count.counted("day")). "
             + "The nest held between \(Int((nest.min() ?? 0).rounded())) and "
             + "\(Int((nest.max() ?? 0).rounded())) degrees, against outside "
             + "\(Int((outside.min() ?? 0).rounded())) to "
-            + "\(Int((outside.max() ?? 0).rounded())). Brood needs 34."
+            + "\(Int((outside.max() ?? 0).rounded())). Brood needs 35."
     }
 
     var body: some View {
@@ -394,15 +405,16 @@ private struct TemperatureChart: View {
                 }
                 .interpolationMethod(.monotone)
 
-                // Brood needs 34°C or so. How flat the nest line stays across
+                // Brood needs 35°C or so. How flat the nest line stays across
                 // a cold snap is the colony's thermoregulation, drawn.
-                // 34.0 rather than 34: every y value in a chart has to be the
+                // 35.0 rather than 35: every y value in a chart has to be the
                 // same plottable type, and the temperatures are Doubles.
-                RuleMark(y: .value("Brood nest", 34.0))
+                RuleMark(y: .value("Brood nest", 35.0))
                     .foregroundStyle(Color.secondary.opacity(0.4))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
             }
             .chartXSelection(value: $selectedDay)
+            .chartXScale(domain: samples.dayDomain)
             .chartForegroundStyleScale([
                 "Nest": Theme.broodNest,
                 "Outside": Color(red: 0.36, green: 0.65, blue: 0.85)
@@ -428,9 +440,9 @@ private struct IntakeChart: View {
         let total = samples.reduce(0) { $0 + $1.nectarIntake }
         let best = samples.map(\.nectarIntake).max() ?? 0
         let empty = samples.filter { $0.nectarIntake < 0.5 }.count
-        return "\(Int(total.rounded())) units over \(samples.count) days. "
+        return "\(Int(total.rounded()).counted("unit")) over \(samples.count.counted("day")). "
             + "The best day brought in \(Int(best.rounded())), "
-            + "and \(empty) days brought in nothing."
+            + "and \(empty.counted("day")) brought in nothing."
     }
 
     var body: some View {
@@ -461,6 +473,7 @@ private struct IntakeChart: View {
                 }
             }
             .chartXSelection(value: $selectedDay)
+            .chartXScale(domain: samples.dayDomain)
         }
     }
 }
@@ -519,6 +532,10 @@ private struct ChartCard<Content: View>: View {
     let readout: (DailySample) -> String
     let content: Content
 
+    /// Grows with the text, or at the larger sizes the legend and axes took
+    /// most of a fixed height and left the line a sliver.
+    @ScaledMetric private var chartHeight: CGFloat = 170
+
     init(
         title: String,
         symbolName: String,
@@ -542,22 +559,21 @@ private struct ChartCard<Content: View>: View {
             Label(title, systemImage: symbolName)
                 .font(.subheadline.weight(.semibold))
 
-            // One line, either the last day's figures or — while a finger is
-            // down — the day under it. Two lines would make the card jump in
-            // height as the drag begins, and the whole chart would move out
-            // from under the finger reading it.
+            // Either the last day's figures or — while a finger is down — the
+            // day under it, in two lines' room whether it needs them or not.
+            // A caption that grew a line as the drag began would move the
+            // whole chart out from under the finger reading it.
             if let line = captionLine {
                 Text(line)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(selected == nil ? Color.secondary : Color.primary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2, reservesSpace: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityLabel(spokenCaptionLine ?? line)
             }
 
             content
-                .frame(height: 170)
+                .frame(height: chartHeight)
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 4)) { value in
                         AxisGridLine()
@@ -623,8 +639,21 @@ private struct RecordFootnote: View {
             Text("Recorded from day \(first + 1) to day \(last + 1). "
                  + "The colony keeps the last \(ColonyHistory.limit) days.")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+extension Array where Element == DailySample {
+
+    /// The days these samples cover, half a day either side so the season
+    /// bands — drawn that way — meet the edges. Left to itself a chart's axis
+    /// ran from day zero, and thirty days of a two-year-old colony came out
+    /// as a sliver at the right-hand edge.
+    var dayDomain: ClosedRange<Double> {
+        let first = Double(first?.day ?? 0) - 0.5
+        let last = Double(last?.day ?? 1) + 0.5
+        return first...Swift.max(first + 1, last)
     }
 }

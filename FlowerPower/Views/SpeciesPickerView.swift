@@ -10,17 +10,23 @@
 //  should be able to say so rather than watch their bees work a
 //  misidentified patch.
 //
-//  And until a model is trained and bundled, the classifier cannot name
-//  anything at all: stage one asks "is this a plant?", stage two asks "which
-//  one?", and stage two is optional. With no model every flower is
-//  unidentified and yields 60% of normal, for ever. That is a playable game
-//  but a dull one, and it makes the whole catalogue — thirty species with
-//  different nectar, different seasons, and the keystone plants that carry a
-//  colony through the gaps — invisible.
+//  And a build without the BioCLIP model cannot name much at all: stage one
+//  asks "is this a plant?", stage two asks "which one?", and stage two is
+//  optional. With nothing to answer it every flower is unidentified and
+//  yields 60% of normal, for ever. That is a playable game but a dull one,
+//  and it makes the whole catalogue — thirty species with different nectar,
+//  different seasons, and the keystone plants that carry a colony through
+//  the gaps — invisible.
 //
 //  So the player can name it. That is a deliberate choice to trust them: this
 //  is a game about going outside and looking at flowers, and somebody who has
 //  knelt down to photograph a viper's bugloss probably knows what it is.
+//
+//  The catalogue comes first, because those are the plants the game is about.
+//  Below it, when the taxon index is on the phone, is every flowering plant
+//  there is: a player who knows their peony is a peony can say so, and the
+//  colony will be given a peony — all pollen, no nectar — rather than a
+//  generic flower.
 //
 
 import SwiftUI
@@ -41,6 +47,7 @@ struct SpeciesPickerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
+    @State private var index: TaxonEmbeddingIndex?
 
     private var results: [FlowerSpecies] {
         guard !search.isEmpty else { return FlowerCatalogue.all }
@@ -49,6 +56,23 @@ struct SpeciesPickerView: View {
             species.commonName.lowercased().contains(needle)
                 || (species.scientificName?.lowercased().contains(needle) ?? false)
         }
+    }
+
+    /// Everything else the identifier knows that matches, minus what the
+    /// catalogue already offered.
+    ///
+    /// Held rather than computed. As a computed property it scanned 57,000
+    /// names on the main thread twice per redraw, and typing lagged; now it
+    /// is worked out once a pause in typing, off the main actor.
+    @State private var worldResults: [TaxonEmbeddingIndex.Entry] = []
+
+    @concurrent
+    nonisolated private static func search(
+        _ index: TaxonEmbeddingIndex,
+        for query: String,
+        excluding catalogued: Set<Taxon>
+    ) async -> [TaxonEmbeddingIndex.Entry] {
+        index.search(query, limit: 30).filter { !catalogued.contains($0.taxon) }
     }
 
     var body: some View {
@@ -66,13 +90,42 @@ struct SpeciesPickerView: View {
                     }
                 }
 
-                Section(search.isEmpty ? "All Flowers" : "Matches") {
-                    ForEach(results, id: \.id) { species in
-                        row(species)
+                if !results.isEmpty {
+                    Section(search.isEmpty ? "All Flowers" : "Matches") {
+                        ForEach(results, id: \.id) { species in
+                            row(species)
+                        }
+                    }
+                }
+
+                if !worldResults.isEmpty {
+                    Section {
+                        ForEach(worldResults, id: \.self) { entry in
+                            worldRow(entry)
+                        }
+                    } header: {
+                        Text("Every Flowering Plant")
+                    } footer: {
+                        Text("Plants the catalogue does not describe. Your bees will work one as its family typically forages.")
                     }
                 }
             }
             .searchable(text: $search, prompt: "Search flowers")
+            .task {
+                index = await TaxonIndexStore.shared.index
+            }
+            .task(id: SearchKey(query: search, hasIndex: index != nil)) {
+                guard let index, !search.isEmpty else {
+                    worldResults = []
+                    return
+                }
+                // A pause in typing; a new keystroke cancels this one.
+                try? await Task.sleep(for: .milliseconds(180))
+                guard !Task.isCancelled else { return }
+                let found = await Self.search(index, for: search, excluding: Set(results.map(\.taxon)))
+                guard !Task.isCancelled else { return }
+                worldResults = found
+            }
             .navigationTitle("What Is It?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -97,8 +150,7 @@ struct SpeciesPickerView: View {
                             .font(.caption.italic())
                             .foregroundStyle(.secondary)
                     }
-                    Text(species.bloomSeasons
-                        .sorted { $0.rawValue < $1.rawValue }
+                    Text(Season.allCases.filter(species.bloomSeasons.contains)
                         .map { $0.rawValue.capitalized }
                         .joined(separator: ", "))
                         .font(.caption2)
@@ -114,6 +166,31 @@ struct SpeciesPickerView: View {
             }
         }
     }
+
+    private func worldRow(_ entry: TaxonEmbeddingIndex.Entry) -> some View {
+        Button {
+            let taxon = entry.taxon
+            let species = FlowerCatalogue.all.first { $0.taxon == taxon }
+                ?? FlowerSpecies.generic(for: taxon, commonName: entry.commonName)
+            onChoose(species)
+            dismiss()
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.commonName.isEmpty ? entry.scientificName : entry.commonName)
+                    .foregroundStyle(.primary)
+                Text(entry.commonName.isEmpty
+                     ? "\(entry.rank.displayName) · \(BotanicalFamily(entry.family).commonName)"
+                     : "\(entry.scientificName) · \(BotanicalFamily(entry.family).commonName)")
+                    .font(.caption.italic())
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct SearchKey: Equatable {
+    let query: String
+    let hasIndex: Bool
 }
 
 #Preview {

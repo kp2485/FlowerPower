@@ -339,10 +339,23 @@ public struct CombLayout: Equatable, Sendable {
 
         // The protein first, because the bees keep it where the nurses are,
         // then the nectar and the honey banked outside it.
-        for kind in [ResourceKind.beeBread, .pollen, .nectar, .honey] {
+        let storeKinds = [ResourceKind.beeBread, .pollen, .nectar, .honey]
+        let storeCells = storeKinds.map { kind -> Int in
             let amount = stores[kind] ?? 0
-            guard amount > 0, kind.unitsPerCell.isFinite, kind.unitsPerCell > 0 else { continue }
-            append(.stores(kind), nil, times: Int((amount / kind.unitsPerCell).rounded(.up)))
+            guard amount > 0, kind.unitsPerCell.isFinite, kind.unitsPerCell > 0 else { return 0 }
+            return Int((amount / kind.unitsPerCell).rounded(.up))
+        }
+
+        // A nest too big to draw cell by cell has its stores and its empty
+        // comb drawn to scale in the room the brood leaves. Trimming the end
+        // instead dropped the outermost band, which is the honey, so a full
+        // larder in a wall cavity showed almost none of it.
+        let room = max(0, Self.maximumCellsDrawn - contents.count)
+        let wanted = storeCells.reduce(0, +)
+            + max(0, nest.builtCells - contents.count - storeCells.reduce(0, +))
+        let scale = wanted > room ? Double(room) / Double(wanted) : 1
+        for (kind, count) in zip(storeKinds, storeCells) where count > 0 {
+            append(.stores(kind), nil, times: scale < 1 ? max(1, Int((Double(count) * scale).rounded())) : count)
         }
 
         // Queen cells are extra construction rather than drawn cells, so the
@@ -538,7 +551,7 @@ public struct CombLayout: Equatable, Sendable {
                 family: family,
                 firstIndex: start,
                 cellCount: count,
-                title: "\(family.displayName), \(count) cells",
+                title: "\(family.displayName), \(count.counted("cell"))",
                 detail: regionDetail(family: family, count: count, snapshot: snapshot)
             ))
             start = end

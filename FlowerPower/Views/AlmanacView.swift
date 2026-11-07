@@ -109,6 +109,9 @@ struct AlmanacView: View {
 /// and this is an inset-grouped one.
 private struct SeasonSection: View {
 
+    /// Grows with the text, or "Day 120" wraps at the larger sizes.
+    @ScaledMetric private var dayColumn: CGFloat = 56
+
     let group: AlmanacView.SeasonGroup
 
     @State private var isExpanded: Bool
@@ -128,7 +131,7 @@ private struct SeasonSection: View {
                         Text("Day \(entry.dayOfYear)")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
-                            .frame(width: 56, alignment: .leading)
+                            .frame(width: dayColumn, alignment: .leading)
                         Label(entry.text, systemImage: entry.kind.symbolName)
                             .font(.subheadline)
                             .fixedSize(horizontal: false, vertical: true)
@@ -222,7 +225,7 @@ struct YearInReviewCard: View {
             if !review.queens.isEmpty {
                 Text(review.queens.map(\.title).spokenList + " reigned.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 4)
             }

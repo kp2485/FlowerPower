@@ -109,7 +109,7 @@ private struct GlossaryTermView: View {
                                         Spacer()
                                         Image(systemName: "chevron.right")
                                             .font(.caption2)
-                                            .foregroundStyle(.tertiary)
+                                            .foregroundStyle(.secondary)
                                             .accessibilityHidden(true)
                                     }
                                 }

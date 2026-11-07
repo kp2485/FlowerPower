@@ -15,6 +15,7 @@
 
 import SwiftUI
 import TipKit
+import UserNotifications
 import FlowerPowerCore
 import FlowerPowerGame
 
@@ -24,20 +25,32 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var selection: Tab = .colony
-    @State private var isCapturing = false
-    @State private var isShowingSettings = false
 
-    /// A flower somebody sent, waiting to be looked at. Held here rather than
-    /// imported on arrival: content from outside the app gets shown to the
-    /// player before it changes their game.
-    @State private var incoming: FlowerShare?
-    @State private var incomingSwarm: SwarmShare?
-    @State private var incomingFailure: String?
+    /// What the root has on screen, what is waiting behind it, and the sheets
+    /// below it that it has to wait for. See `RootSheet`.
+    @State private var sheet: RootSheet?
+    @State private var waiting: [RootSheet] = []
+    @State private var appearedSheet: RootSheet.ID?
+    @State private var sheetLastClosed = Date.distantPast
+    @State private var children = ChildSheets()
 
-    /// A colony backup the player opened. Carries its own failure case rather
-    /// than sharing `incomingFailure`, because a restore that could not be
-    /// read needs to say that nothing was replaced — see `OpenedBackup`.
-    @State private var incomingBackup: OpenedBackup?
+    /// The garden cell tapped on the map to start a capture, so the flower is
+    /// planted there; and, once the capture is over, the cell the map should
+    /// show blooming.
+    @State private var plantingCell: HexCoordinate?
+    @State private var bloomingCell: HexCoordinate?
+
+    /// The colony as the player last left it, for the dashboard's "since you
+    /// last looked" figures. See `LastLook`.
+    @State private var lastLook: LastLook?
+
+    /// Bumped to bring the dashboard back to its top, wherever it had been
+    /// pushed to: a tapped notification is about something up there.
+    @State private var dashboardResets = 0
+
+    /// The last save problem the player closed, so the banner does not come
+    /// straight back for the same one.
+    @State private var dismissedError: String?
 
     @Environment(\.requestedAction) private var requestedAction
     @AppStorage("hiveHum") private var humEnabled = false
@@ -65,42 +78,78 @@ struct ContentView: View {
                 tabs
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let error = store.lastError, error != dismissedError {
+                ErrorBanner(message: error) { dismissedError = error }
+            }
+        }
+        .overlay {
+            if store.isCatchingUp {
+                ProgressView("Catching up with the colony…")
+                    .padding()
+                    .background(.regularMaterial, in: .rect(cornerRadius: 14))
+            }
+        }
         // `.task` takes a @Sendable closure, which does not inherit the view's
         // main-actor isolation — so the hop has to be explicit to reach the
         // @MainActor store.
         .task(id: store.needsSetup) { @MainActor in
-            resume()
+            await resume()
         }
         .onOpenURL { url in
             open(url)
         }
-        .sheet(item: $incoming) { share in
-            if share.isRequest {
-                ReceiveRequestView(request: share)
-                    .environment(store)
+        .sheet(item: $sheet, onDismiss: sheetClosed) { sheet in
+            content(for: sheet)
+                .environment(store)
+                .environment(children)
+                .onAppear { appearedSheet = sheet.id }
+        }
+        .onChange(of: children.open) { _, _ in presentNext() }
+        // Up here rather than on the tabs, because a colony that died while
+        // the player was away has no tabs to show its report on, and that
+        // report is the one they most need.
+        .onChange(of: store.pendingReport != nil, initial: true) { _, pending in
+            if pending {
+                request(.report)
             } else {
-                ReceiveFlowerView(share: share)
-                    .environment(store)
+                waiting.removeAll { $0.id == RootSheet.report.id }
+                if sheet?.id == RootSheet.report.id { sheet = nil }
             }
         }
-        .sheet(item: $incomingSwarm) { share in
-            ReceiveSwarmView(share: share)
-                .environment(store)
+        .onChange(of: store.isCollapsed) { _, collapsed in
+            guard collapsed else { return }
+            // A colony that dies under the camera. Waiting to bring it back
+            // would open it over the choice of a new site.
+            waiting.removeAll { $0.id == RootSheet.capture.id }
+            if sheet?.id == RootSheet.capture.id { sheet = nil }
         }
-        .sheet(item: $incomingBackup) { opened in
-            RestoreBackupView(opened: opened)
-                .environment(store)
+        .onChange(of: store.colonyChanges) { _, _ in
+            lastLook = nil
+            LastLook.forget()
         }
         .onChange(of: requestedAction) { _, action in
-            // Following a swarm needs a site chosen, so the notification
-            // opened the app; the departed-swarm card on the dashboard is
-            // where that choice lives.
-            if action?.hasPrefix(NotificationActions.Action.followSwarm) ?? false { selection = .colony }
+            guard let action else { return }
+            // A tapped notification is about the colony, and following a swarm
+            // needs a site chosen; both end at the cards on the dashboard.
+            if action.hasPrefix(NotificationActions.Action.followSwarm)
+                || action.hasPrefix(UNNotificationDefaultActionIdentifier) {
+                selection = .colony
+                dashboardResets += 1
+                clearTheWay()
+            }
             // "Photograph a flower" from Siri, a Shortcut or Control Centre.
             // Matched on a prefix because the identifier carries a nonce —
             // see `PhotographFlowerIntent` for why asking twice has to look
             // like two different requests.
-            if action?.hasPrefix(PhotographFlowerIntent.actionPrefix) ?? false { isCapturing = true }
+            // Not without a colony to photograph for: the camera used to wait
+            // through the introduction or the choice of a new site and then
+            // open out of nowhere.
+            if action.hasPrefix(PhotographFlowerIntent.actionPrefix),
+               !store.needsSetup, !store.isCollapsed {
+                plantingCell = nil
+                request(.capture)
+            }
         }
         .onChange(of: humEnabled, initial: true) { _, enabled in
             if enabled, scenePhase == .active {
@@ -109,24 +158,15 @@ struct ContentView: View {
                 HiveHum.shared.stop()
             }
         }
-        .alert(
-            "That flower could not be opened",
-            isPresented: .init(
-                get: { incomingFailure != nil },
-                set: { if !$0 { incomingFailure = nil } }
-            ),
-            presenting: incomingFailure
-        ) { _ in
-            Button("OK", role: .cancel) {}
-        } message: { message in
-            Text(message)
-        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                resume()
+                Task { await resume() }
                 if humEnabled { HiveHum.shared.start() }
             case .inactive, .background:
+                if phase == .background, !store.needsSetup {
+                    LastLook.record(store.snapshot)
+                }
                 store.stopLiveUpdates()
                 HiveHum.shared.stop()
                 // Ask to be woken while the app is closed, so the colony the
@@ -147,10 +187,26 @@ struct ContentView: View {
     /// forward underneath the introduction would hand the player a catch-up
     /// report about a nest they have not seen. The store refuses to save or to
     /// tick while it needs setting up; this keeps it from being asked.
-    private func resume() {
+    private func resume() async {
+        store.retryUnreadableSave()
         guard !store.needsSetup else { return }
-        store.catchUp()
+        let look = LastLook.stored()
+        // Off the main actor: after weeks away this is months of ticks, and
+        // run here it froze the first screen long enough to risk the launch
+        // watchdog.
+        await store.catchUpInBackground()
         store.startLiveUpdates()
+
+        // A short, quiet absence is told by the dashboard's figures rather
+        // than a sheet over everything.
+        withAnimation(.snappy) {
+            lastLook = look.flatMap {
+                Date().timeIntervalSince($0.takenAt) >= LastLook.worthShowingAfter ? $0 : nil
+            }
+        }
+        if let report = store.pendingReport, !report.deservesASheet, lastLook != nil {
+            store.dismissReport()
+        }
         // See `SettingsTip`: it holds off until there is a flower in the
         // garden, so that it cannot out-run the camera tip on the first
         // screen a player ever sees.
@@ -159,7 +215,8 @@ struct ContentView: View {
 
     private var tabs: some View {
         TabView(selection: $selection) {
-            ColonyDashboardView(onPhotograph: { isCapturing = true })
+            ColonyDashboardView(onPhotograph: { plantingCell = nil; request(.capture) })
+                .id(dashboardResets)
                 .tabItem { Label("Colony", systemImage: "chart.bar.doc.horizontal") }
                 .tag(Tab.colony)
 
@@ -173,11 +230,17 @@ struct ContentView: View {
             // them. The symbol is a cluster of cells rather than the Nest's
             // single filled hexagon — the same shape seen from above, and a
             // great deal more of it.
-            WorldView(onPhotograph: { isCapturing = true })
+            WorldView(
+                onPhotograph: { cell in
+                    plantingCell = cell
+                    request(.capture)
+                },
+                bloomingCell: $bloomingCell
+            )
                 .tabItem { Label("World", systemImage: "circle.hexagongrid.fill") }
                 .tag(Tab.world)
 
-            GardenView(onPhotograph: { isCapturing = true })
+            GardenView(onPhotograph: { plantingCell = nil; request(.capture) })
                 .tabItem { Label("Garden", systemImage: "photo.on.rectangle.angled") }
                 .tag(Tab.garden)
         }
@@ -187,18 +250,96 @@ struct ContentView: View {
         // trailing corner — which is exactly where every tab keeps its own
         // main action, so on the first Mac run the gear sat on top of the
         // camera button and hid the one thing the game asks the player to do.
-        .environment(\.showSettings, { isShowingSettings = true })
-        .sheet(isPresented: $isCapturing) {
-            CaptureView()
-        }
-        .sheet(isPresented: $isShowingSettings) {
+        .environment(\.showSettings, { request(.settings) })
+        .environment(\.lastLook, lastLook)
+        .environment(children)
+        .disabled(store.isCatchingUp)
+    }
+
+    @ViewBuilder
+    private func content(for sheet: RootSheet) -> some View {
+        switch sheet {
+        case .capture:
+            CaptureView(plantingAt: plantingCell)
+        case .settings:
             SettingsView()
-        }
-        .sheet(isPresented: hasPendingReport) {
+        case .report:
             if let report = store.pendingReport {
+                // On disappearing as well as on Done, so dragging the sheet
+                // away also clears the report instead of leaving it to return.
                 CatchUpReportView(report: report) { store.dismissReport() }
+                    .onDisappear { store.dismissReport() }
+            }
+        case .flower(let share):
+            if share.isRequest {
+                ReceiveRequestView(request: share)
+            } else {
+                ReceiveFlowerView(share: share)
+            }
+        case .swarm(let share):
+            ReceiveSwarmView(share: share)
+        case .backup(let opened):
+            RestoreBackupView(opened: opened)
+        case .failure(let title, let message):
+            OpenFailedView(title: title, message: message)
+        }
+    }
+
+    // MARK: - The one sheet
+
+    /// Puts something up now, or as soon as the way is clear.
+    private func request(_ next: RootSheet) {
+        guard sheet?.id != next.id, !waiting.contains(where: { $0.id == next.id }) else { return }
+        // Done and the buttons underneath it sit in the same corner, so one
+        // tap too many on Done opened the camera or Settings.
+        if !next.isOpenedFromOutside, next.id != RootSheet.report.id,
+           Date().timeIntervalSince(sheetLastClosed) < 0.6 { return }
+        if sheet == nil, children.open == 0 {
+            show(next)
+        } else {
+            // The report goes first: it is read before anything new is opened.
+            waiting.insert(next, at: next.id == RootSheet.report.id ? 0 : waiting.endIndex)
+            if next.isOpenedFromOutside { clearTheWay() }
+        }
+    }
+
+    /// Asks whatever can be put away to go. What is waiting follows from
+    /// `sheetClosed`, or from the count of child sheets reaching zero.
+    private func clearTheWay() {
+        if sheet?.canBePutAway == true { sheet = nil }
+        if children.open > 0 { children.closeAll() }
+    }
+
+    private func presentNext() {
+        guard sheet == nil, children.open == 0, !waiting.isEmpty else { return }
+        show(waiting.removeFirst())
+    }
+
+    /// A presentation refused because another is still leaving the screen
+    /// gives no error and leaves `sheet` set, so whether it arrived is checked
+    /// rather than assumed.
+    private func show(_ next: RootSheet) {
+        sheet = next
+        Task { @MainActor in
+            for _ in 0..<3 {
+                try? await Task.sleep(for: .seconds(1.5))
+                guard sheet?.id == next.id, appearedSheet != next.id else { return }
+                sheet = nil
+                try? await Task.sleep(for: .milliseconds(100))
+                guard sheet == nil else { return }
+                sheet = next
             }
         }
+    }
+
+    private func sheetClosed() {
+        appearedSheet = nil
+        sheetLastClosed = Date()
+        // The map checks the cell really was planted before it plays
+        // anything, so a capture abandoned half way shows nothing.
+        if let cell = plantingCell { bloomingCell = cell }
+        plantingCell = nil
+        presentNext()
     }
 
     /// Handles a `.flower`, `.swarm` or `.flowerhive` file the player opened
@@ -214,39 +355,79 @@ struct ContentView: View {
 
         let kind = url.pathExtension.lowercased()
 
+        // Measured before it is read: every decoder has a limit of its own,
+        // but they are handed the file after it is already in memory, on this
+        // thread, however many gigabytes it was.
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+
         // A backup's own failure goes to its own screen, so the reassurance
-        // that nothing was replaced comes with it. Everything else falls
-        // through to the flower alert, as before.
+        // that nothing was replaced comes with it.
         if kind == SaveArchive.fileExtension {
             do {
-                incomingBackup = .archive(
+                guard size <= SaveArchive.maximumBytes else { throw SaveArchive.Failure.tooLarge(size) }
+                request(.backup(.archive(
                     try SaveArchive.decoded(from: Data(contentsOf: url))
-                )
+                )))
             } catch {
-                incomingBackup = .failure(error.localizedDescription)
+                request(.backup(.failure(error.localizedDescription)))
             }
             return
         }
 
+        let isSwarm = kind == SwarmShare.fileExtension
         do {
+            let limit = isSwarm ? SwarmShare.maximumBytes : FlowerShare.maximumImageBytes * 2
+            guard size <= limit else { throw TooLarge() }
             let data = try Data(contentsOf: url)
-            if kind == SwarmShare.fileExtension {
-                incomingSwarm = try SwarmShare.decoded(from: data)
+            if isSwarm {
+                request(.swarm(try SwarmShare.decoded(from: data)))
             } else {
-                incoming = try FlowerShare.decoded(from: data)
+                request(.flower(try FlowerShare.decoded(from: data)))
             }
         } catch {
-            incomingFailure = error.localizedDescription
+            request(.failure(
+                title: isSwarm ? "That swarm could not be opened" : "That flower could not be opened",
+                message: error.localizedDescription
+            ))
         }
     }
 
-    /// A binding rather than a plain flag, so dismissing the sheet by dragging
-    /// also clears the report instead of leaving it to reappear.
-    private var hasPendingReport: Binding<Bool> {
-        Binding(
-            get: { store.pendingReport != nil },
-            set: { if !$0 { store.dismissReport() } }
-        )
+    private struct TooLarge: LocalizedError {
+        var errorDescription: String? { "That file is too large to be what it says it is." }
+    }
+}
+
+// MARK: - A save problem
+
+/// A save that could not be written or read. Rare, and worth saying: the
+/// store keeps playing through it, and without this the player had no way
+/// to know their progress was not being kept.
+private struct ErrorBanner: View {
+
+    let message: String
+    var onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(.footnote)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Dismiss", systemImage: "xmark", action: onDismiss)
+                .labelStyle(.iconOnly)
+                .font(.footnote.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .padding(12)
+        .background(.regularMaterial, in: .rect(cornerRadius: 14))
+        .padding(.horizontal)
+        .padding(.top, 4)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        // It arrives over whatever had focus, and it matters.
+        .onAppear { AccessibilityNotification.Announcement(message).post() }
     }
 }
 

@@ -27,8 +27,13 @@
 //  This cannot be the only path. Apple Intelligence is not on every device,
 //  and a model can be unavailable because the hardware is not eligible, the
 //  feature is switched off, or the assets are still downloading.
-//  `FlowerClassifier` treats this as the best of several rungs and falls
-//  through to feature-print matching, which works everywhere.
+//  `FlowerClassifier` treats this as one of several rungs, below BioCLIP 2
+//  and Vision's own labels, and above feature-print matching.
+//
+//  The family used to be picked from a closed list of the eighteen the game
+//  models, which meant a tulip, an orchid or a hydrangea had no legal answer
+//  and came back as "a flower, but we cannot name it". Any family is allowed
+//  now; the answer is checked for shape rather than membership.
 //
 
 import Foundation
@@ -40,23 +45,6 @@ import os
 
 // MARK: - The shape of an answer
 
-/// A plant family the on-device model may choose from.
-///
-/// A mirror of `PlantFamily` rather than the engine's own type: the engine is
-/// built on Windows too and cannot import FoundationModels. Keeping the
-/// vocabulary closed is the point — the model picks from the families the game
-/// actually models rather than inventing one, and `PlantFamilyTests` fails if
-/// the two lists drift apart.
-@Generable
-enum GenerableFamily: String, CaseIterable {
-    case asteraceae, fabaceae, rosaceae, brassicaceae, boraginaceae
-    case lamiaceae, ericaceae, salicaceae, araliaceae, malvaceae
-    case papaveraceae, plantaginaceae, balsaminaceae, berberidaceae
-    case crassulaceae, iridaceae, asparagaceae, apiaceae
-
-    var family: PlantFamily? { PlantFamily(rawValue: rawValue) }
-}
-
 /// What the model is asked to fill in.
 @Generable
 struct FlowerAssessment {
@@ -65,10 +53,11 @@ struct FlowerAssessment {
     var isFloweringPlant: Bool
 
     @Guide(description: """
-        The botanical family, chosen only if the flower's structure clearly \
-        indicates it. Leave empty when unsure.
+        The botanical family under APG IV, capitalised and ending in -aceae, \
+        such as Rosaceae, Liliaceae or Orchidaceae. Give it only if the \
+        flower's structure clearly indicates it. Leave empty when unsure.
         """)
-    var family: GenerableFamily?
+    var family: String?
 
     @Guide(description: """
         The genus, capitalised, such as Trifolium or Salix. Leave empty unless \
@@ -174,7 +163,17 @@ struct TaxonomicClassifier {
     /// confident placement of a photograph that is not a plant.
     func taxon(from assessment: FlowerAssessment) -> (taxon: Taxon, confidence: Double)? {
         guard assessment.isFloweringPlant else { return nil }
-        guard let family = assessment.family?.family else { return nil }
+        guard let familyName = assessment.family?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !familyName.isEmpty
+        else { return nil }
+
+        // Any family, but a family: a genus or a common name offered in the
+        // family's place is refused rather than stored as one.
+        let family = BotanicalFamily(familyName)
+        guard family.isWellFormed else {
+            logger.info("model gave \(familyName) as a family; refused")
+            return nil
+        }
 
         let genus = assessment.genus
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -231,10 +230,11 @@ struct TaxonomicClassifier {
 
         Leave the genus and species fields empty unless the photograph makes \
         them unmistakable. Most photographs of wild flowers cannot be placed \
-        to a species and should not be.
+        to a species and should not be; a well-known garden flower — a tulip, \
+        a rose, a sunflower — often can be placed to a genus.
 
-        Report the family only from the list you are given. If the plant does \
-        not belong to any of them, leave the family empty.
+        The family may be any botanical family of flowering plant, given by \
+        its Latin name. If you cannot tell the family, leave it empty.
         """
     }
 }

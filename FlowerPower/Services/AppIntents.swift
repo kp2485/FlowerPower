@@ -70,8 +70,8 @@ struct CheckColonyIntent: AppIntent {
         guard var simulation = try? GamePersistence().load() else {
             return .result(
                 dialog: IntentDialog(
-                    stringLiteral: "There is no colony yet. Photograph a flower "
-                        + "and a swarm will find you."
+                    stringLiteral: "There is no colony yet. Open FlowerPower "
+                        + "to choose where the swarm settles."
                 ),
                 view: HiveSnippet(summary: nil)
             )
@@ -201,9 +201,19 @@ struct HoldEntranceIntent: LiveActivityIntent {
     }
     static var openAppWhenRun: Bool { false }
 
+    /// The siege the card was drawn for, when a card drew it. A card can
+    /// outlast its siege by a background catch-up, and its button must not
+    /// commit the colony against a different attacker that has since arrived.
+    /// Nil from Siri, a Shortcut or the Home Screen, which act on whatever is
+    /// at the nest now.
+    @Parameter(title: "Siege Began on Day") var beganOnDay: Int?
+
+    init() {}
+    init(beganOnDay: Int?) { self.beganOnDay = beganOnDay }
+
     @MainActor
     func perform() async throws -> some IntentResult {
-        ColonyIntents.answerSiege(with: .holdEntrance)
+        ColonyIntents.answerSiege(with: .holdEntrance, beganOnDay: beganOnDay)
         return .result()
     }
 }
@@ -215,9 +225,19 @@ struct NarrowEntranceIntent: LiveActivityIntent {
     }
     static var openAppWhenRun: Bool { false }
 
+    /// The siege the card was drawn for, when a card drew it. A card can
+    /// outlast its siege by a background catch-up, and its button must not
+    /// commit the colony against a different attacker that has since arrived.
+    /// Nil from Siri, a Shortcut or the Home Screen, which act on whatever is
+    /// at the nest now.
+    @Parameter(title: "Siege Began on Day") var beganOnDay: Int?
+
+    init() {}
+    init(beganOnDay: Int?) { self.beganOnDay = beganOnDay }
+
     @MainActor
     func perform() async throws -> some IntentResult {
-        ColonyIntents.answerSiege(with: .narrowEntrance)
+        ColonyIntents.answerSiege(with: .narrowEntrance, beganOnDay: beganOnDay)
         return .result()
     }
 }
@@ -238,9 +258,19 @@ struct KeepForagersHomeIntent: LiveActivityIntent {
     }
     static var openAppWhenRun: Bool { false }
 
+    /// The siege the card was drawn for, when a card drew it. A card can
+    /// outlast its siege by a background catch-up, and its button must not
+    /// commit the colony against a different attacker that has since arrived.
+    /// Nil from Siri, a Shortcut or the Home Screen, which act on whatever is
+    /// at the nest now.
+    @Parameter(title: "Siege Began on Day") var beganOnDay: Int?
+
+    init() {}
+    init(beganOnDay: Int?) { self.beganOnDay = beganOnDay }
+
     @MainActor
     func perform() async throws -> some IntentResult {
-        ColonyIntents.answerSiege(with: .foragersHome)
+        ColonyIntents.answerSiege(with: .foragersHome, beganOnDay: beganOnDay)
         return .result()
     }
 }
@@ -252,9 +282,19 @@ struct SendInCleanersIntent: LiveActivityIntent {
     }
     static var openAppWhenRun: Bool { false }
 
+    /// The siege the card was drawn for, when a card drew it. A card can
+    /// outlast its siege by a background catch-up, and its button must not
+    /// commit the colony against a different attacker that has since arrived.
+    /// Nil from Siri, a Shortcut or the Home Screen, which act on whatever is
+    /// at the nest now.
+    @Parameter(title: "Siege Began on Day") var beganOnDay: Int?
+
+    init() {}
+    init(beganOnDay: Int?) { self.beganOnDay = beganOnDay }
+
     @MainActor
     func perform() async throws -> some IntentResult {
-        ColonyIntents.answerSiege(with: .cleanersOut)
+        ColonyIntents.answerSiege(with: .cleanersOut, beganOnDay: beganOnDay)
         return .result()
     }
 }
@@ -265,9 +305,8 @@ struct MakeRoomIntent: LiveActivityIntent {
     static var title: LocalizedStringResource { "Make Room" }
 
     static var description: IntentDescription {
-        // The best answer to a swarm there is: 76% two-year survival against
-        // 66% for doing nothing, 62% for opening the nest up and 56% for
-        // dividing. See `NotificationActions.register`.
+        // The lightest answer to a swarm, and the one offered first. See
+        // `NotificationActions.register`.
         IntentDescription("Builders draw comb and foragers hold back, to ease the crowding that sends a swarm out.")
     }
 
@@ -403,7 +442,13 @@ enum ColonyIntents {
     ) -> Bool {
         guard var simulation = try? persistence.load() else { return false }
         simulation.advance(to: now)
-        guard change(&simulation) else { return false }
+        guard change(&simulation) else {
+            // Refused as stale — so the widget is showing a button for a
+            // decision that has closed. Without a reload it went on showing
+            // it, and every tap was refused the same way.
+            WidgetCenter.shared.reloadAllTimelines()
+            return false
+        }
 
         do {
             try persistence.save(simulation)
@@ -427,10 +472,11 @@ enum ColonyIntents {
     /// door against a shrike taking foragers in the field would cost a third
     /// of the forage and change nothing at all.
     @discardableResult
-    static func answerSiege(with posture: HivePosture) -> Bool {
+    static func answerSiege(with posture: HivePosture, beganOnDay: Int? = nil) -> Bool {
         decide { simulation in
             guard let threat = simulation.world.activeThreat,
-                  threat.options.contains(posture)
+                  threat.options.contains(posture),
+                  beganOnDay == nil || threat.beganOnDay == beganOnDay
             else { return false }
             simulation.respond(to: threat, with: posture)
             return true
@@ -499,13 +545,13 @@ enum ColonyIntents {
 
 // MARK: - The decision a widget can answer
 
-/// A decision open right now, with the best answer to it already chosen.
+/// A decision open right now, with the first answer to it already chosen.
 ///
 /// The choosing is the package's, not this file's: `HivePosture.options`
 /// returns the postures worth offering against an attack in measured order,
 /// so its first entry is the best answer there is, and making room is the
-/// best answer to a swarm. A widget has room for one button and it should be
-/// that one.
+/// lightest answer to a swarm. A widget has room for one button and it should
+/// be that one.
 ///
 /// Ordered siege before swarm, matching `ColonyNews`: a siege resolves in a
 /// day or two and a swarm takes the better part of a week, so the tighter
@@ -519,9 +565,13 @@ enum OpenDecision: Equatable, Sendable {
     case scout
 
     init?(_ snapshot: ColonySnapshot) {
-        if let posture = snapshot.activeThreat?.options.first(where: { $0 != .instinct }) {
+        guard snapshot.status.isAlive else { return nil }
+        // Only while the siege is still unanswered. Once the player has
+        // chosen, a button for the "best" answer would override their choice.
+        if let threat = snapshot.activeThreat, !threat.isAnswered(by: snapshot.posture),
+           let posture = threat.options.first(where: { $0 != .instinct }) {
             self = .siege(posture)
-        } else if let swarm = snapshot.pendingSwarm, !swarm.discouraged {
+        } else if let swarm = snapshot.pendingSwarm, !swarm.isAnswered {
             self = .swarm
         } else if snapshot.scoutDecisionOpen {
             self = .scout
@@ -531,7 +581,7 @@ enum OpenDecision: Equatable, Sendable {
     }
 }
 
-/// The best answer as a button that acts without opening the app.
+/// That answer as a button that acts without opening the app.
 ///
 /// The switch over `HivePosture` is the one thing in this feature that could
 /// not be put in the package: it maps an engine type onto App Intents types,
@@ -620,6 +670,8 @@ struct BestAnswerButton: View {
 struct AnswerButton: View {
 
     let action: DecisionAction
+    /// The siege this button belongs to, from the card's attributes.
+    var beganOnDay: Int? = nil
 
     var body: some View {
         button
@@ -632,13 +684,13 @@ struct AnswerButton: View {
     private var button: some View {
         switch action {
         case .posture(.holdEntrance):
-            Button(intent: HoldEntranceIntent()) { label }
+            Button(intent: HoldEntranceIntent(beganOnDay: beganOnDay)) { label }
         case .posture(.narrowEntrance):
-            Button(intent: NarrowEntranceIntent()) { label }
+            Button(intent: NarrowEntranceIntent(beganOnDay: beganOnDay)) { label }
         case .posture(.foragersHome):
-            Button(intent: KeepForagersHomeIntent()) { label }
+            Button(intent: KeepForagersHomeIntent(beganOnDay: beganOnDay)) { label }
         case .posture(.cleanersOut):
-            Button(intent: SendInCleanersIntent()) { label }
+            Button(intent: SendInCleanersIntent(beganOnDay: beganOnDay)) { label }
         case .discourageSwarm:
             Button(intent: MakeRoomIntent()) { label }
         case .addComb:

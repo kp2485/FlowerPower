@@ -355,7 +355,11 @@ extension DashboardSummary {
                 ? "queenless a day"
                 : "queenless \(queen.daysQueenless) days"
         default:
-            caption = queen.ageDays == 1 ? "a day old" : "\(queen.ageDays) days old"
+            switch queen.ageDays {
+            case 0: caption = "emerged today"
+            case 1: caption = "a day old"
+            default: caption = "\(queen.ageDays) days old"
+            }
         }
 
         // Diversity is the number that matters about a queen who is laying, and
@@ -452,13 +456,18 @@ extension DashboardSummary {
         if let dominant = health.dominantInfection,
            let level = health.infections[dominant] {
             let percent = Int((level * 100).rounded())
+            // An infection that has just arrived is under half a per cent, and
+            // "0%" beside its name read as a disease that was not there.
+            let trace = level > 0 && percent == 0
             return Tile(
                 kind: .health,
-                headline: "\(percent)%",
+                headline: trace ? "<1%" : "\(percent)%",
                 caption: dominant.displayName,
                 severity: healthSeverity(dominantLevel: level),
                 gauge: min(1, max(0, health.totalPressure)),
-                spoken: "\(dominant.displayName) at \(percent) percent"
+                spoken: trace
+                    ? "\(dominant.displayName), a trace"
+                    : "\(dominant.displayName) at \(percent) percent"
             )
         }
 
@@ -509,7 +518,9 @@ extension DashboardSummary {
         return Tile(
             kind: .forage,
             headline: "\(total)",
-            caption: wild > 0 ? "in bloom, \(wild) of them wild" : "patches in bloom",
+            caption: wild > 0
+                ? "in bloom, \(wild) of them wild"
+                : total == 1 ? "patch in bloom" : "patches in bloom",
             severity: forageSeverity(inBloom: total, season: snapshot.season),
             spoken: total == 1
                 ? "one patch in bloom"

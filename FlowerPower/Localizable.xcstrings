@@ -10,6 +10,16 @@
     "%@ — these bloom when little else does, and are worth far more than their yield suggests." : {
 
     },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
     "%@ · %@ · %@" : {
       "localizations" : {
         "en" : {
@@ -52,6 +62,36 @@
         }
       }
     },
+    "%@ to the %@, %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ to the %2$@, %3$@."
+          }
+        }
+      }
+    },
+    "%@, %@, found since." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, found since."
+          }
+        }
+      }
+    },
+    "%@, %@. %@ The nest is at the centre." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@. %3$@ The nest is at the centre."
+          }
+        }
+      }
+    },
     "%@, %lld bees" : {
       "localizations" : {
         "en" : {
@@ -88,6 +128,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@: %@ in bloom." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@ in bloom."
           }
         }
       }
@@ -140,7 +190,7 @@
     "%lld days old" : {
 
     },
-    "%lld flowers have no location and are not shown. Your bees still forage them." : {
+    "%lld empty cells in the garden. Photograph a flower to plant one." : {
 
     },
     "%lld of %lld" : {
@@ -182,9 +232,6 @@
     "%lld percent forage left" : {
 
     },
-    "%lld percent remaining" : {
-
-    },
     "%lld queen cells — %@" : {
       "localizations" : {
         "en" : {
@@ -194,6 +241,12 @@
           }
         }
       }
+    },
+    "%lld stretches known" : {
+
+    },
+    "%lld stretches of country the dancers have pointed at and nobody has been to." : {
+
     },
     "%lld taken so far" : {
 
@@ -309,7 +362,7 @@
     "Best nectar first. These are the ones worth walking for this week." : {
 
     },
-    "Beyond foraging range" : {
+    "Beyond the catalogue" : {
 
     },
     "Bloom calendar" : {
@@ -343,7 +396,7 @@
     "Cancel" : {
 
     },
-    "Centre on Hive" : {
+    "Centre on the Nest" : {
 
     },
     "Changes apply from now on. Over 200 simulated colonies, about 92% see their first spring on Forgiving, 89% on Natural and 64% on Harsh; by the second spring it is 60%, 66% and 14%. Forgiving is not safer over two years: well-fed colonies swarm more, and every swarm stakes the colony on a virgin queen's mating flight." : {
@@ -374,9 +427,6 @@
 
     },
     "Comb space, not forage, is what limits how much a colony can store. A bigger cavity is the single biggest thing you can change — but moving is absconding. The bees go; the comb, the stores and the brood stay behind." : {
-
-    },
-    "Comes with where it was found, so it will appear on your map." : {
 
     },
     "Corolla depth" : {
@@ -413,12 +463,6 @@
     "Difficulty, moving the hive, the hour your morning report arrives, which notifications you want, and how to play." : {
 
     },
-    "Distance" : {
-
-    },
-    "Distance is the cost" : {
-
-    },
     "Diversity comes from how many drones she mated with. It is the colony's main defence against disease." : {
 
     },
@@ -447,7 +491,7 @@
     "Every bee that can sting meets the attacker at the door. Fewer foragers out, and defenders die doing it." : {
 
     },
-    "Every flower sits at its real distance from the nest, and a forager burns honey to fly there and back. The same flowers three kilometres out return about a third of what they would at the entrance, and past eight kilometres the bees will not go at all." : {
+    "Every Flowering Plant" : {
 
     },
     "Every plant the game knows. A tick is one you have found; the rest are out there." : {
@@ -469,6 +513,9 @@
 
     },
     "Families in the garden" : {
+
+    },
+    "Families the game does not collect, that your bees have been given anyway." : {
 
     },
     "Field Guide" : {
@@ -513,13 +560,7 @@
     "Follow the Swarm" : {
 
     },
-    "Forage" : {
-
-    },
     "Foraging" : {
-
-    },
-    "Found" : {
 
     },
     "From" : {
@@ -544,6 +585,9 @@
 
     },
     "Gone over" : {
+
+    },
+    "Ground they have not seen" : {
 
     },
     "Help" : {
@@ -588,11 +632,34 @@
     "How to Play" : {
 
     },
+    "In bloom" : {
+
+    },
     "In bloom now — %@" : {
 
     },
     "In the Backup" : {
 
+    },
+    "In the garden · %lld m from the nest, ring %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "In the garden · %1$lld m from the nest, ring %2$lld"
+          }
+        }
+      }
+    },
+    "In the garden, %lld metres from the nest, ring %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "In the garden, %1$lld metres from the nest, ring %2$lld"
+          }
+        }
+      }
     },
     "In the nest" : {
 
@@ -646,9 +713,6 @@
 
     },
     "Lineage" : {
-
-    },
-    "Location" : {
 
     },
     "Looking at it…" : {
@@ -711,7 +775,7 @@
     "No adult workers." : {
 
     },
-    "No colony can carry its comb. The adults go, with what honey they can hold in their crops; the stores, the comb and every larva stay behind. They arrive as a swarm does and start again. Distances to your flowers are worked out from the new position." : {
+    "No colony can carry its comb. The adults go, with what honey they can hold in their crops; the stores, the comb and every larva stay behind. They arrive as a swarm does and start again. Your garden comes with them." : {
 
     },
     "No colony yet" : {
@@ -726,13 +790,7 @@
     "No Flowers Yet" : {
 
     },
-    "No location on this photo, so it will not appear on the map. Your bees still work it, at a guessed distance." : {
-
-    },
-    "No location, so your bees will fly a guessed distance to it." : {
-
-    },
-    "No Mapped Forage" : {
+    "No Ground Yet" : {
 
     },
     "Nobody goes out. Nothing for an ambusher to take, and nothing coming in." : {
@@ -742,6 +800,9 @@
 
     },
     "Not enough of this range has been lived through yet. Try a longer one." : {
+
+    },
+    "Not in bloom" : {
 
     },
     "Not in bloom this season" : {
@@ -772,9 +833,6 @@
 
     },
     "nothing in the garden flowers" : {
-
-    },
-    "Nothing in the garden flowers in %@. The colony has no forage then." : {
 
     },
     "Nothing in your garden would help right now." : {
@@ -828,6 +886,9 @@
     "Or let instinct handle it, which is what happens if you do nothing." : {
 
     },
+    "Or let the foragers find it in their own time, which is what happens if you do nothing." : {
+
+    },
     "Or let them go, which is what happens if you do nothing." : {
 
     },
@@ -852,13 +913,19 @@
     "Photograph a flower and your bees will work it. Closer and clearer is better — a flower we can name is worth more." : {
 
     },
-    "Photograph flowers with location enabled and they will appear here, at the places you found them." : {
-
-    },
     "Photographed" : {
 
     },
-    "Photographs are the only forage your bees have. Anything actually in bloom will do — the closer to the nest, the less the flight costs them." : {
+    "Photographs are the only forage your bees have. Anything actually in bloom will do, and the more families you find them across, the longer the colony eats." : {
+
+    },
+    "Planted in your garden, %lld m from the nest." : {
+
+    },
+    "Planted in your garden, %lld metres from the nest." : {
+
+    },
+    "Plants the catalogue does not describe. Your bees will work one as its family typically forages." : {
 
     },
     "Preparing the flower to send" : {
@@ -915,9 +982,6 @@
     "Rhythm" : {
 
     },
-    "Right now" : {
-
-    },
     "Save" : {
 
     },
@@ -945,7 +1009,13 @@
     "Send in the Cleaners" : {
 
     },
+    "Send Scouts" : {
+
+    },
     "Send the Swarm" : {
+
+    },
+    "Sends a tenth of the foragers to look at the ground nobody has been to. They are gone for three days and come back with all of it." : {
 
     },
     "Sent by %@" : {
@@ -1041,6 +1111,9 @@
     "The almanac fills as the year goes by: the first flow, the first swarm cell, what came to the nest." : {
 
     },
+    "The app never asks for or reads your location. The country on the World map is generated from a number, not taken from anywhere real — the ground around the nest is invented, and the app has no idea where you are standing. Your photographs stay on your device and in your own photo library. Flowers and swarms travel between players as files through the share sheet — there is no server and no account, and nothing leaves the device except the file you hand to somebody." : {
+
+    },
     "The bees will narrow the entrance with propolis before winter unless you say otherwise. Sealed, it keeps mice out and warmth in, and the damp with it. Open, the cluster breathes and anything small can walk in." : {
 
     },
@@ -1090,9 +1163,6 @@
     "The flowers you photographed carry across to the new colony. They are still growing where you found them." : {
 
     },
-    "The hive" : {
-
-    },
     "The line" : {
 
     },
@@ -1132,16 +1202,13 @@
     "This colony and everything it has built will be gone. There is no undo." : {
 
     },
+    "This colony has no country around it to draw." : {
+
+    },
     "This one flowers when your bees have few other options. A real find." : {
 
     },
     "This one offers no nectar at all — only pollen. Your bees take it for the brood, not for honey." : {
-
-    },
-    "This one was not recognised, so your bees work it at reduced yield. A clearer photo of the same flower may identify it." : {
-
-    },
-    "This photo has no location, so none will be sent." : {
 
     },
     "To" : {
@@ -1186,9 +1253,6 @@
     "Where the science comes from" : {
 
     },
-    "Where You Found It" : {
-
-    },
     "While You Were Away" : {
 
     },
@@ -1199,6 +1263,9 @@
 
     },
     "Worker job ages, brood development times, nest sites and the list of things that raid a hive are taken from the beekeeping and entomology notes the project started from, kept in the repository as docs/RESEARCH.md and enforced by the engine's own tests." : {
+
+    },
+    "World" : {
 
     },
     "Worth finding in %@" : {
@@ -1225,7 +1292,7 @@
     "You could divide them yourself tomorrow, once a queen cell is far enough along to leave behind." : {
 
     },
-    "You have %lld flowers, but none of their photos carried a location. Allow location access in the camera to place them on the map." : {
+    "Your bees are living on what they can find in the country around them. A flower you photograph is far richer than anything wild — it is the difference between getting through the year and getting through the winter." : {
 
     },
     "Your bees can only eat what you find for them. Photograph a flower to start." : {
@@ -1259,9 +1326,6 @@
 
     },
     "Your photographs" : {
-
-    },
-    "Your photographs stay on your device and in your own photo library. Flowers and swarms travel between players as files through the share sheet — there is no server and no account. A shared flower carries a coordinate only if you choose to include one, and rounds it to about a kilometre by default, because a flower photograph's location is where a person was standing." : {
 
     }
   },

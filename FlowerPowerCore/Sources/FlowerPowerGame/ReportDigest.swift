@@ -177,7 +177,7 @@ public extension SimEvent {
         case .entranceSealed: return DigestPhrase("entrance decided", "entrance decisions")
         case .honeyTaken: return DigestPhrase("harvest", "harvests")
         case .fed: return DigestPhrase("feed", "feeds")
-        case .combAdded: return DigestPhrase("room added", "roomings added")
+        case .combAdded: return DigestPhrase("addition of room", "additions of room")
 
         // The record
         case .milestone: return DigestPhrase("first", "firsts")
