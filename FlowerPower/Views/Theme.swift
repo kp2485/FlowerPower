@@ -51,6 +51,15 @@ enum Theme {
     /// than read. The same bright gold in both appearances.
     static let honeyFill = Color(red: 0.93, green: 0.68, blue: 0.13)
     static let wax = Color(red: 0.96, green: 0.90, blue: 0.74)
+    /// The outline of a cell somebody has described but no bee has seen.
+    ///
+    /// Wax on paper, and in the light that is all it needs to be. On the dark
+    /// paper of `fog` the same full-strength wax drew every rumoured cell as
+    /// a bright hairline grid, louder than the country the bees know.
+    static let rumourLine = Color(UIColor { traits in
+        UIColor(red: 0.96, green: 0.90, blue: 0.74,
+                alpha: traits.userInterfaceStyle == .dark ? 0.28 : 1)
+    })
     static let nectar = Color(red: 0.98, green: 0.82, blue: 0.35)
     /// Kept well apart from `honeyFill`. They were 1.08:1, the same gold twice
     /// over, in bands of comb that the legend claimed could be told apart.
@@ -165,7 +174,17 @@ enum Theme {
     /// The colour of old wax paper: a map that stops rather than a darkness
     /// that hides something. Nothing is drawn on it, so it is the one colour
     /// here that is allowed to be plain.
-    static let fog = Color(red: 0.94, green: 0.91, blue: 0.83)
+    ///
+    /// Still paper in dark mode, but paper in a dim room: at full brightness
+    /// it was a cream block filling half of an otherwise black screen, and the
+    /// brightest thing on it was the part with nothing on it. Not through
+    /// `ink`, which pushes dark colours towards white for high contrast — the
+    /// wrong way for a background.
+    static let fog = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.21, green: 0.20, blue: 0.17, alpha: 1)
+            : UIColor(red: 0.94, green: 0.91, blue: 0.83, alpha: 1)
+    })
 
     /// How worried a dashboard tile looks.
     ///

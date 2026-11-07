@@ -700,7 +700,7 @@ private struct WorldMap: View {
                 context.fill(path, with: .color(Theme.fog))
                 context.stroke(
                     path,
-                    with: .color(Theme.wax),
+                    with: .color(Theme.rumourLine),
                     lineWidth: max(0.5, layout.radius * 0.06)
                 )
             }

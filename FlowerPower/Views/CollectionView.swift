@@ -49,11 +49,16 @@ struct CollectionView: View {
             } header: {
                 Text("Out now, \(prompt.season.rawValue)")
             } footer: {
-                Picker("Hemisphere", selection: $hemisphereRaw) {
-                    Text("Northern").tag(Hemisphere.northern.rawValue)
-                    Text("Southern").tag(Hemisphere.southern.rawValue)
+                // Labelled, because a bare "Northern | Southern" under a list
+                // of flowers did not say what it switched.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Your hemisphere")
+                    Picker("Hemisphere", selection: $hemisphereRaw) {
+                        Text("Northern").tag(Hemisphere.northern.rawValue)
+                        Text("Southern").tag(Hemisphere.southern.rawValue)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
                 .padding(.top, 8)
             }
 
@@ -137,8 +142,13 @@ struct CollectionView: View {
                     let covered = collection.seasonsCovered.contains(season)
                     Label(season.rawValue.capitalized, systemImage: Theme.symbol(for: season))
                         .font(.caption)
+                        // One line, shrinking to fit: without the limit the
+                        // scale factor never applied and a quarter-width pill
+                        // broke "Summer" and "Autumn" across two lines mid-word.
+                        .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .padding(.vertical, 6)
+                        .padding(.horizontal, 2)
                         .frame(maxWidth: .infinity)
                         .background(covered ? Theme.honey.opacity(0.25) : Color.clear,
                                     in: RoundedRectangle(cornerRadius: 8))
@@ -365,6 +375,16 @@ struct BloomPromptCard: View {
                             .foregroundStyle(.secondary)
                     }
                     .accessibilityElement(children: .combine)
+                }
+
+                // The star explained where it is used. The garden's own card
+                // said what it meant; this one, on the dashboard and in the
+                // collection, left it to be guessed.
+                if prompt.notYetPhotographed.prefix(5).contains(where: \.isKeystone) {
+                    Label("Keystones: they flower when little else does.", systemImage: "star.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 

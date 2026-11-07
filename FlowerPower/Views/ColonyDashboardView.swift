@@ -198,25 +198,30 @@ struct ColonyTile: View {
 
                 Spacer(minLength: 0)
 
-                if let trend = tile.trend {
-                    Image(systemName: trend.symbolName)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                }
-
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
 
-            Text(tile.headline)
-                .font(.title3.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(.primary)
-                .lineLimit(lines)
-                .minimumScaleFactor(0.5)
+            // The trend goes with the number it is about. Beside the chevron
+            // a "→" read as a second way in, and for a steady count it said
+            // nothing a reader could use, so steady draws no arrow at all.
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(tile.headline)
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .lineLimit(lines)
+                    .minimumScaleFactor(0.5)
+
+                if let trend = tile.trend, trend != .steady {
+                    Image(systemName: trend.symbolName)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
 
             Text(tile.title)
                 .font(.caption.weight(.semibold))
@@ -1259,15 +1264,19 @@ struct NestConditionSection: View {
                 Text(nest.siteType.displayName)
                     .font(.subheadline.weight(.medium))
                 Spacer()
-                Text("\(nest.builtCells) / \(nest.capacity) cells")
+                // Said in words. "66 / 700 cells" over "44 free" left a
+                // player to work out that the first is comb built against the
+                // room the cavity has, and the second is built comb standing
+                // empty.
+                Text("\(nest.builtCells) of \(nest.capacity) cells built")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
             MeterView(
-                label: "Comb Occupancy",
+                label: "Comb in Use",
                 value: nest.combOccupancy,
-                caption: "\(nest.freeCells) free",
+                caption: "\(nest.freeCells) empty",
                 tint: nest.combOccupancy > 0.9 ? Theme.caution : Theme.comb,
                 symbolName: "hexagon.fill"
             )
@@ -1419,7 +1428,11 @@ struct HealthSection: View {
                 MeterView(
                     label: pathogen.displayName,
                     value: level,
-                    caption: String(format: "%.0f%%", level * 100),
+                    // A trace as the tile says it. "0%" here, under a tile
+                    // reading "<1%", looked like a disease that had gone.
+                    caption: level > 0 && level < 0.005
+                        ? "a trace"
+                        : String(format: "%.0f%%", level * 100),
                     tint: level > 0.5 ? Theme.alarm : Theme.caution,
                     symbolName: "microbe.fill"
                 )
@@ -1481,29 +1494,64 @@ struct SectionTitle: View {
 /// opens in a hurry. They are behind the Record tile now, and this is the page.
 struct RecordLinks: View {
     var body: some View {
-        // A grid rather than a row: there are more of these than fit across a
-        // phone now, and a bordered button squeezed to three characters is
-        // worse than a second line of them.
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
-            NavigationLink { LineageView() } label: {
-                Label("Lineage", systemImage: "crown.fill")
+        // A list, each with a line saying what is behind it. These were five
+        // bordered chips in an adaptive grid, which came out two to a row
+        // and one left over, each a different width, with a paragraph below
+        // them explaining what the five were.
+        VStack(spacing: 0) {
+            row("Lineage", "The queens, one after another", systemImage: "crown.fill") {
+                LineageView()
             }
-            NavigationLink { AlmanacView() } label: {
-                Label("Almanac", systemImage: "book.fill")
+            Divider().padding(.leading, 44)
+            row("Almanac", "What happened, and when", systemImage: "book.fill") {
+                AlmanacView()
             }
-            NavigationLink { CollectionView() } label: {
-                Label("Collection", systemImage: "leaf.fill")
+            Divider().padding(.leading, 44)
+            row("Collection", "Every flower you have photographed", systemImage: "leaf.fill") {
+                CollectionView()
             }
-            NavigationLink { MilestonesView() } label: {
-                Label("Milestones", systemImage: "rosette")
+            Divider().padding(.leading, 44)
+            row("Milestones", "The colony's firsts", systemImage: "rosette") {
+                MilestonesView()
             }
-            NavigationLink { HistoryView() } label: {
-                Label("History", systemImage: "chart.xyaxis.line")
+            Divider().padding(.leading, 44)
+            row("History", "The numbers, charted", systemImage: "chart.xyaxis.line") {
+                HistoryView()
             }
         }
-        .font(.subheadline.weight(.medium))
-        .buttonStyle(.bordered)
-        .tint(Theme.honey)
-        .frame(maxWidth: .infinity)
+        .card()
+    }
+
+    private func row<Destination: View>(
+        _ title: LocalizedStringKey,
+        _ detail: LocalizedStringKey,
+        systemImage: String,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) -> some View {
+        NavigationLink(destination: destination) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(Theme.honey)
+                    .frame(width: 32)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
     }
 }

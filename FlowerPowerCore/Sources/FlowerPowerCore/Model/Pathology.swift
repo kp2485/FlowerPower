@@ -28,6 +28,19 @@ public enum Pathogen: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// The name as it reads in the middle of a sentence. `displayName` is a
+    /// title, and lowercasing it wholesale gave "cleared american foulbrood"
+    /// two lines under "American Foulbrood appeared in the colony".
+    public var nameInSentence: String {
+        switch self {
+        case .varroa: return "varroa mites"
+        case .deformedWingVirus: return "deformed wing virus"
+        case .nosema: return "nosema"
+        case .chalkbrood: return "chalkbrood"
+        case .americanFoulbrood: return "American foulbrood"
+        }
+    }
+
     /// Whether hygienic workers can meaningfully clear this by uncapping and
     /// removing affected brood.
     /// How much of the infection hygienic workers can actually reach.

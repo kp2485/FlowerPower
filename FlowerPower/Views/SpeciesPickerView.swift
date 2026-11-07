@@ -176,7 +176,7 @@ struct SpeciesPickerView: View {
             dismiss()
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.commonName.isEmpty ? entry.scientificName : entry.commonName)
+                Text(entry.commonName.isEmpty ? entry.scientificName : entry.commonName.capitalisingFirst)
                     .foregroundStyle(.primary)
                 Text(entry.commonName.isEmpty
                      ? "\(entry.rank.displayName) · \(BotanicalFamily(entry.family).commonName)"

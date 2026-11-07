@@ -344,8 +344,10 @@ struct CaptureView: View {
         // limited access, and a photo chosen in the picker is not one of the
         // photos they shared. A copy is then the only way to show it in the
         // garden, and it is dated today rather than whenever the original was
-        // taken, because a copy is all there is to read a date from.
-        let copy = try await PhotoLibrary.save(image)
+        // taken, because a copy is all there is to read a date from. Kept in
+        // the app, not written back to the library the photo came from: that
+        // raised a second permission prompt and left a duplicate.
+        let copy = try PhotoLibrary.keepInApp(image)
         // Remembered, because the copy has an identifier of its own: without
         // this the picker's never matched again, and every further pick of
         // the same photograph was another flower and another copy.
@@ -590,6 +592,7 @@ private struct ResultView: View {
                         alternatives: corrected == nil
                             ? result.identification.alternatives
                             : [],
+                        namedByPlayer: corrected != nil,
                         onPick: correct,
                         onNameItYourself: { isNaming = true }
                     )
@@ -692,10 +695,25 @@ private struct IdentifiedCard: View {
     let species: FlowerSpecies
     let confidence: Double
     let alternatives: [FlowerIdentification.Alternative]
+    /// A name the player picked. It carries a confidence for the economy's
+    /// sake (see `SpeciesPickerView.manualConfidence`), but "Confidence 80%"
+    /// under a name they had just chosen read as the game doubting them.
+    var namedByPlayer = false
     var onPick: (FlowerSpecies, Double) -> Void
     var onNameItYourself: () -> Void
 
     @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// How sure, in words. A bare "100%" beside a placement the model could
+    /// still have wrong promised more than any identifier can give.
+    private var sureness: String {
+        switch confidence {
+        case 0.9...: return "Very sure"
+        case 0.6..<0.9: return "Fairly sure"
+        case 0.4..<0.6: return "Unsure"
+        default: return "A guess"
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -717,12 +735,19 @@ private struct IdentifiedCard: View {
                 }
             }
 
-            MeterView(
-                label: "Confidence",
-                value: confidence,
-                caption: String(format: "%.0f%%", confidence * 100),
-                tint: confidence > 0.6 ? Theme.healthy : Theme.caution
-            )
+            if namedByPlayer {
+                Label("Named by you", systemImage: "person.crop.circle.badge.checkmark")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                MeterView(
+                    label: "Confidence",
+                    value: confidence,
+                    caption: sureness,
+                    tint: confidence > 0.6 ? Theme.healthy : Theme.caution
+                )
+                .accessibilityValue("\(sureness), \(Int((confidence * 100).rounded())) percent")
+            }
 
             if species.isKeystone {
                 Label(

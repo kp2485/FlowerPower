@@ -271,7 +271,7 @@ public struct Almanac: Codable, Equatable, Sendable {
             case .infectionCritical(let pathogen):
                 write(.disease, "\(pathogen.displayName) reaches a dangerous level.", day: day)
             case .infectionCleared(let pathogen):
-                write(.disease, "The colony clears \(pathogen.displayName.lowercased()).", day: day)
+                write(.disease, "The colony clears \(pathogen.nameInSentence).", day: day)
             case .winterStoresLow(let have, let need):
                 write(.stores, "Winter stores are short: \(Int(have.rounded())) of \(Int(need.rounded())) needed.", day: day)
             case .entranceSealed(let sealed):

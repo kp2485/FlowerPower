@@ -65,7 +65,8 @@ struct CatchUpReportView: View {
                         RaidsCard(report: report)
                     }
 
-                    if !report.newInfections.isEmpty || !report.criticalInfections.isEmpty {
+                    if !report.newInfections.isEmpty || !report.criticalInfections.isEmpty
+                        || !report.clearedInfections.isEmpty {
                         InfectionsCard(report: report)
                     }
                 }
@@ -209,16 +210,19 @@ private struct HighlightGroupRow: View {
                     .frame(width: 20)
                     .accessibilityHidden(true)
 
-                Text(group.category.displayName)
-                    .font(.subheadline.weight(.medium))
+                // The tally under the heading rather than beside it. Side by
+                // side, a long tally squeezed "Forage and weather" onto two
+                // centred lines that no longer lined up with the rows above.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(group.category.displayName)
+                        .font(.subheadline.weight(.medium))
+                    Text(group.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                Spacer(minLength: 8)
-
-                Text(group.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.trailing)
+                Spacer(minLength: 0)
             }
             .padding(.vertical, 4)
             .accessibilityElement(children: .ignore)
@@ -351,10 +355,23 @@ private struct InfectionsCard: View {
         VStack(alignment: .leading, spacing: 10) {
             SectionTitle("Health", systemImage: "cross.case.fill")
 
-            ForEach(Array(Set(report.newInfections)), id: \.self) { pathogen in
+            // Each disease once, with how the absence ended for it. A disease
+            // that came and went used to be listed only as having appeared.
+            ForEach(Array(Set(report.newInfections).subtracting(report.clearedInfections))
+                .sorted { $0.displayName < $1.displayName }, id: \.self) { pathogen in
                 Label("\(pathogen.displayName) appeared", systemImage: "microbe.fill")
                     .font(.subheadline)
                     .foregroundStyle(Theme.caution)
+            }
+
+            ForEach(Array(Set(report.clearedInfections))
+                .sorted { $0.displayName < $1.displayName }, id: \.self) { pathogen in
+                Label(report.newInfections.contains(pathogen)
+                      ? "\(pathogen.displayName) appeared, and was cleared"
+                      : "\(pathogen.displayName) cleared",
+                      systemImage: "checkmark.seal.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
 
             ForEach(Array(Set(report.criticalInfections)), id: \.self) { pathogen in

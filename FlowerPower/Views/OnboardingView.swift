@@ -218,13 +218,18 @@ struct OnboardingView: View {
                     Text("Where you walk")
                         .font(.largeTitle.weight(.semibold))
 
-                    Text("Your bees live on a year of their own, but the flowers you can photograph are on yours. This sets which ones the game suggests you look for. You can change it in Settings.")
+                    // The old wording ("Your bees live on a year of their own,
+                    // but the flowers you can photograph are on yours") was
+                    // accurate and opaque: it never said what was being chosen.
+                    Text("Your bees keep a calendar of their own, but the flowers you photograph follow the real one where you live. Choose your half of the world so the game suggests flowers that are out now. You can change it in Settings.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
+                    // Named in full: "Northern | Southern" on its own was a
+                    // choice with no noun.
                     Picker("Hemisphere", selection: $hemisphereRaw) {
-                        Text("Northern").tag(Hemisphere.northern.rawValue)
-                        Text("Southern").tag(Hemisphere.southern.rawValue)
+                        Text("Northern Hemisphere").tag(Hemisphere.northern.rawValue)
+                        Text("Southern Hemisphere").tag(Hemisphere.southern.rawValue)
                     }
                     .pickerStyle(.segmented)
                 }
@@ -271,7 +276,10 @@ struct OnboardingView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Nothing idle. A game that pings about nothing gets its notifications turned off, and then it cannot say the one thing that matters. You can switch any of the three off in Settings. iOS decides when the game may wake, so word can arrive late; the dashboard is always up to date.")
+                    // Said to the player rather than about the design: the old
+                    // copy explained why idle notifications are bad, and
+                    // "any of the three" named nothing the page had listed.
+                    Text("It never nudges you just to come back. Decisions, the morning report and colony news can each be turned off in Settings. iOS decides when the game may wake, so a notification can arrive late; the dashboard is always up to date.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 

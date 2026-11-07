@@ -180,7 +180,10 @@ public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
             id: "taxon:\(taxon.scientificName)",
             commonName: taxon.rank == .family
                 ? taxon.family.commonName
-                : (commonName?.isEmpty == false ? commonName! : taxon.scientificName),
+                // First letter raised: the name list is lower case where a
+                // name has no proper noun in it, so "liquorice plant" sat in
+                // a list beside "Vredenberg ice plant" and "Pussy Willow".
+                : (commonName?.isEmpty == false ? commonName!.capitalisingFirst : taxon.scientificName),
             taxon: taxon,
             rarity: .common,
             bloomSeasons: seasons,

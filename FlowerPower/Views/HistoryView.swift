@@ -50,7 +50,7 @@ struct HistoryView: View {
                 ContentUnavailableView(
                     "Nothing to chart yet",
                     systemImage: "chart.xyaxis.line",
-                    description: Text("The colony is recorded once a day. Come back tomorrow and there will be a line.")
+                    description: Text("The colony is recorded once a hive day, which is about two hours of yours. Come back then and there will be a line.")
                 )
             } else {
                 ScrollView {
