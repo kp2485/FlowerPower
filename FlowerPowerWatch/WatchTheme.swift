@@ -34,6 +34,16 @@ enum WatchTheme {
         }
     }
 
+    /// The overview's four bands, as the phone draws them in `Theme`.
+    static func colour(for severity: DashboardSummary.Severity) -> Color {
+        switch severity {
+        case .calm: return healthy
+        case .notable: return honey
+        case .caution: return caution
+        case .alarm: return alarm
+        }
+    }
+
     static func colour(for severity: SimEvent.Severity) -> Color {
         switch severity {
         case .critical: return alarm

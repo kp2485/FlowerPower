@@ -51,6 +51,49 @@ public struct WatchSummary: Codable, Equatable, Sendable {
 
     public let generatedAt: Date
 
+    /// The overview's readings, one line each — the symbol tier of the
+    /// phone's first screen. A symbol, a number and a colour apiece, with the
+    /// sentence VoiceOver reads, so the watch can show the colony in a grid of
+    /// eight glyphs and still say what each one means.
+    ///
+    /// Empty from a phone built before there were any; the watch then shows
+    /// its older page of numbers.
+    public let readings: [Reading]
+
+    /// One reading, as strings rather than the overview's enums, so a watch
+    /// that does not know a new kind of reading still draws it.
+    public struct Reading: Codable, Equatable, Sendable, Identifiable {
+        public let kind: String
+        public let title: String
+        public let symbolName: String
+        public let headline: String
+        public let severity: DashboardSummary.Severity
+        public let spoken: String
+
+        public var id: String { kind }
+
+        public init(tile: DashboardSummary.Tile) {
+            kind = tile.kind.rawValue
+            title = tile.title
+            symbolName = tile.symbolName
+            headline = tile.headline
+            severity = tile.severity
+            spoken = tile.spoken
+        }
+
+        public init(
+            kind: String, title: String, symbolName: String,
+            headline: String, severity: DashboardSummary.Severity, spoken: String
+        ) {
+            self.kind = kind
+            self.title = title
+            self.symbolName = symbolName
+            self.headline = headline
+            self.severity = severity
+            self.spoken = spoken
+        }
+    }
+
     public struct Gauge: Codable, Equatable, Sendable {
 
         public enum Meaning: String, Codable, Sendable {
@@ -155,7 +198,9 @@ extension Simulation {
             isForaging: snapshot.isForaging,
             temperatureCelsius: hive.temperatureCelsius,
             honey: hive.resources[.honey],
-            generatedAt: now
+            generatedAt: now,
+            readings: DashboardSummary(snapshot: snapshot, history: history)
+                .tiles.map(WatchSummary.Reading.init(tile:))
         )
     }
 
@@ -387,5 +432,9 @@ extension WatchSummary {
         temperatureCelsius = try container.decode(Double.self, forKey: .temperatureCelsius)
         honey = try container.decode(Double.self, forKey: .honey)
         generatedAt = try container.decode(Date.self, forKey: .generatedAt)
+        // Absent from an older phone, and unreadable from a newer one with a
+        // severity this build has no word for: either way the watch has its
+        // page of numbers to fall back on.
+        readings = (try? container.decodeIfPresent([Reading].self, forKey: .readings)) ?? []
     }
 }

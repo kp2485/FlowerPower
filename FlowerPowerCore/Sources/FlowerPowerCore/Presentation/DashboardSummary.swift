@@ -1,6 +1,6 @@
 //
 //  DashboardSummary.swift
-//  FlowerPowerGame
+//  FlowerPowerCore
 //
 //  What the Colony tab's overview says, and how worried each line of it should
 //  look.
@@ -21,9 +21,14 @@
 //  Nothing here decides anything about the colony. It only decides what to say
 //  about it.
 //
+//  In the engine rather than the game layer, because the watch's summary
+//  carries the same readings — `WatchSummary.readings` — and the engine is
+//  what builds that. The one line that needs the game layer, "look for",
+//  which works from the real calendar and the catalogue, is added there: see
+//  `DashboardSummary+LookFor.swift`.
+//
 
 import Foundation
-import FlowerPowerCore
 
 public struct DashboardSummary: Equatable, Sendable {
 
@@ -117,12 +122,16 @@ public struct DashboardSummary: Equatable, Sendable {
             case population
             case queen
             case nest
+            /// Open or sealed, and what the guards are doing about it.
+            case entrance
             case health
             case honey
+            /// What is coming in today.
+            case intake
             case forage
-            /// What is out there to photograph this month. Only built when
-            /// the summary is told which hemisphere the player is in, which
-            /// is the one thing about the real world it needs.
+            /// What is out there to photograph this month. Built by the game
+            /// layer, which knows the player's hemisphere and the calendar;
+            /// the engine's own list never contains it.
             case lookFor
             case record
 
@@ -132,8 +141,10 @@ public struct DashboardSummary: Equatable, Sendable {
                 case .population: return "Population"
                 case .queen: return "Queen"
                 case .nest: return "Nest"
+                case .entrance: return "Entrance"
                 case .health: return "Health"
                 case .honey: return "Honey"
+                case .intake: return "Intake"
                 case .forage: return "Forage"
                 case .lookFor: return "Look For"
                 case .record: return "Record"
@@ -146,8 +157,10 @@ public struct DashboardSummary: Equatable, Sendable {
                 case .population: return "person.3.fill"
                 case .queen: return "crown.fill"
                 case .nest: return "house.fill"
+                case .entrance: return "door.left.hand.open"
                 case .health: return "cross.case.fill"
                 case .honey: return "drop.fill"
+                case .intake: return "tray.and.arrow.down.fill"
                 case .forage: return "leaf.fill"
                 case .lookFor: return "camera.macro"
                 case .record: return "book.closed.fill"
@@ -227,16 +240,14 @@ public struct DashboardSummary: Equatable, Sendable {
 
     // MARK: - Building it
 
-    /// `hemisphere` is the player's, from settings; given, the overview gets
-    /// a "look for" line built from the real calendar. The watch and the
-    /// tests, which have no settings, leave it nil and get no such line.
-    public init(
-        snapshot: ColonySnapshot,
-        history: ColonyHistory,
-        hemisphere: Hemisphere? = nil,
-        date: Date = Date()
-    ) {
-        let tiles = Self.tiles(for: snapshot, history: history, hemisphere: hemisphere, date: date)
+    public init(snapshot: ColonySnapshot, history: ColonyHistory) {
+        self.init(tiles: Self.tiles(for: snapshot, history: history), snapshot: snapshot)
+    }
+
+    /// From readings already built. The game layer adds a line of its own to
+    /// the engine's before the sections are cut — see
+    /// `DashboardSummary+LookFor.swift` — and this is how it hands them back.
+    public init(tiles: [Tile], snapshot: ColonySnapshot) {
         self.tiles = tiles
         self.attention = Self.attention(for: snapshot.alerts)
         self.sections = Self.sections(tiles: tiles, snapshot: snapshot)
@@ -251,25 +262,21 @@ public struct DashboardSummary: Equatable, Sendable {
 
 extension DashboardSummary {
 
-    static func tiles(
-        for snapshot: ColonySnapshot,
-        history: ColonyHistory,
-        hemisphere: Hemisphere? = nil,
-        date: Date = Date()
-    ) -> [Tile] {
+    /// The engine's readings, in order. `package` so the game layer can add
+    /// its line among them.
+    package static func tiles(for snapshot: ColonySnapshot, history: ColonyHistory) -> [Tile] {
         var tiles: [Tile] = []
         tiles.append(storesTile(snapshot))
         tiles.append(populationTile(snapshot, history: history))
         tiles.append(queenTile(snapshot))
         tiles.append(nestTile(snapshot))
+        tiles.append(entranceTile(snapshot))
         // Only when there is something. A "Health: 0%" tile on a clean colony
         // is a quarter of the overview spent saying nothing.
         if let health = healthTile(snapshot) { tiles.append(health) }
         tiles.append(honeyTile(snapshot))
+        tiles.append(intakeTile(snapshot))
         tiles.append(forageTile(snapshot))
-        if let hemisphere {
-            tiles.append(lookForTile(snapshot, hemisphere: hemisphere, date: date))
-        }
         tiles.append(recordTile(snapshot))
         return tiles
     }
@@ -488,6 +495,40 @@ extension DashboardSummary {
         return severity
     }
 
+    // MARK: Entrance
+
+    /// The door, and the guards at it. Sealed or open is the autumn
+    /// decision's answer; the caption is what the colony is doing about
+    /// whatever has come to the entrance, which is the one thing it does
+    /// that a player cannot otherwise see.
+    static func entranceTile(_ snapshot: ColonySnapshot) -> Tile {
+        let headline = snapshot.entranceSealed ? "Sealed" : "Open"
+        let caption: String
+        let severity: Severity
+        if snapshot.posture != .instinct {
+            let days = snapshot.postureDaysRemaining
+            caption = days.map { "\(snapshot.posture.displayName.lowercased()), \($0)d" }
+                ?? snapshot.posture.displayName.lowercased()
+            severity = .notable
+        } else if snapshot.alarm > 0.5 {
+            caption = "guards roused"
+            severity = .caution
+        } else if snapshot.alarm > 0.2 {
+            caption = "guards watchful"
+            severity = .notable
+        } else {
+            caption = "guards at ease"
+            severity = .calm
+        }
+        return Tile(
+            kind: .entrance,
+            headline: headline,
+            caption: caption,
+            severity: severity,
+            spoken: "\(headline), \(caption)"
+        )
+    }
+
     // MARK: Health
 
     static func healthTile(_ snapshot: ColonySnapshot) -> Tile? {
@@ -551,6 +592,24 @@ extension DashboardSummary {
         )
     }
 
+    // MARK: Intake
+
+    /// What the foragers brought in today, in the same units as the stores.
+    /// Nothing coming in during the flying season is worth a mark: it is a
+    /// dearth, or weather, and either way the larder is paying for the day.
+    static func intakeTile(_ snapshot: ColonySnapshot) -> Tile {
+        let units = Int(snapshot.dailyNectarIntake.rounded())
+        let flyingSeason = snapshot.season == .spring || snapshot.season == .summer
+        let dry = units == 0 && flyingSeason
+        return Tile(
+            kind: .intake,
+            headline: "\(units)",
+            caption: dry ? "nothing coming in today" : "units of nectar today",
+            severity: dry ? .notable : .calm,
+            spoken: dry ? "Nothing coming in today" : "\(units) units of nectar today"
+        )
+    }
+
     // MARK: Forage
 
     static func forageTile(_ snapshot: ColonySnapshot) -> Tile {
@@ -580,54 +639,6 @@ extension DashboardSummary {
         if inBloom == 0 { return .alarm }
         if inBloom <= 2 { return .caution }
         return .calm
-    }
-
-    // MARK: Look for
-
-    /// The bloom prompt as a line: how many of the flowers out this month the
-    /// garden still has none of, and the best of them by name.
-    ///
-    /// The prompt itself — the whole card, with the keystone's direction and
-    /// the list — is on the Forage page the line opens. It used to sit at the
-    /// foot of the overview, where it was the one thing that never fitted on
-    /// the screen.
-    static func lookForTile(
-        _ snapshot: ColonySnapshot,
-        hemisphere: Hemisphere,
-        date: Date
-    ) -> Tile {
-        let prompt = BloomPrompt(
-            date: date,
-            hemisphere: hemisphere,
-            patches: snapshot.patches,
-            terrain: snapshot.terrain,
-            wildPatches: snapshot.wildPatches
-        )
-        let missing = prompt.notYetPhotographed
-        if let first = missing.first {
-            // The best of them by name, and nothing else: "Viper's Bugloss
-            // and 11 more" was cut to "Viper's Bugloss and 11 m…" in half a
-            // screen's width, and the number is already the headline.
-            let caption = missing.count == 1
-                ? "\(first.commonName), out now"
-                : "\(first.commonName) first"
-            return Tile(
-                kind: .lookFor,
-                headline: "\(missing.count)",
-                caption: caption,
-                // A nudge, never a worry: there is nothing wrong with a
-                // colony whose keeper has not been out this week.
-                severity: .notable,
-                spoken: prompt.headline
-            )
-        }
-        return Tile(
-            kind: .lookFor,
-            headline: "\(prompt.inBloom.count)",
-            caption: prompt.inBloom.isEmpty ? "nothing out this month" : "out now, all of them found",
-            severity: .calm,
-            spoken: prompt.headline
-        )
     }
 
     // MARK: Record
@@ -679,6 +690,10 @@ extension DashboardSummary {
     /// the bees, the larder, the inside of the nest, and the ground outside
     /// it. A section's severity is the worst thing in it, so a heading can be
     /// glanced at before any line under it is read.
+    ///
+    /// Three lines each, so that the four cards make an even grid with their
+    /// edges in line — the one exception being health, which joins the bees
+    /// only when there is something to say and is worth the unevenness.
     public struct Section: Identifiable, Equatable, Sendable {
 
         /// The four headings, in the order they are shown.
@@ -741,8 +756,9 @@ extension DashboardSummary {
     }
 
     /// Somewhere else in the app, summed up in a line so the overview can
-    /// stand in for the tab bar: the jobs and the comb the Nest tab shows, the
-    /// country the World tab maps, the flowers the Garden tab keeps.
+    /// stand in for the tab bar: the jobs and the comb the Nest tab shows and
+    /// the country the World tab maps. The garden has no line: Forage and
+    /// Look For are the flowers, and the tab is a tap away.
     ///
     /// Captions are written for half a screen's width — the overview sets its
     /// sections two abreast — so they are a few words, not a sentence.
@@ -756,14 +772,12 @@ extension DashboardSummary {
             case jobs
             case comb
             case country
-            case garden
 
             public var title: String {
                 switch self {
                 case .jobs: return "Jobs"
                 case .comb: return "Comb"
                 case .country: return "Country"
-                case .garden: return "Garden"
                 }
             }
 
@@ -772,7 +786,6 @@ extension DashboardSummary {
                 case .jobs: return "slider.horizontal.3"
                 case .comb: return "hexagon.fill"
                 case .country: return "circle.hexagongrid.fill"
-                case .garden: return "photo.on.rectangle.angled"
                 }
             }
         }
@@ -806,12 +819,14 @@ extension DashboardSummary {
             kind: .bees,
             entries: those([.population, .queen, .health]) + [.place(jobsPlace(snapshot))]
         ))
-        sections.append(Section(kind: .larder, entries: those([.stores, .honey])))
-        sections.append(Section(kind: .inside, entries: those([.nest]) + [.place(combPlace(snapshot))]))
+        sections.append(Section(kind: .larder, entries: those([.stores, .honey, .intake])))
+        sections.append(Section(
+            kind: .inside,
+            entries: those([.nest, .entrance]) + [.place(combPlace(snapshot))]
+        ))
 
         var outside = those([.forage, .lookFor])
         if let country = countryPlace(snapshot) { outside.append(.place(country)) }
-        outside.append(.place(gardenPlace(snapshot)))
         sections.append(Section(kind: .outside, entries: outside))
         return sections.filter { !$0.entries.isEmpty }
     }
@@ -821,8 +836,8 @@ extension DashboardSummary {
     public static func section(for kind: Tile.Kind) -> Section.Kind? {
         switch kind {
         case .population, .queen, .health: return .bees
-        case .stores, .honey: return .larder
-        case .nest: return .inside
+        case .stores, .honey, .intake: return .larder
+        case .nest, .entrance: return .inside
         case .forage, .lookFor: return .outside
         case .record: return nil
         }
@@ -876,28 +891,63 @@ extension DashboardSummary {
                 + (rumoured > 0 ? ", \(rumoured) more rumoured" : "")
         )
     }
+}
 
-    static func gardenPlace(_ snapshot: ColonySnapshot) -> Place {
-        let patches = snapshot.patches
-        let families = Set(patches.compactMap(\.family)).count
-        let count = patches.count
-        let caption: String
-        switch count {
-        case 0: caption = "no flowers yet"
-        case 1: caption = "flower, photographed"
-        default:
-            caption = families > 1
-                ? "flowers, \(families) families"
-                : "flowers photographed"
+// MARK: - Fitting the screen
+
+extension DashboardSummary {
+
+    /// How much of a line is drawn.
+    ///
+    /// The same reading on a phone, a tablet and a wrist, with the words
+    /// coming off as the space does — and never because the text got bigger.
+    /// Somebody who turns the text up is saying they need to read, so the
+    /// phone drops the caption and then the second column and keeps the
+    /// title; `symbol` is for the surfaces that are physically small, the
+    /// watch and the widgets, where the symbol has to carry the meaning and
+    /// VoiceOver gets the whole sentence.
+    public enum Density: String, Sendable, CaseIterable {
+        case full
+        case compact
+        case symbol
+
+        public var showsCaption: Bool { self == .full }
+        public var showsTitle: Bool { self != .symbol }
+    }
+
+    /// The phone's and the tablet's density for a text size.
+    public static func density(isAccessibilitySize: Bool) -> Density {
+        isAccessibilitySize ? .compact : .full
+    }
+
+    /// How many cards fit abreast in `width`, each at least
+    /// `minimumCardWidth` wide with `spacing` between them — one at the very
+    /// least and `maximum` at the most, so a wide tablet gets a card per
+    /// section rather than a ribbon of six.
+    ///
+    /// The minimum is meant to be scaled with the text (`@ScaledMetric`), so
+    /// larger text buys fewer columns without any rule saying so.
+    public static func columns(
+        fitting width: Double,
+        minimumCardWidth: Double,
+        spacing: Double = 12,
+        maximum: Int = 4
+    ) -> Int {
+        guard width > 0, minimumCardWidth > 0 else { return 1 }
+        let fit = Int(((width + spacing) / (minimumCardWidth + spacing)).rounded(.down))
+        return max(1, min(maximum, fit))
+    }
+
+    /// Deals `items` into `count` columns in turn: the first to the first
+    /// column, the second to the second, and round again. Two columns of
+    /// four sections come out as the bees over the inside and the larder over
+    /// the outside, which packs tightest; four columns are one section each.
+    public static func distribute<Item>(_ items: [Item], across count: Int) -> [[Item]] {
+        let count = max(1, count)
+        var columns = Array(repeating: [Item](), count: count)
+        for (index, item) in items.enumerated() {
+            columns[index % count].append(item)
         }
-        return Place(
-            kind: .garden,
-            headline: "\(count)",
-            caption: caption,
-            spoken: count == 0
-                ? "No flowers photographed yet"
-                : "\(count) \(count == 1 ? "flower" : "flowers") photographed"
-                    + (families > 1 ? ", \(families) families" : "")
-        )
+        return columns.filter { !$0.isEmpty }
     }
 }
