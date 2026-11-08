@@ -144,7 +144,7 @@ struct OpenTaxonomyTests {
     private static func toyIndex() -> TaxonEmbeddingIndex {
         let entries = [
             entry(.species, "Liliaceae", "Tulipa", "gesneriana", common: "Garden tulip"),
-            entry(.species, "Liliaceae", "Tulipa", "sylvestris"),
+            entry(.species, "Liliaceae", "Tulipa", "sylvestris", common: "Wild tulip"),
             entry(.species, "Rosaceae", "Rosa", "canina", common: "Dog rose"),
             entry(.species, "Rosaceae", "Rosa", "rugosa"),
             entry(.species, "Papaveraceae", "Papaver", "rhoeas"),
@@ -197,6 +197,23 @@ struct OpenTaxonomyTests {
         #expect(placement.confidence >= Double(index.genusThreshold))
     }
 
+    /// A genus placement used to be titled "Tulipa sp." with nothing to
+    /// tap: the identifier read as having stopped half way.
+    @Test("A genus placement has a common name and offers its likeliest species")
+    func genusPlacementNamesAndNarrows() throws {
+        let index = Self.toyIndex()
+        let placement = try #require(index.place(Self.unit(0, 1, weight: 1)))
+        #expect(placement.commonName == "Tulip")
+        #expect(Set(placement.narrower.map(\.entry.epithet)) == ["gesneriana", "sylvestris"])
+        #expect(placement.narrower.allSatisfy { $0.entry.rank == .species && $0.entry.genus == "Tulipa" })
+    }
+
+    @Test("A species placement offers nothing narrower")
+    func speciesPlacementHasNoNarrower() throws {
+        let placement = try #require(Self.toyIndex().place(Self.unit(0)))
+        #expect(placement.narrower.isEmpty)
+    }
+
     @Test("A photograph of nothing in the index is not placed")
     func nothingClose() throws {
         let index = Self.toyIndex()
@@ -216,8 +233,10 @@ struct OpenTaxonomyTests {
     func search() {
         let index = Self.toyIndex()
         let tulips = index.search("tulip")
-        #expect(tulips.first?.commonName == "Garden tulip")
-        #expect(tulips.contains { $0.rank == .genus && $0.genus == "Tulipa" })
+        // The genus is named from its species now, and "Tulip" is the whole
+        // of the query where "Garden tulip" only contains it.
+        #expect(tulips.first?.rank == .genus && tulips.first?.commonName == "Tulip")
+        #expect(tulips.contains { $0.commonName == "Garden tulip" })
         #expect(index.search("rosa").contains { $0.rank == .species })
         #expect(index.search("liliaceae").contains { $0.rank == .family })
         #expect(index.search("t").isEmpty)

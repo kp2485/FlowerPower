@@ -118,6 +118,11 @@ public struct TaxonEmbeddingIndex: Sendable {
     /// so the direct answer is discounted rather than trusted outright.
     public var familyRowWeight: Float = 0.5
 
+    /// The least probability a member needs to be offered as a narrower
+    /// guess under a genus or family placement. Below it the guess is one of
+    /// dozens of equals, and naming it would pretend otherwise.
+    public var narrowerFloor: Float = 0.05
+
     // MARK: - Loading
 
     public enum LoadError: Error, Equatable {
@@ -156,7 +161,7 @@ public struct TaxonEmbeddingIndex: Sendable {
         guard decoded.count == rows else {
             throw LoadError.namesDoNotMatch(rows: rows, names: decoded.count)
         }
-        entries = try decoded.map { fields in
+        let listed = try decoded.map { fields -> Entry in
             guard fields.count == 5 else { throw LoadError.truncated }
             let rank: TaxonomicRank
             switch fields[0] {
@@ -171,6 +176,7 @@ public struct TaxonEmbeddingIndex: Sendable {
             )
         }
 
+        entries = Self.naming(listed)
         dimensions = dims
         logitScale = scale
         searchKeys = Self.searchKeys(for: entries)
@@ -179,6 +185,7 @@ public struct TaxonEmbeddingIndex: Sendable {
     /// For tests: an index built from plain vectors.
     public init(entries: [Entry], vectors: [[Float]], logitScale: Float = 100) {
         precondition(entries.count == vectors.count)
+        let entries = Self.naming(entries)
         self.entries = entries
         self.searchKeys = Self.searchKeys(for: entries)
         self.dimensions = vectors.first?.count ?? 0
@@ -199,6 +206,118 @@ public struct TaxonEmbeddingIndex: Sendable {
 
     public var isEmpty: Bool { entries.isEmpty }
 
+    // MARK: - Names for genera and families
+
+    /// Last words that say what sort of plant something is rather than which:
+    /// "tulip tree" is not a tree genus, so these keep the word before them.
+    private static let vagueHeads: Set<String> = [
+        "tree", "plant", "flower", "bush", "shrub", "weed", "herb", "vine",
+        "grass", "wort", "root", "leaf", "creeper", "climber"
+    ]
+
+    /// The names a player can read, filled in where the list has none.
+    ///
+    /// `build.py` gives common names to species only, and only to about half
+    /// of them, so every genus and family came back in Latin: a photograph of
+    /// a tulip placed to its genus was titled "Tulipa sp.", which read as the
+    /// identifier giving up part of the way. A genus is named here from its
+    /// species — most roses are "something rose" — and a family from the
+    /// game's own notes or its type genus, the way English does it ("Acanthus
+    /// Family"). Wherever that would be a guess, the Latin genus is the name,
+    /// because it is what a gardener calls a hibiscus or a eucalyptus anyway,
+    /// and it is never wrong.
+    ///
+    /// Species names that are not plain ASCII are dropped first. The list
+    /// mixes in Swedish and Korean names ("maskros", "단풍취"), and those
+    /// were shown as if they were English.
+    static func naming(_ raw: [Entry]) -> [Entry] {
+        let entries = raw.map { entry -> Entry in
+            guard entry.rank == .species, !entry.commonName.allSatisfy(\.isASCII) else { return entry }
+            return Entry(rank: entry.rank, family: entry.family, genus: entry.genus,
+                         epithet: entry.epithet, commonName: "")
+        }
+
+        var named: [String: [String]] = [:]
+        var speciesCount: [String: Int] = [:]
+        var generaByFamily: [String: [String]] = [:]
+        for entry in entries {
+            let key = entry.family + "/" + entry.genus
+            switch entry.rank {
+            case .species:
+                speciesCount[key, default: 0] += 1
+                if !entry.commonName.isEmpty { named[key, default: []].append(entry.commonName) }
+            case .genus:
+                generaByFamily[entry.family, default: []].append(entry.genus)
+            case .family:
+                break
+            }
+        }
+
+        // The word most of a genus's species end in, where most of them
+        // share one: "rose" for Rosa, "clover" for Trifolium.
+        var heads: [String: (word: String, count: Int)] = [:]
+        for (key, names) in named where names.count >= 2 {
+            var counts: [String: Int] = [:]
+            for name in names {
+                let words = name.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
+                guard var head = words.last else { continue }
+                if vagueHeads.contains(head), words.count >= 2 { head = words[words.count - 2] + " " + head }
+                counts[head, default: 0] += 1
+            }
+            let genus = String(key.split(separator: "/").last ?? "").lowercased()
+            // Where a quarter of the names are the genus's own Latin name
+            // ("rhododendron", "hibiscus"), that is what people call it.
+            if (counts[genus] ?? 0) * 4 >= names.count { continue }
+            guard let best = counts.max(by: { ($0.value, $1.key) < ($1.value, $0.key) }),
+                  best.value >= 2, best.value * 2 >= names.count
+            else { continue }
+            heads[key] = (best.key, best.value)
+        }
+
+        // A word names only the genus that uses it most. Helicia has two
+        // species called "… oak", but an oak is a Quercus.
+        var owner: [String: String] = [:]
+        for (key, head) in heads.sorted(by: { $0.key < $1.key }) {
+            if let current = owner[head.word], heads[current]!.count >= head.count { continue }
+            owner[head.word] = key
+        }
+
+        func genusName(family: String, genus: String) -> String {
+            let key = family + "/" + genus
+            let names = named[key] ?? []
+            // A genus of one species is that species, and can take its name
+            // whole ("Water lettuce"). One named species among several says
+            // nothing about the rest: Abeliophyllum's "white forsythia" is
+            // not a forsythia.
+            if names.count == 1, speciesCount[key] == 1 { return names[0].capitalisingFirst }
+            if let head = heads[key], owner[head.word] == key { return head.word.capitalisingFirst }
+            return genus
+        }
+
+        func familyName(_ family: String) -> String {
+            let botanical = BotanicalFamily(family)
+            if botanical.commonName != botanical.scientificName { return botanical.commonName }
+            guard family.count > 5 else { return "" }
+            let stem = family.dropLast(5).lowercased()
+            let type = generaByFamily[family, default: []]
+                .filter { $0.lowercased().hasPrefix(stem) }
+                .min { ($0.count, $0) < ($1.count, $1) }
+            return type.map { "\($0) Family" } ?? ""
+        }
+
+        return entries.map { entry in
+            guard entry.commonName.isEmpty else { return entry }
+            let name: String
+            switch entry.rank {
+            case .species: return entry
+            case .genus: name = genusName(family: entry.family, genus: entry.genus)
+            case .family: name = familyName(entry.family)
+            }
+            return Entry(rank: entry.rank, family: entry.family, genus: entry.genus,
+                         epithet: entry.epithet, commonName: name)
+        }
+    }
+
     // MARK: - Scoring
 
     /// One rank's best answer.
@@ -218,6 +337,12 @@ public struct TaxonEmbeddingIndex: Sendable {
         public let commonName: String?
         /// Runners-up at the placed rank, best first.
         public let alternatives: [Candidate]
+        /// When the placement stopped at a genus or family, the likeliest
+        /// members one rank down, best first: the species of the genus, or
+        /// the genera of the family. Not placements — none cleared its
+        /// threshold — but the guesses a player who knows the plant can
+        /// finish the identification with.
+        public let narrower: [Candidate]
         /// The best candidate at each rank regardless of thresholds, for
         /// tuning and for telling the player what the runner-up was.
         public let bestSpecies: Candidate?
@@ -337,11 +462,32 @@ public struct TaxonEmbeddingIndex: Sendable {
             placed = []
         }
 
+        func members(at rank: TaxonomicRank, of group: Entry) -> [Candidate] {
+            scored
+                .filter { item in
+                    let entry = entries[item.index]
+                    return entry.rank == rank && entry.family == group.family
+                        && (group.rank == .family || entry.genus == group.genus)
+                        && item.score >= narrowerFloor
+                }
+                .sorted { $0.score > $1.score }
+                .prefix(3)
+                .map { Candidate(entry: entries[$0.index], probability: min(1, $0.score)) }
+        }
+
+        let narrower: [Candidate]
+        switch placed.first?.entry {
+        case let group? where group.rank == .genus: narrower = members(at: .species, of: group)
+        case let group? where group.rank == .family: narrower = members(at: .genus, of: group)
+        default: narrower = []
+        }
+
         return Placement(
             taxon: placed.first?.entry.taxon,
             confidence: Double(placed.first?.probability ?? 0),
             commonName: placed.first.flatMap { $0.entry.commonName.isEmpty ? nil : $0.entry.commonName },
             alternatives: Array(placed.dropFirst()),
+            narrower: narrower,
             bestSpecies: species.first,
             bestGenus: genera.first,
             bestFamily: families.first
