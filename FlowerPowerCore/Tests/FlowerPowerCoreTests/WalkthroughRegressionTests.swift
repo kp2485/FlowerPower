@@ -64,3 +64,114 @@ struct WalkthroughRegressionTests {
         #expect(!cave.summary.localizedCaseInsensitiveContains("safe"))
     }
 }
+
+/// What playing on a phone found: identification stopped at a genus or family
+/// and gave it in Latin, because the name list only names species.
+@Suite("Names for genera and families")
+struct TaxonNamingTests {
+
+    private func species(_ family: String, _ genus: String, _ epithet: String, _ name: String = "") -> TaxonEmbeddingIndex.Entry {
+        .init(rank: .species, family: family, genus: genus, epithet: epithet, commonName: name)
+    }
+    private func genus(_ family: String, _ genus: String) -> TaxonEmbeddingIndex.Entry {
+        .init(rank: .genus, family: family, genus: genus, epithet: "", commonName: "")
+    }
+    private func family(_ family: String) -> TaxonEmbeddingIndex.Entry {
+        .init(rank: .family, family: family, genus: "", epithet: "", commonName: "")
+    }
+    private func name(of genusName: String, in entries: [TaxonEmbeddingIndex.Entry]) -> String? {
+        TaxonEmbeddingIndex.naming(entries).first { $0.rank == .genus && $0.genus == genusName }?.commonName
+    }
+
+    @Test("A genus takes the word most of its species share")
+    func sharedHead() {
+        let entries = [
+            species("Rosaceae", "Rosa", "canina", "Dog rose"),
+            species("Rosaceae", "Rosa", "arvensis", "Field rose"),
+            species("Rosaceae", "Rosa", "rubiginosa", "Sweet-briar"),
+            genus("Rosaceae", "Rosa")
+        ]
+        #expect(name(of: "Rosa", in: entries) == "Rose")
+    }
+
+    @Test("A vague last word keeps the word before it")
+    func vagueHead() {
+        let entries = [
+            species("Aizoaceae", "Carpobrotus", "edulis", "Hottentot fig plant"),
+            species("Aizoaceae", "Carpobrotus", "glaucescens", "Angular pigface plant"),
+            species("Aizoaceae", "Carpobrotus", "chilensis", "Sea fig plant"),
+            genus("Aizoaceae", "Carpobrotus")
+        ]
+        #expect(name(of: "Carpobrotus", in: entries) == "Fig plant")
+    }
+
+    @Test("A genus people call by its Latin name keeps it")
+    func latinInUse() {
+        let entries = [
+            species("Ericaceae", "Rhododendron", "ponticum", "Common rhododendron"),
+            species("Ericaceae", "Rhododendron", "luteum", "Yellow azalea"),
+            species("Ericaceae", "Rhododendron", "molle", "Chinese azalea"),
+            species("Ericaceae", "Rhododendron", "indicum", "Satsuki azalea"),
+            genus("Ericaceae", "Rhododendron")
+        ]
+        #expect(name(of: "Rhododendron", in: entries) == "Rhododendron")
+    }
+
+    @Test("No shared word, or one name among many species, falls back to the Latin genus")
+    func fallBackToLatin() {
+        let entries = [
+            species("Oleaceae", "Abeliophyllum", "distichum", "White forsythia"),
+            species("Oleaceae", "Abeliophyllum", "other"),
+            genus("Oleaceae", "Abeliophyllum"),
+            genus("Acanthaceae", "Dicliptera")
+        ]
+        #expect(name(of: "Abeliophyllum", in: entries) == "Abeliophyllum")
+        #expect(name(of: "Dicliptera", in: entries) == "Dicliptera")
+    }
+
+    @Test("A genus of one species takes that species' whole name")
+    func monotypic() {
+        let entries = [species("Araceae", "Pistia", "stratiotes", "water lettuce"), genus("Araceae", "Pistia")]
+        #expect(name(of: "Pistia", in: entries) == "Water lettuce")
+    }
+
+    @Test("A word belongs to the genus that uses it most")
+    func borrowedHead() {
+        let entries = [
+            species("Fagaceae", "Quercus", "robur", "English oak"),
+            species("Fagaceae", "Quercus", "petraea", "Sessile oak"),
+            species("Fagaceae", "Quercus", "rubra", "Red oak"),
+            species("Proteaceae", "Helicia", "cochinchinensis", "Silky oak"),
+            species("Proteaceae", "Helicia", "glabriflora", "Smooth oak"),
+            genus("Fagaceae", "Quercus"),
+            genus("Proteaceae", "Helicia")
+        ]
+        #expect(name(of: "Quercus", in: entries) == "Oak")
+        #expect(name(of: "Helicia", in: entries) == "Helicia")
+    }
+
+    @Test("Names that are not English are dropped rather than shown")
+    func foreignNamesDropped() {
+        let named = TaxonEmbeddingIndex.naming([species("Asteraceae", "Taraxacum", "nordstedtii", "fläckmaskros")])
+        #expect(named[0].commonName == "")
+    }
+
+    @Test("A family the game has notes on keeps its name; another is named for its type genus")
+    func familyNames() {
+        let named = TaxonEmbeddingIndex.naming([
+            family("Rosaceae"), family("Gesneriaceae"), family("Zzzaceae"),
+            genus("Gesneriaceae", "Gesneria"), genus("Gesneriaceae", "Streptocarpus")
+        ])
+        #expect(named[0].commonName == "Rose Family")
+        #expect(named[1].commonName == "Gesneria Family")
+        #expect(named[2].commonName == "")
+    }
+
+    @Test("A family placement with no notes is titled with the identifier's name for it")
+    func genericFamilyTitle() {
+        let taxon = Taxon(family: BotanicalFamily("Gesneriaceae"))
+        #expect(FlowerSpecies.generic(for: taxon, commonName: "Gesneria Family").commonName == "Gesneria Family")
+        #expect(FlowerSpecies.generic(for: taxon).commonName == "Gesneriaceae")
+        #expect(FlowerSpecies.generic(for: Taxon(family: .rosaceae), commonName: "Something").commonName == "Rose Family")
+    }
+}

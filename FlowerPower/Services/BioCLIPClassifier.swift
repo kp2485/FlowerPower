@@ -74,6 +74,13 @@ struct BioCLIPClassifier: Sendable {
         do {
             let configuration = MLModelConfiguration()
             configuration.computeUnits = .all
+            #if targetEnvironment(simulator)
+            // The simulator's GPU path can fail without saying so: on the iOS
+            // 27 simulator the request "succeeded" and handed back zeros, so
+            // every photograph scored the same against every name. The CPU
+            // is slow there but right.
+            configuration.computeUnits = .cpuOnly
+            #endif
             let coreML = try await MLModel.load(contentsOf: url, configuration: configuration)
             let model = try VNCoreMLModel(for: coreML)
             return BioCLIPClassifier(model: model, index: index)
@@ -118,6 +125,15 @@ struct BioCLIPClassifier: Sendable {
         // at 100%. Better to place nothing.
         guard vector.allSatisfy(\.isFinite) else {
             Self.logger.error("bioclip: non-finite embedding")
+            return []
+        }
+        // A unit vector, as the encoder emits it, or nothing. All zeros is
+        // a model that did not run, and it used to pass for one that ran and
+        // recognised nothing: the photograph fell through to the coarser
+        // rungs below and nobody could tell why.
+        let length = vector.reduce(0) { $0 + $1 * $1 }.squareRoot()
+        guard length > 0.5 else {
+            Self.logger.error("bioclip: degenerate embedding (length \(length)); the model did not run")
             return []
         }
         return vector

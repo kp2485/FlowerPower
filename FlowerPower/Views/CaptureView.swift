@@ -600,14 +600,6 @@ private struct ResultView: View {
                 }
 
                 if let species = corrected ?? result.identification.species {
-                    if corrected == nil, let rank = result.identification.rank, rank < .species {
-                        // Says plainly how far the placement got. A family is a
-                        // real answer, not a failure, and the player should be
-                        // told which they have rather than left to assume a
-                        // species was meant.
-                        RankNote(rank: rank, taxon: result.identification.taxon)
-                    }
-
                     IdentifiedCard(
                         species: species,
                         confidence: corrected == nil
@@ -617,7 +609,16 @@ private struct ResultView: View {
                             ? result.identification.alternatives
                             : [],
                         namedByPlayer: corrected != nil,
-                        onPick: correct,
+                        coarseRank: corrected == nil
+                            ? result.identification.rank.flatMap { $0 < .species ? $0 : nil }
+                            : nil,
+                        alternativesNarrowDown: result.identification.alternativesNarrowDown,
+                        onPick: { species, confidence in
+                            // Tapping one of the offered names is the player
+                            // naming the flower, the same as choosing it from
+                            // the full list, and is priced the same.
+                            correct(to: species, confidence: max(confidence, SpeciesPickerView.manualConfidence))
+                        },
                         onNameItYourself: { isNaming = true }
                     )
                 } else {
@@ -671,49 +672,6 @@ private struct ResultView: View {
     }
 }
 
-/// Explains a placement that stopped short of a species.
-private struct RankNote: View {
-
-    let rank: TaxonomicRank
-    let taxon: Taxon?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(headline, systemImage: "leaf.arrow.triangle.circlepath")
-                .font(.subheadline.weight(.medium))
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
-    }
-
-    private var headline: String {
-        switch rank {
-        case .family: return "Placed to a family"
-        case .genus: return "Placed to a genus"
-        case .species: return "Placed to a species"
-        }
-    }
-
-    private var detail: String {
-        let name = taxon?.scientificName ?? "this group"
-        switch rank {
-        case .family:
-            return "This is \(name), but not which member of it. Your bees do not "
-                + "mind: the family decides the shape of the flower, and that is "
-                + "what settles whether they can reach the nectar."
-        case .genus:
-            return "This is \(name), but not which species. Close relatives offer "
-                + "much the same forage, so your bees will work it as one of them."
-        case .species:
-            return name
-        }
-    }
-}
-
 private struct IdentifiedCard: View {
 
     let species: FlowerSpecies
@@ -723,6 +681,11 @@ private struct IdentifiedCard: View {
     /// sake (see `SpeciesPickerView.manualConfidence`), but "Confidence 80%"
     /// under a name they had just chosen read as the game doubting them.
     var namedByPlayer = false
+    /// The rank the placement stopped at, when it stopped short of a species.
+    var coarseRank: TaxonomicRank? = nil
+    /// Whether the offered names are members of this genus or family, so the
+    /// question is "which one?" rather than "or something else?".
+    var alternativesNarrowDown = false
     var onPick: (FlowerSpecies, Double) -> Void
     var onNameItYourself: () -> Void
 
@@ -739,13 +702,24 @@ private struct IdentifiedCard: View {
         }
     }
 
+    /// How far the placement got, in a sentence rather than a rank. This used
+    /// to be a card of its own, "Placed to a genus: this is Tulipa sp., but
+    /// not which species", which read as the identifier stopping half way.
+    private var rankLine: String? {
+        switch coarseRank {
+        case .genus: return "The photo shows what kind of plant this is, but not the exact species. Your bees will work it either way."
+        case .family: return "The photo shows which family this belongs to, but not the plant itself. Your bees will work it either way."
+        default: return nil
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(species.commonName)
                         .font(.title3.weight(.semibold))
-                    if let scientific = species.scientificName {
+                    if let scientific = species.scientificName, scientific != species.commonName {
                         Text(scientific)
                             .font(.caption.italic())
                             .foregroundStyle(.secondary)
@@ -757,6 +731,13 @@ private struct IdentifiedCard: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Theme.queen)
                 }
+            }
+
+            if let rankLine {
+                Text(rankLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if namedByPlayer {
@@ -788,17 +769,22 @@ private struct IdentifiedCard: View {
             // player who could see the answer was wrong had no way to say so.
             if !alternatives.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Might also be")
+                    Text(alternativesNarrowDown ? "Which one is it?" : "Might also be")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
 
                     // Two or three flower names side by side stop fitting
                     // somewhere around the first accessibility size, and a
                     // runner-up the player cannot read is no use to them.
+                    // Species names ("Common evening primrose") can outgrow a
+                    // row at any size, so a row is only used when it fits.
                     if typeSize.isAccessibilitySize {
                         VStack(alignment: .leading, spacing: 6) { alternativeButtons }
                     } else {
-                        HStack(spacing: 8) { alternativeButtons }
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) { alternativeButtons }
+                            VStack(alignment: .leading, spacing: 6) { alternativeButtons }
+                        }
                     }
                 }
             }

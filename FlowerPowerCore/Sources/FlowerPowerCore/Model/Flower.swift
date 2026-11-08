@@ -161,9 +161,13 @@ public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
     ///
     /// `commonName` is what the identifier knew the plant as, if anything —
     /// "Albanian tulip" — and is used for the label ahead of the Latin. A
-    /// family-level placement always shows the family's name instead, since
-    /// a common name at that rank would be a guess.
+    /// family-level placement shows the game's own name for the family where
+    /// it has one, and the identifier's ("Acanthus Family") where it does not.
     public static func generic(for taxon: Taxon, commonName: String? = nil) -> FlowerSpecies {
+        let given = commonName?.isEmpty == false ? commonName : nil
+        let familyName = taxon.family.commonName != taxon.family.scientificName
+            ? taxon.family.commonName
+            : given ?? taxon.family.scientificName
         let relatives = FlowerCatalogue.all.filter { taxon.contains($0.taxon) }
 
         // Where the catalogue has members of this group, their average is a
@@ -179,11 +183,11 @@ public struct FlowerSpecies: Codable, Hashable, Identifiable, Sendable {
         return FlowerSpecies(
             id: "taxon:\(taxon.scientificName)",
             commonName: taxon.rank == .family
-                ? taxon.family.commonName
+                ? familyName
                 // First letter raised: the name list is lower case where a
                 // name has no proper noun in it, so "liquorice plant" sat in
                 // a list beside "Vredenberg ice plant" and "Pussy Willow".
-                : (commonName?.isEmpty == false ? commonName!.capitalisingFirst : taxon.scientificName),
+                : (given?.capitalisingFirst ?? taxon.scientificName),
             taxon: taxon,
             rarity: .common,
             bloomSeasons: seasons,

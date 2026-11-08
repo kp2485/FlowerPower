@@ -69,6 +69,9 @@ public struct FlowerIdentification: Equatable, Sendable {
     public let looksLikeAFlower: Bool
     /// Runner-up guesses, best first, for a "did you mean?" affordance.
     public let alternatives: [Alternative]
+    /// Whether `alternatives` are members of the placed genus or family
+    /// rather than rivals to it — "which rose?" rather than "or a peony?".
+    public let alternativesNarrowDown: Bool
 
     public struct Alternative: Equatable, Sendable {
         public let species: FlowerSpecies
@@ -80,13 +83,15 @@ public struct FlowerIdentification: Equatable, Sendable {
         species: FlowerSpecies?,
         confidence: Double,
         looksLikeAFlower: Bool,
-        alternatives: [Alternative]
+        alternatives: [Alternative],
+        alternativesNarrowDown: Bool = false
     ) {
         self.taxon = taxon
         self.species = species
         self.confidence = confidence
         self.looksLikeAFlower = looksLikeAFlower
         self.alternatives = alternatives
+        self.alternativesNarrowDown = alternativesNarrowDown
     }
 
     /// How precisely the plant was placed, when it was placed at all.
@@ -197,6 +202,9 @@ public struct FlowerClassifier: FlowerIdentifying {
                         commonName: placement.commonName,
                         runnersUp: placement.alternatives.map {
                             ($0.entry.taxon, Double($0.probability), $0.entry.commonName)
+                        },
+                        narrower: placement.narrower.map {
+                            ($0.entry.taxon, Double($0.probability), $0.entry.commonName)
                         }
                     )
                 }
@@ -249,43 +257,60 @@ public struct FlowerClassifier: FlowerIdentifying {
     /// A species the catalogue knows becomes that catalogue entry. Anything
     /// coarser, or any plant the catalogue has never heard of, becomes the
     /// family's or genus's typical forage, which is a real description rather
-    /// than a fallback. `commonName` is what the identifier called it, and
-    /// `runnersUp` are its other guesses at the same rank.
+    /// than a fallback. `commonName` is what the identifier called it,
+    /// `runnersUp` are its other guesses at the same rank, and `narrower` its
+    /// likeliest members one rank down when it stopped at a genus or family.
     private func identification(
         for taxon: Taxon,
         confidence: Double,
         commonName: String? = nil,
         known: FlowerSpecies? = nil,
-        runnersUp: [(taxon: Taxon, confidence: Double, commonName: String)] = []
+        runnersUp: [(taxon: Taxon, confidence: Double, commonName: String)] = [],
+        narrower: [(taxon: Taxon, confidence: Double, commonName: String)] = []
     ) -> FlowerIdentification {
 
         let catalogued = known ?? FlowerCatalogue.all.first { $0.taxon == taxon }
         let species = catalogued ?? FlowerSpecies.generic(for: taxon, commonName: commonName)
 
-        // The identifier's own runners-up first, then members of the same
-        // group the catalogue knows about, so a player can sharpen a family
-        // into a species. Capped so the card does not become a list.
-        var alternatives: [FlowerIdentification.Alternative] = runnersUp.prefix(3).map { guess in
+        func alternative(_ guess: (taxon: Taxon, confidence: Double, commonName: String)) -> FlowerIdentification.Alternative {
             let match = FlowerCatalogue.all.first { $0.taxon == guess.taxon }
             return FlowerIdentification.Alternative(
                 species: match ?? FlowerSpecies.generic(for: guess.taxon, commonName: guess.commonName),
                 confidence: guess.confidence
             )
         }
+
+        // A placement that stopped at a genus or family offers what is
+        // inside it: the identifier's own guesses one rank down, then the
+        // catalogue's members of the group. That is what lets a player who
+        // knows the plant finish the identification with one tap, rather
+        // than being told it got "part of the way" and left there.
+        var members: [FlowerIdentification.Alternative] = narrower.map(alternative)
         let relatives = FlowerCatalogue.all
             .filter { taxon.contains($0.taxon) && $0.id != species.id }
-            .prefix(3)
             .map { FlowerIdentification.Alternative(species: $0, confidence: confidence * 0.5) }
-        for relative in relatives where !alternatives.contains(where: { $0.species.id == relative.species.id }) {
-            alternatives.append(relative)
+        for relative in relatives where !members.contains(where: { $0.species.id == relative.species.id }) {
+            members.append(relative)
+        }
+        if taxon.rank < .species, !members.isEmpty {
+            return FlowerIdentification(
+                taxon: taxon,
+                species: species,
+                confidence: confidence,
+                looksLikeAFlower: true,
+                alternatives: Array(members.prefix(3)),
+                alternativesNarrowDown: true
+            )
         }
 
+        // Otherwise the identifier's runners-up at the same rank. Capped so
+        // the card does not become a list.
         return FlowerIdentification(
             taxon: taxon,
             species: species,
             confidence: confidence,
             looksLikeAFlower: true,
-            alternatives: Array(alternatives.prefix(4))
+            alternatives: runnersUp.prefix(3).map(alternative)
         )
     }
 

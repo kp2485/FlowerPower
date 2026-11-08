@@ -51,6 +51,23 @@ a photograph of, plus any with an English common name; the rest of the
 set from ten Wikimedia photographs and want tuning on a phone against
 photographs taken the way players take them.
 
+**Names, and finishing a coarse placement (2026-11-07).** `build.py` gives
+common names to species only, about half of them, so a genus or family
+placement used to be titled in Latin ("Tulipa sp."), and on a phone that read
+as the identifier stopping part of the way. `TaxonEmbeddingIndex.naming`
+now names each genus at load from the last word most of its species share
+("rose", "clover", "dandelion"), a one-species genus from that species, and
+anything else by its Latin genus, which is what a gardener calls a hibiscus
+anyway. A family without notes is named for its type genus ("Gesneria
+Family"). Non-ASCII species names (Swedish, Korean) are dropped rather than
+shown. A genus or family placement also carries `narrower`: the likeliest
+members one rank down, offered on the card as "Which one is it?", so a
+player who knows the plant finishes the identification with one tap.
+
+On the iOS 27 simulator the encoder must run on the CPU: with `.all` the
+request succeeds and returns zeros. An embedding that is not unit length is
+now refused and logged as "the model did not run".
+
 **2. Vision's own labels. Built, 2026-09-16.**
 
 The classifier that ships with iOS has thirteen hundred labels, and a couple
