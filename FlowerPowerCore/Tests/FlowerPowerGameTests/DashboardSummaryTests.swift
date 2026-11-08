@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import FlowerPowerCore
+@testable import FlowerPowerCore
 @testable import FlowerPowerGame
 
 /// What the Colony tab's tiles say.
@@ -282,7 +282,7 @@ struct DashboardSummaryTests {
 
         // Health is the only conditional one.
         let expected: [DashboardSummary.Tile.Kind] =
-            [.stores, .population, .queen, .nest, .honey, .forage, .record]
+            [.stores, .population, .queen, .nest, .entrance, .honey, .intake, .forage, .record]
         let drawn = summary.tiles.map(\.kind)
         for kind in expected {
             #expect(drawn.contains(kind), "no \(kind.rawValue) tile")
@@ -376,7 +376,7 @@ struct DashboardSummaryTests {
         #expect(Set(kinds).count == kinds.count, "a heading appears twice")
     }
 
-    @Test("A colony with a world has the four places, each with something to say")
+    @Test("A colony with a world has the three places, each with something to say")
     @MainActor
     func theThreePlacesAreThere() {
         let simulation = Simulation.newGame(
@@ -407,7 +407,7 @@ struct DashboardSummaryTests {
         let outside = summary.sections.first { $0.kind == .outside }
         #expect(bees?.entries.compactMap(\.place).map(\.kind) == [.jobs])
         #expect(inside?.entries.compactMap(\.place).map(\.kind) == [.comb])
-        #expect(outside?.entries.compactMap(\.place).map(\.kind) == [.country, .garden])
+        #expect(outside?.entries.compactMap(\.place).map(\.kind) == [.country])
 
         // Readings come before places, so a section reads worst-first.
         for section in summary.sections {
@@ -472,25 +472,83 @@ struct DashboardSummaryTests {
                 == [.forage, .lookFor])
     }
 
-    @Test("The garden place counts flowers and families and says when there are none")
-    func gardenPlaceCounts() {
+    /// The cards are drawn two abreast with their edges in line, which only
+    /// holds if they are the same height — so each has three lines, with
+    /// health the one thing allowed to make a fourth.
+    @Test("Every card has three lines on a clean colony")
+    @MainActor
+    func everyCardHasThreeLines() {
+        let simulation = Simulation.newGame(
+            at: HiveLocation(type: .livingTreeCavity),
+            startingAt: epoch,
+            seed: 21
+        )
+        let store = GameStore(
+            simulation: simulation,
+            persistence: InMemoryPersistence(),
+            clock: { self.epoch }
+        )
+        let summary = DashboardSummary(
+            snapshot: store.snapshot, history: store.history, hemisphere: .northern
+        )
+        let clean = store.snapshot.health.infections.isEmpty && store.snapshot.health.recentAttacks.isEmpty
+        for section in summary.sections {
+            let expected = section.kind == .bees && !clean ? 4 : 3
+            #expect(section.entries.count == expected, "\(section.kind.rawValue) has \(section.entries.count) lines")
+        }
+    }
+
+    @Test("The entrance line says what the guards are doing")
+    func entranceLineReadsThePosture() {
         var simulation = Simulation.newGame(
             at: HiveLocation(type: .livingTreeCavity),
             startingAt: epoch,
             seed: 7
         )
-        let empty = DashboardSummary.gardenPlace(simulation.snapshot())
-        #expect(empty.headline == "0")
-        #expect(empty.caption.contains("no flowers"))
+        let calm = DashboardSummary.entranceTile(simulation.snapshot())
+        #expect(calm.headline == "Open")
+        #expect(calm.severity == .calm)
 
-        simulation.registerPhotograph(
-            photoLocalIdentifier: "a", species: FlowerCatalogue.whiteClover, confidence: 0.9, takenAt: epoch
-        )
-        simulation.registerPhotograph(
-            photoLocalIdentifier: "b", species: FlowerCatalogue.borage, confidence: 0.9, takenAt: epoch
-        )
-        let two = DashboardSummary.gardenPlace(simulation.snapshot())
-        #expect(two.headline == "2")
-        #expect(two.caption.contains("2 families"))
+        simulation.world.posture = .holdEntrance
+        let holding = DashboardSummary.entranceTile(simulation.snapshot())
+        #expect(holding.caption.contains("hold the entrance"))
+        #expect(holding.severity == .notable)
+    }
+
+    // MARK: - Fitting the screen
+
+    @Test("Columns come from the width and the card size, between one and four")
+    func columnsFitTheWidth() {
+        // An iPhone 17 with the page's margins off, and cards of 160.
+        #expect(DashboardSummary.columns(fitting: 370, minimumCardWidth: 160) == 2)
+        // The same phone with the text two steps up: the cards grow, one column.
+        #expect(DashboardSummary.columns(fitting: 370, minimumCardWidth: 198) == 1)
+        // An 11-inch iPad upright: a card per section, and no more than that.
+        #expect(DashboardSummary.columns(fitting: 802, minimumCardWidth: 160) == 4)
+        #expect(DashboardSummary.columns(fitting: 1_200, minimumCardWidth: 160) == 4)
+        // Nothing measured yet, or nonsense, is one column rather than none.
+        #expect(DashboardSummary.columns(fitting: 0, minimumCardWidth: 160) == 1)
+        #expect(DashboardSummary.columns(fitting: 100, minimumCardWidth: 160) == 1)
+        #expect(DashboardSummary.columns(fitting: 370, minimumCardWidth: 0) == 1)
+    }
+
+    @Test("Sections are dealt into columns in turn")
+    func sectionsAreDealtRoundRobin() {
+        let four = ["bees", "larder", "inside", "outside"]
+        #expect(DashboardSummary.distribute(four, across: 2) == [["bees", "inside"], ["larder", "outside"]])
+        #expect(DashboardSummary.distribute(four, across: 4) == [["bees"], ["larder"], ["inside"], ["outside"]])
+        #expect(DashboardSummary.distribute(four, across: 1) == [four])
+        // More columns than sections leaves no empty column to draw.
+        #expect(DashboardSummary.distribute(four, across: 6).count == 4)
+        #expect(DashboardSummary.distribute([String](), across: 2).isEmpty)
+    }
+
+    @Test("Larger text drops the caption and keeps the title; symbols are never chosen for it")
+    func densityKeepsWordsForLargeText() {
+        #expect(DashboardSummary.density(isAccessibilitySize: false) == .full)
+        #expect(DashboardSummary.density(isAccessibilitySize: true) == .compact)
+        #expect(DashboardSummary.Density.compact.showsTitle)
+        #expect(!DashboardSummary.Density.compact.showsCaption)
+        #expect(!DashboardSummary.Density.symbol.showsTitle)
     }
 }

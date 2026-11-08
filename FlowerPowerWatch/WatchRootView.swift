@@ -3,7 +3,8 @@
 //  FlowerPower Watch
 //
 //  Pages, in order of how often you want them: the decision if there is one,
-//  how the colony is, what the weather is doing to it, and the numbers.
+//  how the colony is, what the weather is doing to it, and the readings — the
+//  phone's overview at its symbol tier, a glyph and a number apiece.
 //
 //  The decision page is first rather than last for the same reason the watch
 //  exists at all. The design rule is that every decision the game asks is
@@ -34,7 +35,12 @@ struct WatchRootView: View {
                     }
                     StatusPage(summary: summary, isStale: model.isStale, isOutOfStep: model.isOutOfStep)
                     ConditionsPage(summary: summary)
-                    NumbersPage(summary: summary)
+                    if summary.readings.isEmpty {
+                        // A phone built before the readings were sent.
+                        NumbersPage(summary: summary)
+                    } else {
+                        ReadingsPage(summary: summary)
+                    }
                 }
                 .tabViewStyle(.verticalPage)
                 .navigationTitle("Hive")
@@ -246,8 +252,94 @@ private struct ConditionsPage: View {
     }
 }
 
+// MARK: - Readings
+
+/// The phone's overview at its symbol tier: every reading as a glyph in the
+/// colour of how worried to be and the one number, two abreast. A wrist has
+/// no room for the words, so the words are what a tap opens, and what
+/// VoiceOver reads.
+private struct ReadingsPage: View {
+
+    let summary: WatchSummary
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                    ForEach(summary.readings) { reading in
+                        NavigationLink {
+                            ReadingDetail(reading: reading)
+                        } label: {
+                            ReadingCell(reading: reading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Text(summary.generatedAt, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+}
+
+private struct ReadingCell: View {
+
+    let reading: WatchSummary.Reading
+
+    private var tint: Color { WatchTheme.colour(for: reading.severity) }
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Image(systemName: reading.symbolName)
+                .font(.footnote)
+                .foregroundStyle(tint)
+            Text(reading.headline)
+                .font(.callout.weight(.semibold).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 7)
+        .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 9))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(reading.title)
+        .accessibilityValue(reading.spoken)
+        .accessibilityHint("Shows the reading in words")
+    }
+}
+
+/// The words behind a glyph.
+private struct ReadingDetail: View {
+
+    let reading: WatchSummary.Reading
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                Image(systemName: reading.symbolName)
+                    .font(.title3)
+                    .foregroundStyle(WatchTheme.colour(for: reading.severity))
+                Text(reading.headline)
+                    .font(.title2.weight(.semibold).monospacedDigit())
+                Text(reading.spoken)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 4)
+        }
+        .navigationTitle(reading.title)
+    }
+}
+
 // MARK: - Numbers
 
+/// What the watch showed before the phone sent readings, kept for a phone
+/// that still does not.
 private struct NumbersPage: View {
 
     let summary: WatchSummary

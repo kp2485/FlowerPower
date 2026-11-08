@@ -26,8 +26,25 @@
 //  sizes, which is the rule the layout is held to: the record went into the
 //  header as the day, and the bloom prompt — which used to be a card at the
 //  foot and the one thing always below the fold — is a line in Outside that
-//  opens the Forage page, where the card now lives. At the accessibility
-//  sizes the two columns become one and the screen scrolls, as it should.
+//  opens the Forage page, where the card now lives.
+//
+//  How many cards sit abreast comes from the width and the text size, not
+//  from the device: the minimum card width is a `@ScaledMetric`, so a phone
+//  gets two columns, an iPad four, and larger text buys fewer without a rule
+//  saying so. At the accessibility sizes the lines lose their captions and
+//  keep their titles (`DashboardSummary.Density`), the number drops under the
+//  title, and the screen scrolls, as it should. The symbol tier — a glyph and
+//  a number — is the watch's, in `WatchRootView`; the phone never picks it
+//  for large text, because somebody who turns the text up is asking to read.
+//
+//  When the whole page fits, it is not a scroll view at all: the cards
+//  stretch to fill what is left, their lines growing together up to a cap,
+//  so the grid ends where the screen does instead of over a blank strip —
+//  and because every card has three lines, their edges meet. Only when it
+//  does not fit (large text, several decisions open) does `ViewThatFits`
+//  fall back to scrolling. A wide screen, where four cards abreast leave the
+//  bottom half empty, gets a second row: the bloom prompt and the two charts
+//  a player opens most.
 //
 //  Decisions keep their place at the top, because a decision has a window and a
 //  window nobody saw is an answer given by silence. They are collapsed to one
@@ -79,32 +96,47 @@ struct ColonyDashboardView: View {
         )
     }
 
-    /// One column at the accessibility sizes, where half a screen is a word
-    /// wide; two otherwise.
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// What a card must be given to be worth drawing. Scaled with the text,
+    /// so the columns fall away as the text grows: two on a phone at the
+    /// default size, one from two steps up; four on an iPad.
+    @ScaledMetric(relativeTo: .body) private var minimumCardWidth: CGFloat = 160
+
+    /// How tall a line may grow when the page has room to give. About half
+    /// as much again as it needs, which fills a phone with nothing open and
+    /// stops short of lines with a finger's width of nothing in each.
+    @ScaledMetric(relativeTo: .body) private var lineCap: CGFloat = 68
+
+    /// The width the cards have to share, read once at the page.
+    @State private var contentWidth: CGFloat = 0
+
+    private var density: DashboardSummary.Density {
+        DashboardSummary.density(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
+    }
+
+    private var columnCount: Int {
+        DashboardSummary.columns(fitting: contentWidth, minimumCardWidth: minimumCardWidth)
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView {
-                VStack(spacing: 12) {
-                    StatusHeader(snapshot: snapshot, record: summary.tile(.record))
-
-                    // Decisions first, and first by a clear margin: everything
-                    // below this is a thing to know, and these are the only
-                    // things to do.
-                    DecisionRows(snapshot: snapshot, open: $openDecision)
-
-                    if !summary.attention.isEmpty {
-                        AttentionRow(
-                            attention: summary.attention,
-                            alerts: snapshot.alerts,
-                            isExpanded: $showingAlerts
-                        )
-                    }
-
-                    sectionColumns
+            // The page as it fits, or the page as it scrolls. `ViewThatFits`
+            // measures the first at its natural height and takes it when
+            // that is within the screen, then lays it out to the whole
+            // screen, which is what lets the cards stretch.
+            ViewThatFits(in: .vertical) {
+                page(filling: true)
+                ScrollView {
+                    page(filling: false)
                 }
-                .padding()
+            }
+            // The page's width, not a `GeometryReader` round each card: one
+            // reading, at the one place the width is decided.
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { width in
+                contentWidth = width
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Colony")
@@ -155,21 +187,76 @@ struct ColonyDashboardView: View {
 
 extension ColonyDashboardView {
 
-    /// The four cards, two abreast: the odd ones down the left and the even
-    /// ones down the right, so each column packs tight and the bottoms differ
-    /// by at most a line. Two `VStack`s rather than a `LazyVGrid`, whose rows
-    /// are as tall as their taller card and left a card with a blank third.
-    @ViewBuilder
-    fileprivate var sectionColumns: some View {
-        let sections = summary.sections
-        if dynamicTypeSize.isAccessibilitySize {
-            ForEach(sections) { section in
-                OverviewSection(section: section, snapshot: snapshot, path: $path)
+    /// Everything on the page, top to bottom. `filling` is the version that
+    /// is not in a scroll view: it ends in a spacer, so that once the lines
+    /// have grown to their cap whatever is left stays at the foot rather than
+    /// opening gaps between the cards.
+    fileprivate func page(filling: Bool) -> some View {
+        VStack(spacing: 12) {
+            StatusHeader(snapshot: snapshot, record: summary.tile(.record))
+
+            // Decisions first, and first by a clear margin: everything below
+            // this is a thing to know, and these are the only things to do.
+            DecisionRows(snapshot: snapshot, open: $openDecision)
+
+            if !summary.attention.isEmpty {
+                AttentionRow(
+                    attention: summary.attention,
+                    alerts: snapshot.alerts,
+                    isExpanded: $showingAlerts
+                )
             }
-        } else {
-            HStack(alignment: .top, spacing: 12) {
-                column(of: sections.enumerated().filter { $0.offset.isMultiple(of: 2) }.map(\.element))
-                column(of: sections.enumerated().filter { !$0.offset.isMultiple(of: 2) }.map(\.element))
+
+            sectionColumns
+
+            if columnCount >= 3 {
+                wideExtras
+            }
+
+            if filling {
+                Spacer(minLength: 0)
+            }
+        }
+        // The page's own width is what the columns are fitted to; the
+        // padding comes off before they see it.
+        .padding()
+    }
+
+    /// What a wide screen does with the room under four cards: the bloom
+    /// prompt, which the phone keeps on the Forage page, and the two charts
+    /// behind the lines a player opens most.
+    fileprivate var wideExtras: some View {
+        HStack(alignment: .top, spacing: 12) {
+            BloomPromptCard(prompt: BloomPrompt(
+                hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern,
+                patches: snapshot.patches,
+                terrain: snapshot.terrain,
+                wildPatches: snapshot.wildPatches
+            ), onPhotograph: onPhotograph)
+            .frame(maxWidth: .infinity, alignment: .top)
+
+            PopulationTrace(samples: store.history.recent(60))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+            StoresTrace(samples: store.history.recent(60))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        // The row is as tall as the bloom prompt, and the charts fill it.
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// The four cards, as many abreast as the width allows, dealt into the
+    /// columns in turn so each column packs tight and the bottoms differ by
+    /// at most a line. `VStack`s rather than a `LazyVGrid`, whose rows are as
+    /// tall as their taller card and left a card with a blank third.
+    ///
+    /// The padding is 32 points of the width it measured, so the cards see
+    /// about 370 on an iPhone 17 and 800 on an 11-inch iPad.
+    fileprivate var sectionColumns: some View {
+        let columns = DashboardSummary.distribute(summary.sections, across: columnCount)
+        return HStack(alignment: .top, spacing: 12) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { _, sections in
+                column(of: sections)
             }
         }
     }
@@ -177,7 +264,13 @@ extension ColonyDashboardView {
     private func column(of sections: [DashboardSummary.Section]) -> some View {
         VStack(spacing: 12) {
             ForEach(sections) { section in
-                OverviewSection(section: section, snapshot: snapshot, path: $path)
+                OverviewSection(
+                    section: section,
+                    snapshot: snapshot,
+                    density: density,
+                    lineCap: lineCap,
+                    path: $path
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -197,6 +290,9 @@ private struct OverviewSection: View {
 
     let section: DashboardSummary.Section
     let snapshot: ColonySnapshot
+    let density: DashboardSummary.Density
+    /// How tall a line may be stretched to when the page has room.
+    let lineCap: CGFloat
     @Binding var path: NavigationPath
 
     private var tint: Color { Theme.colour(forDashboard: section.severity) }
@@ -236,6 +332,11 @@ private struct OverviewSection: View {
                         Divider().padding(.leading, 37)
                     }
                     line(for: entry)
+                        // Flexible up to the cap, so a page with room to
+                        // give stretches every line alike; in a scroll view
+                        // nothing proposes the room and the line stays its
+                        // natural height.
+                        .frame(maxHeight: lineCap)
                 }
             }
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.cardCorner))
@@ -248,9 +349,9 @@ private struct OverviewSection: View {
     private func line(for entry: DashboardSummary.Entry) -> some View {
         switch entry {
         case .tile(let tile):
-            ReadingLine(tile: tile, snapshot: snapshot, path: $path)
+            ReadingLine(tile: tile, snapshot: snapshot, density: density, path: $path)
         case .place(let place):
-            PlaceLine(place: place)
+            PlaceLine(place: place, density: density)
         }
     }
 }
@@ -264,6 +365,7 @@ private struct ReadingLine: View {
 
     let tile: DashboardSummary.Tile
     let snapshot: ColonySnapshot
+    let density: DashboardSummary.Density
     @Binding var path: NavigationPath
 
     private var tint: Color { Theme.colour(forDashboard: tile.severity) }
@@ -279,7 +381,8 @@ private struct ReadingLine: View {
                 // A calm number is just a number. One that is anything else
                 // takes the colour, so the eye lands on it from the heading.
                 headlineTint: tile.severity == .calm ? nil : tint,
-                trend: tile.trend
+                trend: tile.trend,
+                density: density
             )
         }
         .buttonStyle(PressableLineStyle())
@@ -305,13 +408,13 @@ private struct ReadingLine: View {
 private struct PlaceLine: View {
 
     let place: DashboardSummary.Place
+    let density: DashboardSummary.Density
     @Environment(\.openTab) private var openTab
 
     private var tab: ContentView.Tab {
         switch place.kind {
         case .jobs, .comb: return .nest
         case .country: return .world
-        case .garden: return .garden
         }
     }
 
@@ -326,7 +429,8 @@ private struct PlaceLine: View {
                 caption: place.caption,
                 headline: place.headline,
                 headlineTint: nil,
-                trend: nil
+                trend: nil,
+                density: density
             )
         }
         .buttonStyle(PressableLineStyle())
@@ -347,6 +451,9 @@ private struct OverviewLine: View {
     let headline: String
     let headlineTint: Color?
     let trend: DashboardSummary.Trend?
+    /// How much of the line to draw. The spoken value is the whole of it
+    /// whatever this says; see the callers' accessibility values.
+    let density: DashboardSummary.Density
 
     /// The number shares the title's row in half a screen's width, and drops
     /// under the title at the accessibility sizes, where there is no room
@@ -377,11 +484,13 @@ private struct OverviewLine: View {
                     // A step under the number, so that "Population" and
                     // "366" share half a screen without one of them being
                     // cut to "Popula…".
-                    Text(title)
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                    if density.showsTitle {
+                        Text(title)
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
 
                     if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 4) }
 
@@ -402,11 +511,13 @@ private struct OverviewLine: View {
                     }
                 }
 
-                Text(caption)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                    .minimumScaleFactor(0.7)
+                if density.showsCaption {
+                    Text(caption)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
             }
             // Fills the line, so the chevron is at the edge however the
             // title row is laid out; stacked, nothing else pushes it there.

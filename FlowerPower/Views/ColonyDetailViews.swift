@@ -52,9 +52,11 @@ struct ColonyDetailView: View {
             case .stores: StoresDetailView()
             case .population: PopulationDetailView()
             case .queen: QueenDetailView()
-            case .nest: NestDetailView()
+            // The entrance is part of the nest, and the intake is the honey's
+            // story; each opens the page with the chart for it.
+            case .nest, .entrance: NestDetailView()
             case .health: HealthDetailView()
-            case .honey: HoneyDetailView()
+            case .honey, .intake: HoneyDetailView()
             // Two lines on the overview, one page: what is in bloom and what
             // is out there to photograph are the same question from either
             // side.
@@ -469,7 +471,9 @@ private struct Explainer: View {
 /// The same marks `HistoryView` draws, because two charts of one quantity that
 /// look different are two quantities as far as anybody reading them is
 /// concerned.
-private struct StoresTrace: View {
+/// Internal rather than private: the overview draws it too, where a wide
+/// screen has the room.
+struct StoresTrace: View {
 
     let samples: [DailySample]
 
@@ -530,7 +534,8 @@ private struct StoresTrace: View {
 }
 
 /// Adults, brood and winter bees, with the seasons behind them.
-private struct PopulationTrace: View {
+/// Internal rather than private, for the same reason as `StoresTrace`.
+struct PopulationTrace: View {
 
     let samples: [DailySample]
 
@@ -763,8 +768,11 @@ private struct TraceCard<Content: View>: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // At least the chart's height, and as much more as the card
+                // is given: on a wide screen it sits in a row beside the
+                // bloom prompt, and grows to meet that card's foot.
                 content
-                    .frame(height: chartHeight)
+                    .frame(minHeight: chartHeight, maxHeight: .infinity)
                     .chartXScale(domain: samples.dayDomain)
                     .chartXAxis {
                         AxisMarks(values: .automatic(desiredCount: 4)) { value in
