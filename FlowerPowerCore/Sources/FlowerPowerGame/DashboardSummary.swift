@@ -2,7 +2,8 @@
 //  DashboardSummary.swift
 //  FlowerPowerGame
 //
-//  What the Colony tab's tiles say, and how worried each of them should look.
+//  What the Colony tab's overview says, and how worried each line of it should
+//  look.
 //
 //  The dashboard used to be a column of full-size cards, and every one of them
 //  worked out its own judgement inline: this meter is amber above ninety per
@@ -106,10 +107,11 @@ public struct DashboardSummary: Equatable, Sendable {
 
     public struct Tile: Identifiable, Equatable, Sendable {
 
-        /// The eight things the overview shows, and the order it shows them
-        /// in. `CaseIterable` is the order: stores first because a colony dies
-        /// of an empty larder before it dies of anything else, and the record
-        /// last because it is the only one that is not about today.
+        /// The readings the overview shows, and the order it shows them in.
+        /// `CaseIterable` is the order: stores first because a colony dies of
+        /// an empty larder before it dies of anything else, and the record
+        /// last because it is the only one that is not about today. The
+        /// sections below regroup them by subject without reordering them.
         public enum Kind: String, Codable, Hashable, Sendable, CaseIterable {
             case stores
             case population
@@ -118,6 +120,10 @@ public struct DashboardSummary: Equatable, Sendable {
             case health
             case honey
             case forage
+            /// What is out there to photograph this month. Only built when
+            /// the summary is told which hemisphere the player is in, which
+            /// is the one thing about the real world it needs.
+            case lookFor
             case record
 
             public var title: String {
@@ -129,6 +135,7 @@ public struct DashboardSummary: Equatable, Sendable {
                 case .health: return "Health"
                 case .honey: return "Honey"
                 case .forage: return "Forage"
+                case .lookFor: return "Look For"
                 case .record: return "Record"
                 }
             }
@@ -142,6 +149,7 @@ public struct DashboardSummary: Equatable, Sendable {
                 case .health: return "cross.case.fill"
                 case .honey: return "drop.fill"
                 case .forage: return "leaf.fill"
+                case .lookFor: return "camera.macro"
                 case .record: return "book.closed.fill"
                 }
             }
@@ -210,12 +218,28 @@ public struct DashboardSummary: Equatable, Sendable {
 
     public let tiles: [Tile]
     public let attention: Attention
+    /// The tiles sorted into the four things a player asks about, with the
+    /// three places the other tabs show set among them. What the overview
+    /// draws under its header; `tiles` is the flat list it used to draw. The
+    /// record is in no section: it is the one tile not about today, and the
+    /// header, which says the day, is where it goes.
+    public let sections: [Section]
 
     // MARK: - Building it
 
-    public init(snapshot: ColonySnapshot, history: ColonyHistory) {
-        self.tiles = Self.tiles(for: snapshot, history: history)
+    /// `hemisphere` is the player's, from settings; given, the overview gets
+    /// a "look for" line built from the real calendar. The watch and the
+    /// tests, which have no settings, leave it nil and get no such line.
+    public init(
+        snapshot: ColonySnapshot,
+        history: ColonyHistory,
+        hemisphere: Hemisphere? = nil,
+        date: Date = Date()
+    ) {
+        let tiles = Self.tiles(for: snapshot, history: history, hemisphere: hemisphere, date: date)
+        self.tiles = tiles
         self.attention = Self.attention(for: snapshot.alerts)
+        self.sections = Self.sections(tiles: tiles, snapshot: snapshot)
     }
 
     public func tile(_ kind: Tile.Kind) -> Tile? {
@@ -227,7 +251,12 @@ public struct DashboardSummary: Equatable, Sendable {
 
 extension DashboardSummary {
 
-    static func tiles(for snapshot: ColonySnapshot, history: ColonyHistory) -> [Tile] {
+    static func tiles(
+        for snapshot: ColonySnapshot,
+        history: ColonyHistory,
+        hemisphere: Hemisphere? = nil,
+        date: Date = Date()
+    ) -> [Tile] {
         var tiles: [Tile] = []
         tiles.append(storesTile(snapshot))
         tiles.append(populationTile(snapshot, history: history))
@@ -238,6 +267,9 @@ extension DashboardSummary {
         if let health = healthTile(snapshot) { tiles.append(health) }
         tiles.append(honeyTile(snapshot))
         tiles.append(forageTile(snapshot))
+        if let hemisphere {
+            tiles.append(lookForTile(snapshot, hemisphere: hemisphere, date: date))
+        }
         tiles.append(recordTile(snapshot))
         return tiles
     }
@@ -550,6 +582,54 @@ extension DashboardSummary {
         return .calm
     }
 
+    // MARK: Look for
+
+    /// The bloom prompt as a line: how many of the flowers out this month the
+    /// garden still has none of, and the best of them by name.
+    ///
+    /// The prompt itself — the whole card, with the keystone's direction and
+    /// the list — is on the Forage page the line opens. It used to sit at the
+    /// foot of the overview, where it was the one thing that never fitted on
+    /// the screen.
+    static func lookForTile(
+        _ snapshot: ColonySnapshot,
+        hemisphere: Hemisphere,
+        date: Date
+    ) -> Tile {
+        let prompt = BloomPrompt(
+            date: date,
+            hemisphere: hemisphere,
+            patches: snapshot.patches,
+            terrain: snapshot.terrain,
+            wildPatches: snapshot.wildPatches
+        )
+        let missing = prompt.notYetPhotographed
+        if let first = missing.first {
+            // The best of them by name, and nothing else: "Viper's Bugloss
+            // and 11 more" was cut to "Viper's Bugloss and 11 m…" in half a
+            // screen's width, and the number is already the headline.
+            let caption = missing.count == 1
+                ? "\(first.commonName), out now"
+                : "\(first.commonName) first"
+            return Tile(
+                kind: .lookFor,
+                headline: "\(missing.count)",
+                caption: caption,
+                // A nudge, never a worry: there is nothing wrong with a
+                // colony whose keeper has not been out this week.
+                severity: .notable,
+                spoken: prompt.headline
+            )
+        }
+        return Tile(
+            kind: .lookFor,
+            headline: "\(prompt.inBloom.count)",
+            caption: prompt.inBloom.isEmpty ? "nothing out this month" : "out now, all of them found",
+            severity: .calm,
+            spoken: prompt.headline
+        )
+    }
+
     // MARK: Record
 
     static func recordTile(_ snapshot: ColonySnapshot) -> Tile {
@@ -585,5 +665,239 @@ extension DashboardSummary {
         case 1: return "One thing needs attention."
         default: return "\(count) things need attention."
         }
+    }
+}
+
+// MARK: - The sections
+
+extension DashboardSummary {
+
+    /// A heading on the overview, and what sits under it.
+    ///
+    /// Eight tiles in a grid asked the player to know that Stores and Honey
+    /// are one subject and Queen and Population another. The sections say so:
+    /// the bees, the larder, the inside of the nest, and the ground outside
+    /// it. A section's severity is the worst thing in it, so a heading can be
+    /// glanced at before any line under it is read.
+    public struct Section: Identifiable, Equatable, Sendable {
+
+        /// The four headings, in the order they are shown.
+        public enum Kind: String, Codable, Hashable, Sendable, CaseIterable {
+            case bees
+            case larder
+            case inside
+            case outside
+
+            public var title: String {
+                switch self {
+                case .bees: return "The Bees"
+                case .larder: return "The Larder"
+                case .inside: return "Inside"
+                case .outside: return "Outside"
+                }
+            }
+        }
+
+        public let kind: Kind
+        public let entries: [Entry]
+
+        public init(kind: Kind, entries: [Entry]) {
+            self.kind = kind
+            self.entries = entries
+        }
+
+        public var id: Kind { kind }
+        public var title: String { kind.title }
+
+        /// The worst thing under the heading. A section of places alone is
+        /// calm: a place is somewhere to go, not a reading.
+        public var severity: Severity {
+            entries.compactMap(\.tile?.severity).max() ?? .calm
+        }
+    }
+
+    /// One line of a section: a reading with a page behind it, or a place
+    /// with a tab behind it.
+    public enum Entry: Identifiable, Equatable, Sendable {
+        case tile(Tile)
+        case place(Place)
+
+        public var id: String {
+            switch self {
+            case .tile(let tile): return "tile.\(tile.kind.rawValue)"
+            case .place(let place): return "place.\(place.kind.rawValue)"
+            }
+        }
+
+        public var tile: Tile? {
+            if case .tile(let tile) = self { return tile }
+            return nil
+        }
+
+        public var place: Place? {
+            if case .place(let place) = self { return place }
+            return nil
+        }
+    }
+
+    /// Somewhere else in the app, summed up in a line so the overview can
+    /// stand in for the tab bar: the jobs and the comb the Nest tab shows, the
+    /// country the World tab maps, the flowers the Garden tab keeps.
+    ///
+    /// Captions are written for half a screen's width — the overview sets its
+    /// sections two abreast — so they are a few words, not a sentence.
+    ///
+    /// A place carries no severity. The readings that could worry a player
+    /// about these things — the room in the nest, the forage in bloom — are
+    /// tiles already, and saying them twice in two colours would be noise.
+    public struct Place: Identifiable, Equatable, Sendable {
+
+        public enum Kind: String, Codable, Hashable, Sendable, CaseIterable {
+            case jobs
+            case comb
+            case country
+            case garden
+
+            public var title: String {
+                switch self {
+                case .jobs: return "Jobs"
+                case .comb: return "Comb"
+                case .country: return "Country"
+                case .garden: return "Garden"
+                }
+            }
+
+            public var symbolName: String {
+                switch self {
+                case .jobs: return "slider.horizontal.3"
+                case .comb: return "hexagon.fill"
+                case .country: return "circle.hexagongrid.fill"
+                case .garden: return "photo.on.rectangle.angled"
+                }
+            }
+        }
+
+        public let kind: Kind
+        public let headline: String
+        public let caption: String
+        public let spoken: String
+
+        public init(kind: Kind, headline: String, caption: String, spoken: String) {
+            self.kind = kind
+            self.headline = headline
+            self.caption = caption
+            self.spoken = spoken
+        }
+
+        public var id: Kind { kind }
+        public var title: String { kind.title }
+        public var symbolName: String { kind.symbolName }
+    }
+
+    /// Every tile but the record placed under exactly one heading, in the
+    /// tiles' own order, with the places after the readings in each section.
+    static func sections(tiles: [Tile], snapshot: ColonySnapshot) -> [Section] {
+        func those(_ kinds: [Tile.Kind]) -> [Entry] {
+            tiles.filter { kinds.contains($0.kind) }.map(Entry.tile)
+        }
+
+        var sections: [Section] = []
+        sections.append(Section(
+            kind: .bees,
+            entries: those([.population, .queen, .health]) + [.place(jobsPlace(snapshot))]
+        ))
+        sections.append(Section(kind: .larder, entries: those([.stores, .honey])))
+        sections.append(Section(kind: .inside, entries: those([.nest]) + [.place(combPlace(snapshot))]))
+
+        var outside = those([.forage, .lookFor])
+        if let country = countryPlace(snapshot) { outside.append(.place(country)) }
+        outside.append(.place(gardenPlace(snapshot)))
+        sections.append(Section(kind: .outside, entries: outside))
+        return sections.filter { !$0.entries.isEmpty }
+    }
+
+    /// Which heading a reading sits under; nil for the record, which sits in
+    /// the header.
+    public static func section(for kind: Tile.Kind) -> Section.Kind? {
+        switch kind {
+        case .population, .queen, .health: return .bees
+        case .stores, .honey: return .larder
+        case .nest: return .inside
+        case .forage, .lookFor: return .outside
+        case .record: return nil
+        }
+    }
+
+    /// How many of the adults are out at the flowers, which is the one job
+    /// a player can read the colony's season from.
+    static func jobsPlace(_ snapshot: ColonySnapshot) -> Place {
+        let population = snapshot.population
+        let foragers = population.jobs[.foragingBee] ?? 0
+        return Place(
+            kind: .jobs,
+            headline: "\(foragers)",
+            caption: foragers == 1
+                ? "forager of \(population.adults) adults"
+                : "foragers of \(population.adults) adults",
+            spoken: "\(foragers) \(foragers == 1 ? "forager" : "foragers") "
+                + "of \(population.adults) adults"
+        )
+    }
+
+    static func combPlace(_ snapshot: ColonySnapshot) -> Place {
+        let nest = snapshot.nest
+        return Place(
+            kind: .comb,
+            headline: "\(nest.builtCells)",
+            caption: "of \(nest.capacity) cells, \(nest.freeCells) empty",
+            spoken: "\(nest.builtCells) of \(nest.capacity) cells built, \(nest.freeCells) empty"
+        )
+    }
+
+    /// Nil before there is a world: an old save made before the ground was
+    /// laid has a `terrain` of nil and nothing for the row to count.
+    static func countryPlace(_ snapshot: ColonySnapshot) -> Place? {
+        guard let terrain = snapshot.terrain else { return nil }
+        let known = terrain.discovered.count
+        let rumoured = terrain.rumoured.count
+        let caption: String
+        if terrain.scoutsOut {
+            caption = "known, scouts out"
+        } else if rumoured > 0 {
+            caption = "known, \(rumoured) rumoured"
+        } else {
+            caption = "stretches known"
+        }
+        return Place(
+            kind: .country,
+            headline: "\(known)",
+            caption: caption,
+            spoken: "\(known) stretches of country known"
+                + (rumoured > 0 ? ", \(rumoured) more rumoured" : "")
+        )
+    }
+
+    static func gardenPlace(_ snapshot: ColonySnapshot) -> Place {
+        let patches = snapshot.patches
+        let families = Set(patches.compactMap(\.family)).count
+        let count = patches.count
+        let caption: String
+        switch count {
+        case 0: caption = "no flowers yet"
+        case 1: caption = "flower, photographed"
+        default:
+            caption = families > 1
+                ? "flowers, \(families) families"
+                : "flowers photographed"
+        }
+        return Place(
+            kind: .garden,
+            headline: "\(count)",
+            caption: caption,
+            spoken: count == 0
+                ? "No flowers photographed yet"
+                : "\(count) \(count == 1 ? "flower" : "flowers") photographed"
+                    + (families > 1 ? ", \(families) families" : "")
+        )
     }
 }

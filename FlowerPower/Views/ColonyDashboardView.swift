@@ -11,11 +11,23 @@
 //  overview that does not fit on a screen is not an overview; it is a report,
 //  and nobody reads a report four times a day.
 //
-//  So the screen is a grid of tiles: a symbol, one number, a caption and a
-//  colour apiece, and each one a way in to the full-size section it replaced —
-//  which still exists, unchanged, one tap away in `ColonyDetailViews.swift`.
-//  What a tile says and how worried it looks is `DashboardSummary` in the
-//  package, tested there without a Mac; this file only draws it.
+//  Then it was a grid of eight tiles, which fitted better and still asked the
+//  player to know which of the eight belonged together. Now it is four cards,
+//  two abreast — the bees, the larder, inside, outside — each a short list of
+//  one-line readings: a symbol, what it is, one number, and a colour that
+//  says how worried to be. Every line is a way in: a reading opens the
+//  full-size page it stands for, in `ColonyDetailViews.swift`, and a place
+//  (the jobs, the comb, the country, the garden) opens the tab that draws it.
+//  What a line says, how worried it looks and which card it sits in is
+//  `DashboardSummary` in the package, tested there without a Mac; this file
+//  only draws it.
+//
+//  The whole of it fits on one screen without scrolling at the ordinary text
+//  sizes, which is the rule the layout is held to: the record went into the
+//  header as the day, and the bloom prompt — which used to be a card at the
+//  foot and the one thing always below the fold — is a line in Outside that
+//  opens the Forage page, where the card now lives. At the accessibility
+//  sizes the two columns become one and the screen scrolls, as it should.
 //
 //  Decisions keep their place at the top, because a decision has a window and a
 //  window nobody saw is an answer given by silence. They are collapsed to one
@@ -32,7 +44,6 @@ import FlowerPowerGame
 struct ColonyDashboardView: View {
 
     @Environment(GameStore.self) private var store
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var onPhotograph: () -> Void
     @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.likelyHere.rawValue
     @State private var isRelocating = false
@@ -61,22 +72,22 @@ struct ColonyDashboardView: View {
     /// and a week of the record, against a snapshot that is itself rebuilt
     /// twenty times a minute.
     private var summary: DashboardSummary {
-        DashboardSummary(snapshot: snapshot, history: store.history)
+        DashboardSummary(
+            snapshot: snapshot,
+            history: store.history,
+            hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern
+        )
     }
 
-    /// Two columns on a phone, more on anything wider, and one at the
-    /// accessibility text sizes where 150 points is a single word.
-    private var columns: [GridItem] {
-        dynamicTypeSize.isAccessibilitySize
-            ? [GridItem(.flexible())]
-            : [GridItem(.adaptive(minimum: 150), spacing: 12)]
-    }
+    /// One column at the accessibility sizes, where half a screen is a word
+    /// wide; two otherwise.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(spacing: 12) {
-                    StatusHeader(snapshot: snapshot)
+                    StatusHeader(snapshot: snapshot, record: summary.tile(.record))
 
                     // Decisions first, and first by a clear margin: everything
                     // below this is a thing to know, and these are the only
@@ -91,43 +102,16 @@ struct ColonyDashboardView: View {
                         )
                     }
 
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(summary.tiles) { tile in
-                            NavigationLink(value: tile.kind) {
-                                ColonyTile(tile: tile)
-                            }
-                            // Reduce Motion is read inside the style, from a
-                            // view of its own — see `PressableTile.swift`.
-                            .buttonStyle(PressableTileStyle(pressedScale: 0.97))
-                            .contextMenu {
-                                Button {
-                                    path.append(tile.kind)
-                                } label: {
-                                    Label("Open \(tile.title)", systemImage: "chevron.right")
-                                }
-                            } preview: {
-                                TilePreview(tile: tile, snapshot: snapshot)
-                            }
-                        }
-                    }
-
-                    // The gentlest possible way of getting someone outside —
-                    // and emphatically not hidden in winter, which is where
-                    // this used to be switched off. Two plants flower in
-                    // winter, both of them keystones, and they are the only
-                    // things that do. That is exactly when it is worth being
-                    // told.
-                    BloomPromptCard(prompt: BloomPrompt(
-                        hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern,
-                        patches: snapshot.patches,
-                        terrain: snapshot.terrain,
-                        wildPatches: snapshot.wildPatches
-                    ), onPhotograph: onPhotograph)
+                    sectionColumns
                 }
                 .padding()
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Colony")
+            // Inline, so that the overview is the one screen it says it is:
+            // a large title cost the last section its place above the fold.
+            // The status card under it is the real header.
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: DashboardSummary.Tile.Kind.self) { kind in
                 ColonyDetailView(kind: kind, onPhotograph: onPhotograph)
             }
@@ -169,83 +153,145 @@ struct ColonyDashboardView: View {
     }
 }
 
-// MARK: - A tile
+extension ColonyDashboardView {
 
-/// One box in the grid: a symbol, a number, what the number is, and a colour
-/// that says how worried to be about it.
+    /// The four cards, two abreast: the odd ones down the left and the even
+    /// ones down the right, so each column packs tight and the bottoms differ
+    /// by at most a line. Two `VStack`s rather than a `LazyVGrid`, whose rows
+    /// are as tall as their taller card and left a card with a blank third.
+    @ViewBuilder
+    fileprivate var sectionColumns: some View {
+        let sections = summary.sections
+        if dynamicTypeSize.isAccessibilitySize {
+            ForEach(sections) { section in
+                OverviewSection(section: section, snapshot: snapshot, path: $path)
+            }
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                column(of: sections.enumerated().filter { $0.offset.isMultiple(of: 2) }.map(\.element))
+                column(of: sections.enumerated().filter { !$0.offset.isMultiple(of: 2) }.map(\.element))
+            }
+        }
+    }
+
+    private func column(of sections: [DashboardSummary.Section]) -> some View {
+        VStack(spacing: 12) {
+            ForEach(sections) { section in
+                OverviewSection(section: section, snapshot: snapshot, path: $path)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+}
+
+// MARK: - A section
+
+/// One heading and the lines under it.
+///
+/// A heading is a word or two in small capitals, the way a grouped list titles
+/// its groups, and when the worst line under it is a worry a dot in that
+/// line's colour sits beside it — so the four headings can be skimmed before
+/// any line is read. The lines sit in one card, divided, and read worst-first:
+/// readings before places.
+private struct OverviewSection: View {
+
+    let section: DashboardSummary.Section
+    let snapshot: ColonySnapshot
+    @Binding var path: NavigationPath
+
+    private var tint: Color { Theme.colour(forDashboard: section.severity) }
+
+    /// What the dot means, for VoiceOver.
+    private var verdict: String? {
+        switch section.severity {
+        case .calm, .notable: return nil
+        case .caution: return "worth a look"
+        case .alarm: return "needs attention"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(section.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if let verdict {
+                    Circle()
+                        .fill(tint)
+                        .frame(width: 7, height: 7)
+                        .accessibilityLabel(verdict)
+                }
+            }
+            .padding(.horizontal, 6)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+
+            VStack(spacing: 0) {
+                ForEach(Array(section.entries.enumerated()), id: \.element.id) { index, entry in
+                    if index > 0 {
+                        Divider().padding(.leading, 37)
+                    }
+                    line(for: entry)
+                }
+            }
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.cardCorner))
+        }
+    }
+
+    /// Which kind of line. Each case is a view of its own, so the builder
+    /// holds two plain calls.
+    @ViewBuilder
+    private func line(for entry: DashboardSummary.Entry) -> some View {
+        switch entry {
+        case .tile(let tile):
+            ReadingLine(tile: tile, snapshot: snapshot, path: $path)
+        case .place(let place):
+            PlaceLine(place: place)
+        }
+    }
+}
+
+/// A reading: symbol, what it is, one number, and the page behind it.
 ///
 /// Everything here arrives already decided. The view picks no thresholds and
-/// formats no numbers — if a tile is amber it is because `DashboardSummary`
+/// formats no numbers — if a line is amber it is because `DashboardSummary`
 /// said so, and that judgement has a test with a name.
-struct ColonyTile: View {
+private struct ReadingLine: View {
 
     let tile: DashboardSummary.Tile
-
-    /// One tile to a row at these sizes, with the width to wrap rather than
-    /// shrink a word like "Laying workers" to half its size.
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    private var lines: Int? { dynamicTypeSize.isAccessibilitySize ? nil : 1 }
+    let snapshot: ColonySnapshot
+    @Binding var path: NavigationPath
 
     private var tint: Color { Theme.colour(forDashboard: tile.severity) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: tile.symbolName)
-                    .foregroundStyle(tint)
-                    .imageScale(.medium)
-                    .accessibilityHidden(true)
-
-                Spacer(minLength: 0)
-
-                Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
-            }
-
-            // The trend goes with the number it is about. Beside the chevron
-            // a "→" read as a second way in, and for a steady count it said
-            // nothing a reader could use, so steady draws no arrow at all.
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(tile.headline)
-                    .font(.title3.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(.primary)
-                    .lineLimit(lines)
-                    .minimumScaleFactor(0.5)
-
-                if let trend = tile.trend, trend != .steady {
-                    Image(systemName: trend.symbolName)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                }
-            }
-
-            Text(tile.title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(tint)
-                .lineLimit(lines)
-                .minimumScaleFactor(0.7)
-
-            Text(tile.caption)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                .minimumScaleFactor(0.8)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-
-            if let gauge = tile.gauge {
-                TileBar(value: gauge, tint: tint)
-                    .accessibilityHidden(true)
-            }
+        NavigationLink(value: tile.kind) {
+            OverviewLine(
+                symbolName: tile.symbolName,
+                symbolTint: tint,
+                title: tile.title,
+                caption: tile.caption,
+                headline: tile.headline,
+                // A calm number is just a number. One that is anything else
+                // takes the colour, so the eye lands on it from the heading.
+                headlineTint: tile.severity == .calm ? nil : tint,
+                trend: tile.trend
+            )
         }
-        .frame(maxWidth: .infinity, minHeight: 124, alignment: .leading)
-        .padding(12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.cardCorner))
+        .buttonStyle(PressableLineStyle())
+        .contextMenu {
+            Button {
+                path.append(tile.kind)
+            } label: {
+                Label("Open \(tile.title)", systemImage: "chevron.right")
+            }
+        } preview: {
+            TilePreview(tile: tile, snapshot: snapshot)
+        }
         // One element with a label and a value, so VoiceOver says "Stores, 82
         // percent of what winter needs" rather than reading four fragments.
         .accessibilityElement(children: .combine)
@@ -255,31 +301,139 @@ struct ColonyTile: View {
     }
 }
 
-/// How full a tile's quantity is, as a thin bar along its foot.
-///
-/// Two capsules, the same idiom `MeterView` draws its bar with, rather than a
-/// `Gauge` in `.accessoryLinearCapacity` — which is a style made for widgets
-/// and complications, would have been the first of its kind in the app, and
-/// was never put in front of a compiler. `MeterView` itself is the wrong size
-/// here: it brings a label and a caption, and the tile already says both.
-private struct TileBar: View {
+/// A place: the same line, and the tab that draws it behind it.
+private struct PlaceLine: View {
 
-    /// Nought to one. Clamped here, because the bar has to be drawn whatever
-    /// it is handed.
-    let value: Double
-    let tint: Color
+    let place: DashboardSummary.Place
+    @Environment(\.openTab) private var openTab
+
+    private var tab: ContentView.Tab {
+        switch place.kind {
+        case .jobs, .comb: return .nest
+        case .country: return .world
+        case .garden: return .garden
+        }
+    }
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(.quaternary)
-                Capsule()
-                    .fill(tint.gradient)
-                    .frame(width: geometry.size.width * min(1, max(0, value)))
-            }
+        Button {
+            openTab(tab)
+        } label: {
+            OverviewLine(
+                symbolName: place.symbolName,
+                symbolTint: Theme.honey,
+                title: place.title,
+                caption: place.caption,
+                headline: place.headline,
+                headlineTint: nil,
+                trend: nil
+            )
         }
-        .frame(height: 5)
+        .buttonStyle(PressableLineStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(place.title)
+        .accessibilityValue(place.spoken)
+        .accessibilityHint("Opens the \(place.title) tab")
+    }
+}
+
+/// The one shape every line has.
+private struct OverviewLine: View {
+
+    let symbolName: String
+    let symbolTint: Color
+    let title: String
+    let caption: String
+    let headline: String
+    let headlineTint: Color?
+    let trend: DashboardSummary.Trend?
+
+    /// The number shares the title's row in half a screen's width, and drops
+    /// under the title at the accessibility sizes, where there is no room
+    /// beside it.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The symbol's column grows with the text, or at the accessibility
+    /// sizes three bees spilled over the words beside them.
+    @ScaledMetric(relativeTo: .body) private var symbolWidth: CGFloat = 22
+
+    private var titleRow: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 6))
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: symbolName)
+                .font(.subheadline)
+                .foregroundStyle(symbolTint)
+                .frame(width: symbolWidth)
+                .padding(.top, 2)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                titleRow {
+                    // A step under the number, so that "Population" and
+                    // "366" share half a screen without one of them being
+                    // cut to "Popula…".
+                    Text(title)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 4) }
+
+                    // The trend goes with the number it is about; a steady
+                    // count draws no arrow at all.
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(headline)
+                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(headlineTint ?? Color.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        if let trend, trend != .steady {
+                            Image(systemName: trend.symbolName)
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                }
+
+                Text(caption)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .minimumScaleFactor(0.7)
+            }
+            // Fills the line, so the chevron is at the edge however the
+            // title row is laid out; stacked, nothing else pushes it there.
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.top, 4)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .contentShape(Rectangle())
+    }
+}
+
+/// A line pressed dims rather than shrinks: it sits flush against its
+/// neighbours in one card, and a line scaling down inside a card looks like
+/// the card is breaking.
+private struct PressableLineStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                Color.primary.opacity(configuration.isPressed ? 0.08 : 0)
+            )
     }
 }
 
@@ -568,6 +722,10 @@ private struct DecisionRow: View {
     let tint: Color
     @Binding var open: DecisionKind?
 
+    /// "stay, follow, or give it away" is one line at the ordinary sizes and
+    /// "stay, follow, or give i…" at the accessibility ones; there it wraps.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         Button {
             open = kind
@@ -586,8 +744,9 @@ private struct DecisionRow: View {
                     Text(detail)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                         .minimumScaleFactor(0.7)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 0)
@@ -733,7 +892,7 @@ private struct Answered: View {
 
 // MARK: - Header
 
-/// The one thing at the top of the screen that is not a tile.
+/// The one thing at the top of the screen that is not a line in a section.
 ///
 /// Tighter than it was: the headline has come down from `.title3` to `.callout`
 /// and the season, the weather, whether the bees are out and the day have been
@@ -741,9 +900,16 @@ private struct Answered: View {
 /// header is the sentence the watch shows and the notification writes, and it
 /// is the only part of the screen that says what the colony is *doing* rather
 /// than what it has.
+///
+/// The day is also the way into the record. The record is the one reading
+/// that is not about today, and a heading over a single line was a heading
+/// over nothing, so "Year 1 · Day 14" at the trailing end of the card opens
+/// the lineage, the almanac and the rest.
 private struct StatusHeader: View {
 
     let snapshot: ColonySnapshot
+    /// The record tile, for what the day link says to VoiceOver.
+    let record: DashboardSummary.Tile?
 
     /// These rows hold four short things side by side. At the accessibility
     /// sizes that left each a sliver, and "Struggling" broke into three lines
@@ -789,13 +955,29 @@ private struct StatusHeader: View {
 
                 if !dynamicTypeSize.isAccessibilitySize { Spacer() }
 
-                Text("Day \(snapshot.displayDay)")
-                    .font(.caption2.monospacedDigit())
+                NavigationLink(value: DashboardSummary.Tile.Kind.record) {
+                    HStack(spacing: 3) {
+                        Text("Year \(snapshot.year) · Day \(snapshot.displayDay)")
+                            .font(.caption2.monospacedDigit())
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
                     .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Record")
+                .accessibilityValue(
+                    (record?.spoken ?? "Year \(snapshot.year)") + ", day \(snapshot.displayDay)"
+                )
+                .accessibilityHint("Opens the record")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
+        .padding(12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.cardCorner))
     }
 }
 

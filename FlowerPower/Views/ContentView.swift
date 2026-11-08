@@ -247,6 +247,10 @@ struct ContentView: View {
         // main action, so on the first Mac run the gear sat on top of the
         // camera button and hid the one thing the game asks the player to do.
         .environment(\.showSettings, { request(.settings) })
+        // The overview's place lines — the comb, the country, the garden —
+        // open the tab that draws each, so the first screen can stand in for
+        // the tab bar.
+        .environment(\.openTab, { selection = $0 })
         .environment(\.lastLook, lastLook)
         .environment(children)
         .disabled(store.isCatchingUp)
@@ -454,6 +458,18 @@ extension EnvironmentValues {
     var showSettings: @MainActor () -> Void {
         get { self[ShowSettingsKey.self] }
         set { self[ShowSettingsKey.self] = newValue }
+    }
+}
+
+private struct OpenTabKey: EnvironmentKey {
+    static let defaultValue: @MainActor (ContentView.Tab) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    /// Switches to a tab. Set by `ContentView`, which owns the selection.
+    var openTab: @MainActor (ContentView.Tab) -> Void {
+        get { self[OpenTabKey.self] }
+        set { self[OpenTabKey.self] = newValue }
     }
 }
 
