@@ -330,4 +330,167 @@ struct DashboardSummaryTests {
             || !snapshot.health.recentAttacks.isEmpty
         #expect((summary.tile(.health) != nil) == hasSomething)
     }
+
+    // MARK: - The sections
+
+    /// The sections are what the overview draws now, so every tile but the
+    /// record — which sits in the header — has to be under exactly one heading,
+    /// and the headings have to come out in the order the screen asks for.
+    @Test("Every tile but the record sits under exactly one heading, in order")
+    @MainActor
+    func everyTileHasOneHeading() {
+        let simulation = Simulation.newGame(
+            at: HiveLocation(type: .livingTreeCavity),
+            startingAt: epoch,
+            seed: 21
+        )
+        let store = GameStore(
+            simulation: simulation,
+            persistence: InMemoryPersistence(),
+            clock: { self.epoch.addingTimeInterval(40 * 24 * 300) }
+        )
+        store.catchUp()
+
+        let summary = DashboardSummary(snapshot: store.snapshot, history: store.history)
+
+        let placed = summary.sections.flatMap(\.entries).compactMap(\.tile).map(\.kind)
+        let expected = summary.tiles.map(\.kind).filter { $0 != .record }
+        #expect(placed.count == expected.count, "a tile was dropped or shown twice")
+        #expect(Set(placed) == Set(expected))
+        #expect(DashboardSummary.section(for: .record) == nil)
+        #expect(summary.tile(.record) != nil, "the record still exists for the header")
+
+        for section in summary.sections {
+            for tile in section.entries.compactMap(\.tile) {
+                #expect(DashboardSummary.section(for: tile.kind) == section.kind,
+                        "\(tile.kind.rawValue) is under \(section.kind.rawValue)")
+            }
+            #expect(!section.entries.isEmpty, "\(section.kind.rawValue) has nothing in it")
+        }
+
+        let kinds = summary.sections.map(\.kind)
+        #expect(kinds == kinds.sorted { lhs, rhs in
+            let order = DashboardSummary.Section.Kind.allCases
+            return order.firstIndex(of: lhs)! < order.firstIndex(of: rhs)!
+        }, "the sections came out in an order the screen did not ask for")
+        #expect(Set(kinds).count == kinds.count, "a heading appears twice")
+    }
+
+    @Test("A colony with a world has the four places, each with something to say")
+    @MainActor
+    func theThreePlacesAreThere() {
+        let simulation = Simulation.newGame(
+            at: HiveLocation(type: .livingTreeCavity),
+            startingAt: epoch,
+            seed: 21
+        )
+        let store = GameStore(
+            simulation: simulation,
+            persistence: InMemoryPersistence(),
+            clock: { self.epoch }
+        )
+
+        let summary = DashboardSummary(snapshot: store.snapshot, history: store.history)
+        let places = summary.sections.flatMap(\.entries).compactMap(\.place)
+
+        #expect(Set(places.map(\.kind)) == Set(DashboardSummary.Place.Kind.allCases))
+        for place in places {
+            #expect(!place.headline.isEmpty, "\(place.kind.rawValue) has no number")
+            #expect(!place.caption.isEmpty, "\(place.kind.rawValue) has no caption")
+            #expect(!place.spoken.isEmpty, "\(place.kind.rawValue) says nothing to VoiceOver")
+        }
+
+        // The jobs are the bees', the comb is inside and the country and
+        // garden are outside.
+        let bees = summary.sections.first { $0.kind == .bees }
+        let inside = summary.sections.first { $0.kind == .inside }
+        let outside = summary.sections.first { $0.kind == .outside }
+        #expect(bees?.entries.compactMap(\.place).map(\.kind) == [.jobs])
+        #expect(inside?.entries.compactMap(\.place).map(\.kind) == [.comb])
+        #expect(outside?.entries.compactMap(\.place).map(\.kind) == [.country, .garden])
+
+        // Readings come before places, so a section reads worst-first.
+        for section in summary.sections {
+            let firstPlace = section.entries.firstIndex { $0.place != nil } ?? section.entries.count
+            let lastTile = section.entries.lastIndex { $0.tile != nil } ?? -1
+            #expect(lastTile < firstPlace, "\(section.kind.rawValue) mixes places among readings")
+        }
+    }
+
+    @Test("A heading takes the colour of the worst thing under it, and places do not count")
+    func sectionSeverityIsTheWorstReading() {
+        let calm = DashboardSummary.Tile(
+            kind: .stores, headline: "90%", caption: "", severity: .calm, spoken: "ninety"
+        )
+        let worried = DashboardSummary.Tile(
+            kind: .honey, headline: "0", caption: "", severity: .caution, spoken: "none"
+        )
+        let place = DashboardSummary.Place(kind: .comb, headline: "1", caption: "", spoken: "one")
+
+        let mixed = DashboardSummary.Section(kind: .larder, entries: [.tile(calm), .tile(worried), .place(place)])
+        #expect(mixed.severity == .caution)
+
+        let placesOnly = DashboardSummary.Section(kind: .outside, entries: [.place(place)])
+        #expect(placesOnly.severity == .calm)
+
+        #expect(DashboardSummary.Section(kind: .bees, entries: []).severity == .calm)
+    }
+
+    /// Only with a hemisphere: the watch and the widget have no settings to
+    /// read one from, and a prompt built for the wrong half of the year
+    /// would send a player out for flowers that are not there.
+    @Test("The look-for line exists only when the hemisphere is known, and names a flower")
+    @MainActor
+    func lookForNeedsAHemisphere() throws {
+        let simulation = Simulation.newGame(
+            at: HiveLocation(type: .livingTreeCavity),
+            startingAt: epoch,
+            seed: 21
+        )
+        let store = GameStore(
+            simulation: simulation,
+            persistence: InMemoryPersistence(),
+            clock: { self.epoch }
+        )
+
+        let without = DashboardSummary(snapshot: store.snapshot, history: store.history)
+        #expect(without.tile(.lookFor) == nil)
+
+        // A June day: plenty in flower and none of it photographed.
+        let june = Date(timeIntervalSince1970: 1_750_000_000)
+        let with = DashboardSummary(
+            snapshot: store.snapshot, history: store.history, hemisphere: .northern, date: june
+        )
+        let line = try #require(with.tile(.lookFor))
+        let prompt = BloomPrompt(date: june, hemisphere: .northern, patches: store.snapshot.patches)
+        let first = try #require(prompt.notYetPhotographed.first)
+        #expect(line.headline == "\(prompt.notYetPhotographed.count)")
+        #expect(line.caption.contains(first.commonName))
+        #expect(line.severity == .notable)
+        #expect(DashboardSummary.section(for: .lookFor) == .outside)
+        #expect(with.sections.first { $0.kind == .outside }?.entries.compactMap(\.tile).map(\.kind)
+                == [.forage, .lookFor])
+    }
+
+    @Test("The garden place counts flowers and families and says when there are none")
+    func gardenPlaceCounts() {
+        var simulation = Simulation.newGame(
+            at: HiveLocation(type: .livingTreeCavity),
+            startingAt: epoch,
+            seed: 7
+        )
+        let empty = DashboardSummary.gardenPlace(simulation.snapshot())
+        #expect(empty.headline == "0")
+        #expect(empty.caption.contains("no flowers"))
+
+        simulation.registerPhotograph(
+            photoLocalIdentifier: "a", species: FlowerCatalogue.whiteClover, confidence: 0.9, takenAt: epoch
+        )
+        simulation.registerPhotograph(
+            photoLocalIdentifier: "b", species: FlowerCatalogue.borage, confidence: 0.9, takenAt: epoch
+        )
+        let two = DashboardSummary.gardenPlace(simulation.snapshot())
+        #expect(two.headline == "2")
+        #expect(two.caption.contains("2 families"))
+    }
 }

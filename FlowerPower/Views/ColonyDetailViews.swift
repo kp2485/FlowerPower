@@ -55,7 +55,10 @@ struct ColonyDetailView: View {
             case .nest: NestDetailView()
             case .health: HealthDetailView()
             case .honey: HoneyDetailView()
-            case .forage: ForageDetailView(onPhotograph: onPhotograph)
+            // Two lines on the overview, one page: what is in bloom and what
+            // is out there to photograph are the same question from either
+            // side.
+            case .forage, .lookFor: ForageDetailView(onPhotograph: onPhotograph)
             case .record: RecordDetailView()
             }
         }
@@ -225,6 +228,10 @@ private struct ForageDetailView: View {
     @Environment(GameStore.self) private var store
     var onPhotograph: () -> Void
 
+    /// For the bloom prompt, which works from the real calendar. The same
+    /// preference the Garden and the Collection read, under the same key.
+    @AppStorage("hemisphere") private var hemisphereRaw = Hemisphere.likelyHere.rawValue
+
     private var snapshot: ColonySnapshot { store.snapshot }
 
     /// Everything the bees can actually work today, the player's flowers first
@@ -251,6 +258,19 @@ private struct ForageDetailView: View {
 
     var body: some View {
         DetailPage("Forage") {
+            // The gentlest possible way of getting someone outside — and
+            // emphatically not hidden in winter. Two plants flower in winter,
+            // both of them keystones, and they are the only things that do;
+            // that is exactly when it is worth being told. It sat at the foot
+            // of the overview until the overview was held to one screen, and
+            // the "Look for" line there opens this page to it.
+            BloomPromptCard(prompt: BloomPrompt(
+                hemisphere: Hemisphere(rawValue: hemisphereRaw) ?? .northern,
+                patches: snapshot.patches,
+                terrain: snapshot.terrain,
+                wildPatches: snapshot.wildPatches
+            ), onPhotograph: onPhotograph)
+
             Explainer(
                 "A photograph is a stand of flowers, and a stand does not last. A "
                 + "patch is at its best for about two months and gone a few months "
@@ -286,15 +306,9 @@ private struct ForageDetailView: View {
                 .card()
             }
 
-            Button(action: onPhotograph) {
-                Label("Photograph a Flower", systemImage: "camera.fill")
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.honey)
-            .foregroundStyle(Theme.onHoney)
-
+            // The camera is the bloom card's button at the top of the page,
+            // beside the flowers it names; a second one down here was the
+            // same button twice.
             IntakeTrace(samples: store.history.recent(60))
         }
     }
