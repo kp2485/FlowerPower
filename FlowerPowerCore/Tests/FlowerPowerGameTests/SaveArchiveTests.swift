@@ -217,3 +217,104 @@ struct SaveArchiveTests {
         store.stopLiveUpdates()
     }
 }
+
+// MARK: - Photographs
+
+/// The pictures that travel with a colony.
+///
+/// They are optional in both directions — a file from before they existed
+/// opens, and a file carrying them opens on a build that has never heard of
+/// them — and they are the one part of a backup that is dropped rather than
+/// refused when it is wrong, because the colony is the thing being rescued.
+@Suite("Photographs in a backup")
+struct SaveArchivePhotographTests {
+
+    private let epoch = Date(timeIntervalSince1970: 1_700_000_000)
+
+    private func makeSimulation() -> Simulation {
+        var simulation = Simulation.newGame(
+            at: HiveLocation(type: .livingTreeCavity),
+            startingAt: epoch,
+            seed: 77
+        )
+        simulation.registerPhotograph(
+            photoLocalIdentifier: "ABCD-1234/L0/001",
+            species: FlowerCatalogue.whiteClover,
+            confidence: 0.9,
+            takenAt: epoch
+        )
+        return simulation
+    }
+
+    private func photograph(_ identifier: String, bytes: Int = 2_000) -> SaveArchive.Photograph {
+        SaveArchive.Photograph(identifier: identifier, jpeg: Data(repeating: 0xFF, count: bytes))
+    }
+
+    @Test("Photographs round-trip with the colony and are counted")
+    func roundTrip() throws {
+        let archive = SaveArchive(
+            exportedAt: epoch,
+            simulation: makeSimulation(),
+            photographs: [photograph("ABCD-1234/L0/001"), photograph("shared:gift-1")]
+        )
+        let restored = try SaveArchive.decoded(from: archive.encode())
+
+        #expect(restored == archive)
+        #expect(restored.photographCount == 2)
+        #expect(restored.summary.photographCount == 2)
+    }
+
+    @Test("A backup without photographs still opens, and says it has none")
+    func withoutPhotographs() throws {
+        let archive = SaveArchive(exportedAt: epoch, simulation: makeSimulation())
+        let restored = try SaveArchive.decoded(from: archive.encode())
+
+        #expect(restored.photographs == nil)
+        #expect(restored.photographCount == 0)
+        #expect(restored.validatedPhotographs().isEmpty)
+    }
+
+    @Test("An oversized or empty photograph is dropped, not the colony")
+    func dropsBadPhotographs() throws {
+        let archive = SaveArchive(
+            exportedAt: epoch,
+            simulation: makeSimulation(),
+            photographs: [
+                photograph("kept"),
+                photograph("too-big", bytes: SaveArchive.maximumPhotographBytes + 1),
+                photograph("empty", bytes: 0),
+                photograph("", bytes: 10),
+                photograph(String(repeating: "x", count: 129))
+            ]
+        )
+        let restored = try SaveArchive.decoded(from: archive.encode())
+
+        #expect(restored.photographs?.map(\.identifier) == ["kept"])
+        #expect(restored.simulation == archive.simulation)
+    }
+
+    @Test("More photographs than a garden holds are capped")
+    func capsTheCount() throws {
+        let many = (0..<(SaveArchive.maximumPhotographs + 5)).map { photograph("p\($0)", bytes: 4) }
+        let archive = SaveArchive(exportedAt: epoch, simulation: makeSimulation(), photographs: many)
+        let restored = try SaveArchive.decoded(from: archive.encode())
+
+        #expect(restored.photographCount == SaveArchive.maximumPhotographs)
+    }
+
+    @Test("The store exports the photographs it is handed, and none as nil")
+    @MainActor
+    func exportFromStore() throws {
+        let store = GameStore(
+            simulation: makeSimulation(),
+            persistence: InMemoryPersistence(),
+            clock: { self.epoch }
+        )
+
+        let bare = try SaveArchive.decoded(from: store.exportArchive())
+        #expect(bare.photographs == nil)
+
+        let carrying = try SaveArchive.decoded(from: store.exportArchive(photographs: [photograph("one")]))
+        #expect(carrying.photographCount == 1)
+    }
+}

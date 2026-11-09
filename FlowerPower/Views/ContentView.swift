@@ -365,9 +365,14 @@ struct ContentView: View {
         if kind == SaveArchive.fileExtension {
             do {
                 guard size <= SaveArchive.maximumBytes else { throw SaveArchive.Failure.tooLarge(size) }
-                request(.backup(.archive(
-                    try SaveArchive.decoded(from: Data(contentsOf: url))
-                )))
+                // Read while the file is still lent to us, decoded off the
+                // main actor: a backup carrying its photographs is tens of
+                // megabytes of JSON, and parsing that where the sheet is
+                // drawn froze the screen for the length of it.
+                let data = try Data(contentsOf: url)
+                Task { @MainActor in
+                    request(.backup(await Self.openedBackup(from: data)))
+                }
             } catch {
                 request(.backup(.failure(error.localizedDescription)))
             }
@@ -389,6 +394,15 @@ struct ContentView: View {
                 title: isSwarm ? "That swarm could not be opened" : "That flower could not be opened",
                 message: error.localizedDescription
             ))
+        }
+    }
+
+    @concurrent
+    nonisolated private static func openedBackup(from data: Data) async -> OpenedBackup {
+        do {
+            return .archive(try SaveArchive.decoded(from: data))
+        } catch {
+            return .failure(error.localizedDescription)
         }
     }
 

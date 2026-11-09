@@ -35,6 +35,16 @@ struct SettingsView: View {
     @State private var isRereadingIntroduction = false
     @State private var preparedBackup: URL?
     @State private var backupFailure: String?
+    /// What went into the prepared file, for the footer: how many of the
+    /// garden's pictures came along and what the whole thing weighs.
+    @State private var backupContents: BackupContents?
+    @AppStorage("backupIncludesPhotographs") private var backupIncludesPhotographs = true
+
+    private struct BackupContents: Equatable {
+        let flowers: Int
+        let photographs: Int
+        let bytes: Int
+    }
 
     @AppStorage("hiveHum") private var humEnabled = false
     @AppStorage("digestHour") private var digestHour = 8
@@ -274,12 +284,18 @@ struct SettingsView: View {
     /// The file is written on the way in to this screen rather than on the
     /// tap, because `ShareLink` wants something to share before it is
     /// pressed, and it is rewritten whenever the colony moves on a day so the
-    /// share sheet can never hand over yesterday's colony. Encoding a save is
-    /// what the game does after every player action anyway.
+    /// share sheet can never hand over yesterday's colony. The photographs
+    /// are the slow part — each is read from the library and re-encoded
+    /// small — so that happens off the main actor, and the toggle is there
+    /// for a player who wants the colony alone in a file a message can carry.
     private var backupSection: some View {
         Section {
+            Toggle("Include photographs", isOn: $backupIncludesPhotographs)
             if let preparedBackup {
-                ShareLink(item: preparedBackup) {
+                ShareLink(
+                    item: preparedBackup,
+                    preview: SharePreview("FlowerPower colony backup", image: Image(systemName: "hexagon.fill"))
+                ) {
                     Label("Export a Backup", systemImage: "square.and.arrow.up")
                 }
             } else if let backupFailure {
@@ -298,28 +314,79 @@ struct SettingsView: View {
         } header: {
             Text("Backup")
         } footer: {
-            Text("The whole colony and its garden, but not the photographs: those stay on this phone, so elsewhere the flowers work as before with blank thumbnails. Opening the file on another phone replaces that phone's colony — it moves a colony rather than sharing one.")
+            Text(backupFooter)
         }
-        // Keyed on the day, so a colony that has moved on gets a fresh file
-        // and one that has not is not re-encoded on every redraw.
-        .task(id: store.snapshot.day) { @MainActor in
-            prepareBackup()
+        // Keyed on the day and the toggle, so a colony that has moved on gets
+        // a fresh file and one that has not is not re-encoded on every redraw.
+        .task(id: "\(store.snapshot.day)|\(backupIncludesPhotographs)") { @MainActor in
+            await prepareBackup()
         }
     }
 
+    private var backupFooter: String {
+        var lines = ["Opening the file on another phone replaces that phone's colony — it moves a colony rather than sharing one."]
+        if let backupContents {
+            let size = ByteCountFormatter.string(fromByteCount: Int64(backupContents.bytes), countStyle: .file)
+            if backupIncludesPhotographs {
+                let missing = backupContents.flowers - backupContents.photographs
+                var line = "The whole colony, its garden and \(backupContents.photographs) of its \(backupContents.flowers) photographs, \(size)."
+                if missing > 0 {
+                    line += " \(missing) could not be read from your library and will show blank elsewhere."
+                }
+                lines.insert(line, at: 0)
+            } else {
+                lines.insert("The whole colony and its garden without the photographs, \(size). Elsewhere the flowers work as before with blank thumbnails.", at: 0)
+            }
+        }
+        return lines.joined(separator: " ")
+    }
+
     @MainActor
-    private func prepareBackup() {
+    private func prepareBackup() async {
         preparedBackup = nil
         backupFailure = nil
+        backupContents = nil
         do {
+            let patches = store.snapshot.patches
+            var photographs: [SaveArchive.Photograph] = []
+            if backupIncludesPhotographs {
+                photographs = await Self.photographs(for: patches.map(\.photoLocalIdentifier))
+            }
+            guard !Task.isCancelled else { return }
+            let data = try store.exportArchive(photographs: photographs)
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent(SaveArchive.suggestedFileName())
-            try store.exportArchive().write(to: url, options: .atomic)
+            try data.write(to: url, options: .atomic)
             preparedBackup = url
+            backupContents = BackupContents(
+                flowers: patches.count, photographs: photographs.count, bytes: data.count
+            )
         } catch {
             backupFailure = "This colony could not be packaged up: "
                 + error.localizedDescription
         }
+    }
+
+    /// Each photograph the garden can still find, made small and stripped
+    /// of its metadata by the same path a shared flower takes. One that is
+    /// not on this phone, or past the archive's per-picture cap even at its
+    /// smallest, is left out rather than failing the backup.
+    @concurrent
+    nonisolated private static func photographs(for identifiers: [String]) async -> [SaveArchive.Photograph] {
+        var photographs: [SaveArchive.Photograph] = []
+        for identifier in identifiers {
+            guard !Task.isCancelled else { return photographs }
+            guard let original = await PhotoLoader.originalData(for: identifier),
+                  let small = SharedImageStore.prepareForSharing(
+                      original,
+                      maximumDimension: 1_024,
+                      quality: 0.8,
+                      limit: SaveArchive.maximumPhotographBytes
+                  )
+            else { continue }
+            photographs.append(SaveArchive.Photograph(identifier: identifier, jpeg: small))
+        }
+        return photographs
     }
 
     // MARK: - Starting over
