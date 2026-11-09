@@ -17,6 +17,7 @@ import Foundation
 import Photos
 import UIKit
 import ImageIO
+import UniformTypeIdentifiers
 import FlowerPowerGame
 
 enum PhotoLibrary {
@@ -121,7 +122,16 @@ enum PhotoLibrary {
         )
     }
 
-    /// Saves a freshly captured image and returns its metadata.
+    /// Saves a photograph straight from the camera and returns its metadata.
+    ///
+    /// The camera's own bytes go to Photos — the HEIF it encoded, as
+    /// Camera.app's would be — so the picture is compressed once, not decoded
+    /// and compressed a second time on the way in.
+    static func save(_ capture: CameraCapture) async throws -> PhotoMetadata {
+        try await save(capture.image, encoded: capture.data, type: capture.type)
+    }
+
+    /// Saves an image that exists only decoded, and returns its metadata.
     ///
     /// A photo chosen from the library is not saved again — it is used as it
     /// is — unless the app cannot read it, which is when `CaptureView` falls
@@ -138,6 +148,12 @@ enum PhotoLibrary {
         guard let data = image.heicData() ?? image.jpegData(compressionQuality: 0.9) else {
             throw PhotoLibraryError.couldNotSave
         }
+        return try await save(image, encoded: data, type: nil)
+    }
+
+    /// `type` tells Photos what the bytes are when it is known; left nil, it
+    /// works it out from the data, which it can for anything made here.
+    private static func save(_ image: UIImage, encoded data: Data, type: UTType?) async throws -> PhotoMetadata {
 
         // The change block runs on Photos' own queue, so what it learns comes
         // back in a box rather than by writing to a local.
@@ -147,7 +163,9 @@ enum PhotoLibrary {
         do {
             try await PHPhotoLibrary.shared().performChanges {
                 let request = PHAssetCreationRequest.forAsset()
-                request.addResource(with: .photo, data: data, options: nil)
+                let options = PHAssetResourceCreationOptions()
+                options.uniformTypeIdentifier = type?.identifier
+                request.addResource(with: .photo, data: data, options: options)
                 request.creationDate = takenAt
                 placeholder.identifier = request.placeholderForCreatedAsset?.localIdentifier
             }
