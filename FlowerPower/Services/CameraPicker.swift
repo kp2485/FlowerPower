@@ -97,7 +97,10 @@ struct CameraPicker: View {
         }
         // Controls over a viewfinder are white on black whatever the system
         // appearance, and `Theme.honey` reads as the bright gold on it.
-        .preferredColorScheme(.dark)
+        // Scoped to this view: `preferredColorScheme` is a preference that
+        // travels up to the presentation and stayed dark on the capture
+        // sheet after the camera was dismissed.
+        .environment(\.colorScheme, .dark)
         .task { await model.start() }
         .onDisappear { model.stop() }
         // Nothing worse than this, and then the library button is still
