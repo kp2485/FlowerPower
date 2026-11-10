@@ -152,6 +152,60 @@ enum FeaturePrints {
             .first
     }
 
+    // MARK: - Where the flower is
+
+    /// A square around whatever Vision thinks the subject is, in the pixel
+    /// coordinates of `image`, or nil when that square would be the centre
+    /// crop anyway.
+    ///
+    /// Every identifier here is handed the centre square of the frame, and
+    /// a flower is usually there — but not always: a player photographing a
+    /// bramble at arm's length puts the flower a third of the way up with a
+    /// hedge round it, and the centre crop then shows mostly hedge. Vision's
+    /// objectness saliency finds the thing in the picture without knowing
+    /// what it is, which is the right tool for a model that then says what
+    /// it is. The crop is padded, kept to at least a third of the short edge
+    /// so a stray blob cannot zoom the model into a few hundred pixels of
+    /// petal, and only used when it frames something the centre square does
+    /// not. Only for upright pixels: the boxes come back in the oriented
+    /// frame, and this crops the stored one.
+    static func salientSquare(in image: CGImage) async -> CGRect? {
+        let size = CGSize(width: image.width, height: image.height)
+        guard let observation = try? await GenerateObjectnessBasedSaliencyImageRequest()
+            .perform(on: image, orientation: .up)
+        else { return nil }
+        let boxes = observation.salientObjects.map {
+            $0.boundingBox.toImageCoordinates(size, origin: .upperLeft)
+        }
+        return squareCrop(around: boxes, in: size)
+    }
+
+    /// The geometry of `salientSquare`, on its own so it can be tested
+    /// without Vision.
+    static func squareCrop(
+        around boxes: [CGRect],
+        in size: CGSize,
+        padding: CGFloat = 0.12,
+        smallest: CGFloat = 0.34,
+        sameAsCentre: CGFloat = 0.9
+    ) -> CGRect? {
+        guard var union = boxes.first else { return nil }
+        for box in boxes.dropFirst() { union = union.union(box) }
+        guard union.width > 0, union.height > 0 else { return nil }
+
+        let shortEdge = min(size.width, size.height)
+        var side = max(union.width, union.height) * (1 + 2 * padding)
+        side = min(max(side, shortEdge * smallest), shortEdge)
+        // Near enough the whole short edge is the centre crop by another
+        // route, and not worth a second pass through the model.
+        guard side < shortEdge * sameAsCentre else { return nil }
+
+        var origin = CGPoint(x: union.midX - side / 2, y: union.midY - side / 2)
+        origin.x = min(max(0, origin.x), size.width - side)
+        origin.y = min(max(0, origin.y), size.height - side)
+        return CGRect(origin: origin, size: CGSize(width: side, height: side)).integral
+    }
+
     /// Vision taxonomy labels that count as plant material.
     private static let plantLabels: Set<String> = [
         "flower", "flowers", "plant", "plants", "blossom", "petal",

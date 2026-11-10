@@ -437,34 +437,54 @@ private struct FlowerPreview: View {
 struct PhotoThumbnail: View {
 
     let localIdentifier: String
+
+    @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
+    /// The pixel bucket the image on screen was loaded for, so a tile that
+    /// grows past it reloads and one that wobbles by a point does not.
+    @State private var loadedFor: CGFloat = 0
+    @State private var side: CGFloat = 0
 
     var body: some View {
-        ZStack {
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Rectangle()
-                    .fill(Theme.wax.opacity(0.5))
-                    .overlay {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                    }
+        // The picture is an overlay on a rectangle that takes whatever size
+        // it is offered, so a landscape photograph filling a square tile is
+        // clipped to the tile rather than reporting its own wider size up
+        // to the grid and spilling over its neighbours.
+        Rectangle()
+            .fill(Theme.wax.opacity(0.5))
+            .overlay {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "photo")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .clipped()
+        // Measured rather than assumed. Every thumbnail used to be fetched
+        // at 400 pixels: enough for a tile, a third of what the detail
+        // sheet's full-width square draws on a 3× screen.
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            max(proxy.size.width, proxy.size.height) * displayScale
+        } action: { pixels in
+            side = pixels
+        }
+        .task(id: "\(localIdentifier)|\(wanted)") { @MainActor in
+            guard wanted > 0, wanted > loadedFor || image == nil else { return }
+            if let loaded = await PhotoLoader.image(for: localIdentifier, covering: wanted) {
+                image = loaded
+                loadedFor = wanted
+            } else if loadedFor == 0 {
+                image = nil
             }
         }
-        .task(id: localIdentifier) { @MainActor in
-            if FlowerShare.isSharedIdentifier(localIdentifier) {
-                image = SharedImageStore.image(forLocalIdentifier: localIdentifier)
-            } else {
-                image = await PhotoLibrary.thumbnail(
-                    for: localIdentifier,
-                    size: CGSize(width: 400, height: 400)
-                )
-            }
-        }
+    }
+
+    private var wanted: CGFloat {
+        side > 0 ? PhotoLoader.bucket(forPixels: side) : 0
     }
 }
 
@@ -500,6 +520,7 @@ struct FlowerDetailView: View {
             ?? opened
     }
     @State private var isSharing = false
+    @State private var isViewingPhoto = false
 
     /// The catalogue entry when the plant was placed to a species, and the
     /// family's or genus's typical forage when it was placed less precisely —
@@ -517,12 +538,20 @@ struct FlowerDetailView: View {
                     // A square of its own with the picture laid over it. On
                     // the picture itself the ratio took a landscape photo's
                     // width, and the whole sheet went wider than the screen.
-                    Color.clear
-                        .aspectRatio(1, contentMode: .fit)
-                        .overlay { PhotoThumbnail(localIdentifier: patch.photoLocalIdentifier) }
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .accessibilityElement()
-                        .accessibilityLabel("Your photograph of \(patch.speciesName)")
+                    // A tap opens the photograph whole: the square is a
+                    // crop of it, and a player who took the picture wants
+                    // to see the picture.
+                    Button {
+                        isViewingPhoto = true
+                    } label: {
+                        Color.clear
+                            .aspectRatio(1, contentMode: .fit)
+                            .overlay { PhotoThumbnail(localIdentifier: patch.photoLocalIdentifier) }
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Your photograph of \(patch.speciesName)")
+                    .accessibilityHint("Shows the whole photograph")
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(patch.speciesName)
@@ -587,6 +616,9 @@ struct FlowerDetailView: View {
             }
             .sheet(isPresented: $isSharing) {
                 ShareFlowerView(patch: patch)
+            }
+            .fullScreenCover(isPresented: $isViewingPhoto) {
+                PhotoViewer(localIdentifier: patch.photoLocalIdentifier, title: patch.speciesName)
             }
         }
     }

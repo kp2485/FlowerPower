@@ -49,7 +49,13 @@ struct ShareSwarmView: View {
 
                 Section {
                     if let prepared {
-                        ShareLink(item: prepared) {
+                        ShareLink(
+                            item: prepared,
+                            preview: SharePreview(
+                                "A swarm from \(store.snapshot.departedSwarm?.queenTitle ?? "the hive")",
+                                image: Image(systemName: "wind")
+                            )
+                        ) {
                             Label("Send the Swarm", systemImage: "square.and.arrow.up")
                                 .frame(maxWidth: .infinity)
                         }

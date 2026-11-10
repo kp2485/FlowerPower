@@ -192,9 +192,28 @@ public struct FlowerClassifier: FlowerIdentifying {
         // Stage two, best available answer first.
 
         // BioCLIP 2: any flowering plant, to whatever rank it is sure of.
+        //
+        // Twice, when the flower is not where the centre crop looks: once on
+        // the frame as the model has always seen it, once on a square round
+        // whatever Vision found in it, keeping whichever the model was surer
+        // of. The second pass costs about as much as the first and only runs
+        // when the two crops differ. See `FeaturePrints.salientSquare`.
         if let bioCLIP {
             do {
-                if let placement = try bioCLIP.place(image, orientation: orientation),
+                var placement = try bioCLIP.place(image, orientation: orientation)
+                if orientation == .up,
+                   let square = await FeaturePrints.salientSquare(in: image),
+                   let closer = image.cropping(to: square),
+                   let onSubject = try bioCLIP.place(closer, orientation: .up),
+                   Self.isBetter(onSubject, than: placement) {
+                    logger.info("""
+                        bioclip: the crop round the subject placed it better \
+                        (\(onSubject.confidence, format: .fixed(precision: 2)) \
+                        against \(placement?.confidence ?? 0, format: .fixed(precision: 2)))
+                        """)
+                    placement = onSubject
+                }
+                if let placement,
                    let taxon = placement.taxon {
                     return identification(
                         for: taxon,
@@ -251,6 +270,19 @@ public struct FlowerClassifier: FlowerIdentifying {
     }
 
     // MARK: - Stages
+
+    /// Whether one placement beats another: a finer rank first, because a
+    /// species the model is fairly sure of says more than a family it is
+    /// very sure of, and the surer of two at the same rank.
+    static func isBetter(
+        _ candidate: TaxonEmbeddingIndex.Placement,
+        than incumbent: TaxonEmbeddingIndex.Placement?
+    ) -> Bool {
+        guard let candidateRank = candidate.taxon?.rank else { return false }
+        guard let incumbent, let incumbentRank = incumbent.taxon?.rank else { return true }
+        if candidateRank != incumbentRank { return candidateRank > incumbentRank }
+        return candidate.confidence > incumbent.confidence
+    }
 
     /// Builds a result from a placement at any rank.
     ///

@@ -184,10 +184,13 @@ struct ReceiveFlowerView: View {
         // The picture is kept first. If it were stored after the patch, a
         // failure here would leave a flower in the garden with nothing to
         // show for it.
-        // Re-encoded rather than filed as it came, so what stays is an ordinary
-        // JPEG of a sensible size whatever the file claimed to be.
-        if let image, let data = SharedImageStore.prepareForSharing(image) {
-            SharedImageStore.store(data, forShare: share.id)
+        // Kept as it came rather than re-encoded. The file is already capped
+        // in bytes, its pixel count was checked when `image` was decoded,
+        // and everything that reads the store goes through the same guarded
+        // decoder — so a second compression bought nothing and cost the
+        // picture a generation, twice over when the flower was passed on.
+        if image != nil {
+            SharedImageStore.store(share.imageData, forShare: share.id)
         }
         let result = store.importShared(share)
         outcome = result

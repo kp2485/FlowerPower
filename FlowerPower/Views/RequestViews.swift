@@ -60,7 +60,10 @@ struct AskForForageView: View {
                 if request?.wanted?.isEmpty == false {
                     Section {
                         if let prepared {
-                            ShareLink(item: prepared) {
+                            ShareLink(
+                                item: prepared,
+                                preview: SharePreview("Forage wanted", image: Image(systemName: "hand.raised"))
+                            ) {
                                 Label("Ask a Friend", systemImage: "square.and.arrow.up")
                                     .frame(maxWidth: .infinity)
                             }
