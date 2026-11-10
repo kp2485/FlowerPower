@@ -11,11 +11,16 @@
 //  is there to show what is about to go before the share sheet opens.
 //
 //  Nothing here asks about place. A share carries no location at all, because
-//  the app never learns one, and the photograph's own EXIF is left behind when
-//  the picture is re-encoded on the way out. That means there is no setting
-//  for a player to remember to switch off, and no way for a flower sent to a
-//  group chat to tell everyone in it where somebody was standing. The
-//  re-encode is in `SharedImageStore.prepareForSharing`.
+//  the app never learns one, and the photograph's own metadata is stripped
+//  on the way out. That means there is no setting for a player to remember
+//  to switch off, and no way for a flower sent to a group chat to tell
+//  everyone in it where somebody was standing. The stripping is
+//  `SharedImageStore.prepareForSharing`, which also keeps the picture at the
+//  size it was taken as far as the file cap allows, and passes a friend's
+//  flower on pixel for pixel rather than compressing it a second time.
+//
+//  The picture is prepared once, off the main actor, when the screen opens;
+//  a name or a note being typed only rewrites the small file around it.
 //
 
 import SwiftUI
@@ -31,7 +36,12 @@ struct ShareFlowerView: View {
 
     @AppStorage("shareSenderName") private var senderName = ""
     @State private var note = ""
-    @State private var image: UIImage?
+    /// The photograph made fit to send, loaded once; every rebuild of the
+    /// file waits on this rather than redoing it.
+    @State private var picture: Task<Data?, Never>?
+    /// A small copy for the share sheet's header, so Messages shows the
+    /// flower rather than a document icon.
+    @State private var preview: UIImage?
     @State private var prepared: URL?
     @State private var failure: String?
 
@@ -67,7 +77,7 @@ struct ShareFlowerView: View {
 
                 Section {
                     if let prepared {
-                        ShareLink(item: prepared) {
+                        ShareLink(item: prepared, preview: sharePreview) {
                             Label("Send Flower", systemImage: "square.and.arrow.up")
                                 .frame(maxWidth: .infinity)
                         }
@@ -102,17 +112,20 @@ struct ShareFlowerView: View {
         // Rebuilt whenever anything that goes into the file changes, so the
         // share sheet can never hand over a stale one — signed with a name the
         // player has since corrected, or missing the line they just typed.
+        // The stale file is withdrawn at once so it cannot be sent.
         .task(id: rebuildKey) { @MainActor in
-            // Not on every keystroke: each rebuild resizes and re-encodes the
-            // photograph on the main thread, and typing a name lagged. The
-            // stale file is withdrawn at once so it cannot be sent.
             prepared = nil
-            if image != nil {
-                try? await Task.sleep(for: .milliseconds(350))
-                guard !Task.isCancelled else { return }
-            }
             await prepare()
         }
+    }
+
+    private var sharePreview: SharePreview<Image, Never> {
+        // A symbol until the picture is ready, so the header always has an
+        // image rather than the file type's blank document icon.
+        SharePreview(
+            patch.speciesName,
+            image: preview.map { Image(uiImage: $0) } ?? Image(systemName: "camera.macro")
+        )
     }
 
     private var rebuildKey: String {
@@ -124,17 +137,17 @@ struct ShareFlowerView: View {
         prepared = nil
         failure = nil
 
-        let source: UIImage?
-        if let image {
-            source = image
-        } else {
-            source = await loadFullImage()
-            image = source
+        if picture == nil {
+            let identifier = patch.photoLocalIdentifier
+            picture = Task { await Self.pictureToSend(for: identifier) }
         }
-
-        guard let source, let data = SharedImageStore.prepareForSharing(source) else {
+        guard let data = await picture?.value else {
             failure = "That photograph is not on this phone, so it cannot be sent."
             return
+        }
+        guard !Task.isCancelled else { return }
+        if preview == nil {
+            preview = await Self.thumbnail(of: data)
         }
 
         guard let share = store.share(
@@ -154,13 +167,17 @@ struct ShareFlowerView: View {
         }
     }
 
-    private func loadFullImage() async -> UIImage? {
-        if let shared = SharedImageStore.image(forLocalIdentifier: patch.photoLocalIdentifier) {
-            return shared
-        }
-        return await PhotoLibrary.thumbnail(
-            for: patch.photoLocalIdentifier,
-            size: CGSize(width: 1_600, height: 1_600)
-        )
+    /// The photograph's own bytes, made fit to send. Off the main actor:
+    /// re-encoding a camera original is real work, and done on the main
+    /// thread it made typing a name lag.
+    @concurrent
+    nonisolated private static func pictureToSend(for identifier: String) async -> Data? {
+        guard let original = await PhotoLoader.originalData(for: identifier) else { return nil }
+        return SharedImageStore.prepareForSharing(original)
+    }
+
+    @concurrent
+    nonisolated private static func thumbnail(of data: Data) async -> UIImage? {
+        PhotoLibrary.workingImage(from: data, maxPixelSize: 320)
     }
 }

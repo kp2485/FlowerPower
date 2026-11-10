@@ -53,10 +53,20 @@ public struct SaveArchive: Codable, Equatable, Sendable, Identifiable {
     public static let typeIdentifier = "com.linwoodtechnologies.flowerpower.save"
 
     /// A save is JSON and grows with the colony — every bee, every patch, the
-    /// whole lineage. A large one is a few hundred kilobytes; this is far past
-    /// anything the engine produces and far short of a file that could not be
-    /// decoded on a phone.
-    public static let maximumBytes = 16 * 1024 * 1024
+    /// whole lineage. The colony itself is a few hundred kilobytes; the
+    /// photographs are the bulk, at a few hundred kilobytes each and base64
+    /// on top, so a garden of two hundred flowers is tens of megabytes. This
+    /// is past that and still short of a file a phone could not decode.
+    public static let maximumBytes = 64 * 1024 * 1024
+
+    /// Each photograph in a backup is re-encoded to about a thousand pixels
+    /// on its long edge before it goes in, which is a few hundred kilobytes.
+    /// One past this is dropped on the way in rather than refusing the
+    /// colony with it.
+    public static let maximumPhotographBytes = 1_536 * 1024
+
+    /// More photographs than a garden holds. The rest are dropped.
+    public static let maximumPhotographs = 600
 
     public var formatVersion: Int
     /// Identifies this backup. Only used by the interface — it is what makes
@@ -74,19 +84,58 @@ public struct SaveArchive: Codable, Equatable, Sendable, Identifiable {
     public var exportedAt: Date
     /// The colony, entire.
     public var simulation: Simulation
+    /// The garden's pictures, when the player chose to bring them. Optional
+    /// for compatibility: a backup from before photographs travelled has no
+    /// key, and a build from before this one ignores the key.
+    ///
+    /// A restore puts each one in the app's own store under the identifier
+    /// its patch already carries, so on the new phone the garden looks for
+    /// the picture in a library that has never heard of it, finds nothing,
+    /// and finds this. The engine never learns the picture moved.
+    public var photographs: [Photograph]?
+
+    public struct Photograph: Codable, Equatable, Sendable {
+        /// The patch's `photoLocalIdentifier`, whichever kind it is.
+        public var identifier: String
+        /// JPEG bytes, already downscaled and stripped of metadata by the
+        /// same path a shared flower's picture takes.
+        public var jpeg: Data
+
+        public init(identifier: String, jpeg: Data) {
+            self.identifier = identifier
+            self.jpeg = jpeg
+        }
+    }
 
     public init(
         formatVersion: Int = SaveArchive.currentFormatVersion,
         id: String = UUID().uuidString,
         appVersion: String? = SaveArchive.currentAppVersion,
         exportedAt: Date = Date(),
-        simulation: Simulation
+        simulation: Simulation,
+        photographs: [Photograph]? = nil
     ) {
         self.formatVersion = formatVersion
         self.id = id
         self.appVersion = appVersion
         self.exportedAt = exportedAt.roundedToSecond
         self.simulation = simulation
+        self.photographs = photographs
+    }
+
+    /// How many pictures travel with the colony.
+    public var photographCount: Int { photographs?.count ?? 0 }
+
+    /// The photographs brought within bounds: none empty, none past the
+    /// per-picture cap, no more than a garden could hold. Dropping rather
+    /// than refusing, because a picture is the one part of a backup the
+    /// colony can do without.
+    public func validatedPhotographs() -> [Photograph] {
+        (photographs ?? [])
+            .filter { !$0.identifier.isEmpty && $0.identifier.count <= 128 }
+            .filter { !$0.jpeg.isEmpty && $0.jpeg.count <= Self.maximumPhotographBytes }
+            .prefix(Self.maximumPhotographs)
+            .map { $0 }
     }
 
     /// `CFBundleShortVersionString`, which `project.yml` sets from
@@ -108,6 +157,7 @@ public struct SaveArchive: Codable, Equatable, Sendable, Identifiable {
         public let beeCount: Int
         public let flowerCount: Int
         public let generation: Int
+        public let photographCount: Int
 
         // No formatted sentence here on purpose. `RestoreBackupView` lays the
         // fields out against the same fields of the colony on the phone, which
@@ -125,7 +175,8 @@ public struct SaveArchive: Codable, Equatable, Sendable, Identifiable {
             status: snapshot.status,
             beeCount: snapshot.population.total,
             flowerCount: snapshot.patches.count,
-            generation: simulation.world.lineage.generation
+            generation: simulation.world.lineage.generation,
+            photographCount: photographCount
         )
     }
 
@@ -193,7 +244,9 @@ public struct SaveArchive: Codable, Equatable, Sendable, Identifiable {
             guard isPlausible(data), archive.simulation.world.hive.resources.cellsOccupied <= maximumCellsOfStores else {
                 throw Failure.notASaveFile
             }
-            return archive
+            var checked = archive
+            checked.photographs = archive.photographs.map { _ in archive.validatedPhotographs() }
+            return checked
         }
 
         // It would not decode. That is usually because it is not a backup, and

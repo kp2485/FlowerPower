@@ -735,8 +735,15 @@ public final class GameStore {
     /// on: if the colony will not encode, the save on disk is in the same
     /// trouble, and the player should be told rather than handed an empty
     /// file.
-    public func exportArchive() throws -> Data {
-        try SaveArchive(simulation: simulation).encode()
+    ///
+    /// The photographs are supplied by the caller, as a share's picture is,
+    /// because the engine has no idea what a photograph is: the app loads
+    /// each one by the identifier its patch carries and hands the bytes in.
+    public func exportArchive(photographs: [SaveArchive.Photograph] = []) throws -> Data {
+        try SaveArchive(
+            simulation: simulation,
+            photographs: photographs.isEmpty ? nil : photographs
+        ).encode()
     }
 
     /// Replaces this device's colony with the one in a backup.

@@ -86,6 +86,9 @@ struct RestoreBackupView: View {
                 LabeledContent("Season", value: summary.season.rawValue.capitalized)
                 LabeledContent("Bees", value: "\(summary.beeCount)")
                 LabeledContent("Flowers", value: "\(summary.flowerCount)")
+                if summary.photographCount > 0 {
+                    LabeledContent("Photographs", value: "\(summary.photographCount)")
+                }
                 if summary.generation > 1 {
                     LabeledContent("Generation", value: "\(summary.generation)")
                 }
@@ -100,7 +103,7 @@ struct RestoreBackupView: View {
                 Section {
                     Button("Restore This Colony") { restore(archive) }
                 } footer: {
-                    Text("It picks up from the day it was saved. A photograph taken on another phone stays on that phone, so its flower arrives with a blank thumbnail.")
+                    Text(pickingUp(archive))
                 }
             } else {
                 Section {
@@ -111,7 +114,7 @@ struct RestoreBackupView: View {
                 } header: {
                     Text("On This Phone")
                 } footer: {
-                    Text("Restoring replaces all of it — the colony, the comb, the queens and the flowers in your garden — with what is in the backup, and it picks up from the day it was saved. Your photographs stay where they are, so a flower from another phone arrives with a blank thumbnail. There is no undo.")
+                    Text("Restoring replaces all of it — the colony, the comb, the queens and the flowers in your garden — with what is in the backup. " + pickingUp(archive) + " There is no undo.")
                 }
 
                 Section {
@@ -138,7 +141,23 @@ struct RestoreBackupView: View {
         }
     }
 
+    /// What happens to the pictures, which depends on whether the file
+    /// brought any.
+    private func pickingUp(_ archive: SaveArchive) -> String {
+        if archive.photographCount > 0 {
+            return "It picks up from the day it was saved, and the photographs in the file come with it: the garden shows them from the backup wherever the originals are."
+        }
+        return "It picks up from the day it was saved. This backup carries no photographs, so a flower photographed on another phone arrives with a blank thumbnail."
+    }
+
     private func restore(_ archive: SaveArchive) {
+        // The pictures first, so a flower is never on screen before its
+        // photograph is in place to be shown. Kept under the identifier the
+        // patch carries: Photos on this phone knows nothing by that name, and
+        // the loader looks here next.
+        for photograph in archive.validatedPhotographs() {
+            SharedImageStore.keep(photograph.jpeg, forIdentifier: photograph.identifier)
+        }
         store.restore(from: archive)
         dismiss()
     }
