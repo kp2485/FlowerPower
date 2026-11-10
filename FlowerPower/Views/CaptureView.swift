@@ -120,18 +120,19 @@ struct CaptureView: View {
             }
         }
         .sensoryFeedback(.success, trigger: recordings)
+        // The camera screen lays its own controls out against the safe area
+        // and runs its preview under it, so nothing is applied here.
         .fullScreenCover(isPresented: $isUsingCamera) {
             CameraPicker(
-                onCapture: { image in
+                onCapture: { capture in
                     isUsingCamera = false
                     capturing = Task { @MainActor in
-                        let working = await Self.workingImage(from: image)
-                        await handle(working, original: image, from: .camera)
+                        let working = await Self.workingImage(from: capture.image)
+                        await handle(working, from: .camera(capture))
                     }
                 },
                 onCancel: { isUsingCamera = false }
             )
-            .ignoresSafeArea()
         }
         // `.task` hands back a @Sendable closure, which does not inherit the
         // view's main-actor isolation. Both bodies touch main-actor state.
@@ -166,8 +167,9 @@ struct CaptureView: View {
 
     /// Where a photograph came from, which decides what is recorded for it.
     private enum Source {
-        /// Just taken: nowhere yet, so it is saved to the library first.
-        case camera
+        /// Just taken: nowhere yet, so it is saved to the library first — as
+        /// the camera encoded it, which the capture carries.
+        case camera(CameraCapture)
         /// Chosen from the library: already there, and already knowing when it
         /// was taken. `nil` if the picker did not say which photograph it was,
         /// which with the shared library it should.
@@ -211,7 +213,7 @@ struct CaptureView: View {
                 stage = .failed("That image could not be read.")
                 return
             }
-            await handle(image, original: nil, from: .library(item.itemIdentifier))
+            await handle(image, from: .library(item.itemIdentifier))
         } catch {
             // Picking another photograph, or closing, cancels this one. The
             // new one owns the screen now and this must not write over it.
@@ -226,10 +228,10 @@ struct CaptureView: View {
     ///
     /// `image` is the working copy — upright and at most
     /// `PhotoLibrary.workingPixelSize` on its long edge — and is what is
-    /// identified, shown and learned from. `original` is the full camera
+    /// identified, shown and learned from. A camera `source` carries the full
     /// capture, which is what goes into the photo library.
     @MainActor
-    private func handle(_ image: UIImage, original: UIImage?, from source: Source) async {
+    private func handle(_ image: UIImage, from source: Source) async {
         do {
             stage = .identifying(image)
 
@@ -268,9 +270,9 @@ struct CaptureView: View {
 
             let saved: PhotoLibrary.PhotoMetadata
             switch source {
-            case .camera:
+            case .camera(let capture):
                 // Nothing holds this photograph yet, so bank it.
-                saved = try await PhotoLibrary.save(original ?? image)
+                saved = try await PhotoLibrary.save(capture)
             case .library(let identifier):
                 saved = try await libraryPhoto(image, identifier: identifier)
             }
