@@ -64,7 +64,10 @@ enum PhotoLibrary {
 
         let options = PHImageRequestOptions()
         options.isNetworkAccessAllowed = true
-        options.deliveryMode = .opportunistic
+        // One callback, with the real pixels. Opportunistic delivery sent a
+        // blurred placeholder first and the final image later, and the
+        // garden briefly showed the blur on every scroll.
+        options.deliveryMode = .highQualityFormat
         options.resizeMode = .fast
 
         // Opportunistic delivery calls back more than once, and the callbacks
@@ -120,6 +123,29 @@ enum PhotoLibrary {
             localIdentifier: localIdentifier,
             takenAt: asset.creationDate ?? Date()
         )
+    }
+
+    /// The photograph's own file, as the library holds it: the full
+    /// resolution and every byte of metadata the camera wrote. For sending
+    /// and backing up, where the caller re-encodes it — nothing hands these
+    /// bytes on as they are, because of that metadata. `nil` when the asset
+    /// is not in this phone's library or cannot be read.
+    static func originalData(for localIdentifier: String) async -> Data? {
+        guard let asset = asset(for: localIdentifier) else { return nil }
+
+        let options = PHImageRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.version = .current
+
+        let once = Once()
+        return await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImageDataAndOrientation(
+                for: asset, options: options
+            ) { data, _, _, _ in
+                guard once.claim() else { return }
+                continuation.resume(returning: data)
+            }
+        }
     }
 
     /// Saves a photograph straight from the camera and returns its metadata.
@@ -202,10 +228,23 @@ enum PhotoLibrary {
 
     private static func keepInApp(_ image: UIImage, encoded data: Data, takenAt: Date) throws -> PhotoMetadata {
         let id = "capture-" + UUID().uuidString
-        guard SharedImageStore.store(image.jpegData(compressionQuality: 0.85) ?? data, forShare: id) else {
+        // Kept as the camera's own bytes when they are a format the store can
+        // show, and as a JPEG of them otherwise. A re-encode here cost a
+        // generation that the garden and every share afterwards inherited.
+        let kept = Self.isKeepable(data) ? data : (image.jpegData(compressionQuality: 0.9) ?? data)
+        guard SharedImageStore.store(kept, forShare: id) else {
             throw PhotoLibraryError.couldNotSave
         }
         return PhotoMetadata(localIdentifier: FlowerShare.localIdentifier(forShare: id), takenAt: takenAt)
+    }
+
+    /// Whether the store can show these bytes as they are: an image the
+    /// guarded decoder can read, with a sensible pixel count. HEIC included —
+    /// the store's files are named `.jpg`, and ImageIO reads them by content
+    /// rather than by name.
+    private static func isKeepable(_ data: Data) -> Bool {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
+        return pixelSize(of: source) != nil
     }
 
     // MARK: - Sizing
@@ -220,26 +259,59 @@ enum PhotoLibrary {
     /// pixels square, which is gigabytes the moment anything decodes it.
     static let maximumPixels = 120_000_000
 
-    /// Decodes image data straight to a working-size image, with its EXIF
-    /// orientation applied so the pixels are upright and `.up` is true.
-    static func workingImage(from data: Data) -> UIImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+    /// Decodes image data straight to an image no larger than `maxPixelSize`
+    /// on its long edge, with its EXIF orientation applied so the pixels are
+    /// upright and `.up` is true.
+    static func workingImage(from data: Data, maxPixelSize: CGFloat = workingPixelSize) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        return workingImage(from: source, maxPixelSize: maxPixelSize)
+    }
+
+    /// The width and height a file claims, before anything decodes it, or
+    /// nil when it is not an image or claims more pixels than any photograph
+    /// has.
+    static func pixelSize(of source: CGImageSource) -> CGSize? {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = properties[kCGImagePropertyPixelWidth] as? Int,
               let height = properties[kCGImagePropertyPixelHeight] as? Int,
               width.multipliedReportingOverflow(by: height).partialValue <= maximumPixels,
               width > 0, height > 0
         else { return nil }
+        // Pixel width and height are of the stored pixels; an orientation of
+        // 5 or above turns them on their side when the image is drawn.
+        let orientation = properties[kCGImagePropertyOrientation] as? UInt32 ?? 1
+        return orientation >= 5
+            ? CGSize(width: height, height: width)
+            : CGSize(width: width, height: height)
+    }
+
+    static func workingImage(from source: CGImageSource, maxPixelSize: CGFloat) -> UIImage? {
+        guard pixelSize(of: source) != nil else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: workingPixelSize
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
         ]
         guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
             return nil
         }
         return UIImage(cgImage: cgImage)
+    }
+
+    /// Decodes just enough of a file for an aspect-fill square `side` pixels
+    /// across: the shorter edge comes out at least that long, the longer
+    /// edge follows the photograph's own proportions, and nothing past the
+    /// working size is ever decoded. A garden tile reads a few hundred
+    /// kilobytes of pixels this way where it used to decode the whole file.
+    static func downsampled(_ data: Data, coveringSquare side: CGFloat) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let size = pixelSize(of: source)
+        else { return nil }
+        let longer = max(size.width, size.height)
+        let shorter = min(size.width, size.height)
+        let needed = (side * longer / shorter).rounded(.up)
+        return workingImage(from: source, maxPixelSize: min(workingPixelSize, max(needed, side)))
     }
 
     /// The same for an image already decoded — a camera capture. Redrawn, so
